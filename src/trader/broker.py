@@ -97,7 +97,7 @@ class Broker:
             clean = symbol.replace(".NE", "")
             return Stock(clean, "SMART", "CAD")
         clean = symbol.replace(".TO", "")
-        return Stock(clean, "SMART", "CAD", primaryExchange="TSE")
+        return Stock(clean, "TSE", "CAD")
 
     async def get_historical_data(
         self,

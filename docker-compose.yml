@@ -11,6 +11,7 @@ services:
       IBC_ReadOnlyLogin: "no"
       READ_ONLY_API: "no"
       IBC_AcceptIncomingConnectionAction: "accept"
+      IBC_BypassOrderPrecautions: "yes"
     ports:
       - "4002:4002"
       - "4001:4001"

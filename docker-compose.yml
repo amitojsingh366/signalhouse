@@ -7,7 +7,8 @@ services:
       TWS_PASSWORD: ${IBKR_PASSWORD}
       TRADING_MODE: ${TRADING_MODE:-paper}
       TWS_SETTINGS_PATH: /home/ibgateway/Jts
-      IBC_ReadOnlyApi: "no"
+      IBC_ReadOnlyLogin: "no"
+      IBC_AcceptIncomingConnectionAction: "accept"
     ports:
       - "4002:4002"  # Paper trading API
       - "4001:4001"  # Live trading API

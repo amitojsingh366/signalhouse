@@ -87,12 +87,15 @@ class Broker:
             ))
         return positions
 
-    def make_tsx_contract(self, symbol: str) -> Stock:
-        """Create a Stock contract for a TSX-listed security.
+    def make_contract(self, symbol: str) -> Stock:
+        """Create a Stock contract for a Canadian-listed security.
 
-        Accepts symbols like 'RY.TO' or 'RY' — strips the .TO suffix
-        and routes to TSX via Smart routing.
+        Accepts symbols like 'RY.TO' (TSX) or 'AAPL.NE' (CBOE Canada CDR).
+        Routes TSX stocks via TSE, CDRs via SMART with no primaryExchange.
         """
+        if symbol.endswith(".NE"):
+            clean = symbol.replace(".NE", "")
+            return Stock(clean, "SMART", "CAD")
         clean = symbol.replace(".TO", "")
         return Stock(clean, "SMART", "CAD", primaryExchange="TSE")
 
@@ -103,7 +106,7 @@ class Broker:
         bar_size: str = "1 day",
     ) -> list[Any]:
         """Fetch historical bars for a symbol."""
-        contract = self.make_tsx_contract(symbol)
+        contract = self.make_contract(symbol)
         await self.ib.qualifyContractsAsync(contract)
         bars = await self.ib.reqHistoricalDataAsync(
             contract,
@@ -118,7 +121,7 @@ class Broker:
 
     async def buy(self, symbol: str, quantity: int, order_type: str = "market") -> Trade:
         """Place a buy order."""
-        contract = self.make_tsx_contract(symbol)
+        contract = self.make_contract(symbol)
         await self.ib.qualifyContractsAsync(contract)
 
         order: Order
@@ -136,7 +139,7 @@ class Broker:
 
     async def sell(self, symbol: str, quantity: int, order_type: str = "market") -> Trade:
         """Place a sell order."""
-        contract = self.make_tsx_contract(symbol)
+        contract = self.make_contract(symbol)
         await self.ib.qualifyContractsAsync(contract)
 
         order: Order

@@ -8,13 +8,27 @@ broker:
   account: ""  # Your IBKR account ID
 
 strategy:
-  # Universe: liquid TSX stocks + CAD-hedged ETFs
+  # Universe: liquid TSX stocks + CAD-hedged ETFs + CDRs
   symbols:
     # CAD-hedged ETFs
-    - "XSP.TO"   # S&P 500 CAD-hedged
-    - "ZQQ.TO"   # NASDAQ-100 CAD-hedged
+    - "XSP.TO"   # S&P 500 CAD-hedged (iShares)
+    - "ZQQ.TO"   # NASDAQ-100 CAD-hedged (BMO)
     - "ZSP.TO"   # S&P 500 CAD-hedged (BMO)
     - "HXS.TO"   # S&P 500 CAD-hedged (Horizons)
+    - "TEC.TO"   # Global Technology Leaders (TD)
+    - "XQQ.TO"   # NASDAQ-100 CAD-hedged (iShares)
+    - "QQC-F.TO" # NASDAQ-100 CAD-hedged (Invesco)
+    # CDRs — CAD-hedged single-stock on CBOE Canada (.NE suffix)
+    - "AAPL.NE"  # Apple
+    - "MSFT.NE"  # Microsoft
+    - "GOOG.NE"  # Alphabet
+    - "AMD.NE"   # AMD
+    - "ASML.NE"  # ASML
+    - "NVDA.NE"  # NVIDIA
+    - "AMZN.NE"  # Amazon
+    - "META.NE"  # Meta
+    - "TSLA.NE"  # Tesla
+    - "NFLX.NE"  # Netflix
     # Large-cap TSX stocks
     - "RY.TO"    # Royal Bank
     - "TD.TO"    # TD Bank

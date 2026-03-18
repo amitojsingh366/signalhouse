@@ -185,7 +185,7 @@ class Strategy:
             pnl_pct = (portfolio_value - self.initial_capital) / self.initial_capital * 100
 
         positions = []
-        for p in self.broker.get_positions():
+        for p in await self.broker.get_positions():
             pnl_pct_pos = 0.0
             if p.avg_cost > 0:
                 pnl_pct_pos = (p.current_price - p.avg_cost) / p.avg_cost * 100

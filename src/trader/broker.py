@@ -51,29 +51,29 @@ class Broker:
 
     def get_account_value(self) -> float:
         """Get total account net liquidation value in CAD."""
-        for item in self.ib.accountSummary():
+        for item in self.ib.accountValues():
             if item.tag == "NetLiquidation" and item.currency == "CAD":
                 return float(item.value)
         # Fallback: try base currency
-        for item in self.ib.accountSummary():
+        for item in self.ib.accountValues():
             if item.tag == "NetLiquidation":
                 return float(item.value)
         return 0.0
 
     def get_cash(self) -> float:
         """Get available cash in CAD."""
-        for item in self.ib.accountSummary():
+        for item in self.ib.accountValues():
             if item.tag == "AvailableFunds" and item.currency == "CAD":
                 return float(item.value)
         return 0.0
 
-    def get_positions(self) -> list[Position]:
+    async def get_positions(self) -> list[Position]:
         """Get all current positions."""
         positions = []
         for pos in self.ib.positions():
             contract = pos.contract
             ticker = self.ib.reqMktData(contract)
-            self.ib.sleep(1)  # Wait for market data
+            await asyncio.sleep(1)  # Wait for market data
             current_price = ticker.marketPrice()
             if current_price != current_price:  # NaN check
                 current_price = pos.avgCost

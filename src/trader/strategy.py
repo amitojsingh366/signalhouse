@@ -40,7 +40,10 @@ class Strategy:
             logger.warning("Broker disconnected, skipping scan")
             return
 
+        logger.info("Starting scan of %d symbols...", len(self.symbols))
+
         portfolio_value = self.broker.get_account_value()
+        logger.info("Portfolio value: $%.2f", portfolio_value)
 
         # Check drawdown limits
         if self.risk.check_drawdown(portfolio_value):
@@ -52,6 +55,8 @@ class Strategy:
 
         # 2. Scan for new entries
         await self._scan_entries(portfolio_value)
+
+        logger.info("Scan complete")
 
     async def _check_exits(self) -> None:
         """Check if any open positions should be closed."""
@@ -90,6 +95,8 @@ class Strategy:
             return
 
         candidates: list[tuple[str, float, list[str], float]] = []  # symbol, strength, reasons, atr
+        scanned = 0
+        errors = 0
 
         for symbol in self.symbols:
             # Skip if already holding
@@ -99,19 +106,31 @@ class Strategy:
             try:
                 bars = await self.broker.get_historical_data(symbol, duration="60 D")
                 if not bars:
+                    logger.debug("No bars for %s, skipping", symbol)
                     continue
 
                 df = bars_to_dataframe(bars)
                 df = compute_indicators(df, self.config)
                 result = generate_signal(df, self.config)
                 result.symbol = symbol
+                scanned += 1
 
                 if result.signal == Signal.BUY and result.strength >= 0.4:
                     atr = df["atr"].iloc[-1]
                     candidates.append((symbol, result.strength, result.reasons, atr))
+                    logger.info(
+                        "BUY candidate: %s (strength=%.2f, reasons=%s)",
+                        symbol, result.strength, result.reasons,
+                    )
 
             except Exception:
+                errors += 1
                 logger.exception("Error scanning %s", symbol)
+
+        logger.info(
+            "Scanned %d symbols — %d candidates, %d errors",
+            scanned, len(candidates), errors,
+        )
 
         if not candidates:
             return

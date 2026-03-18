@@ -24,10 +24,16 @@ class Notifier:
 
         try:
             async with aiohttp.ClientSession() as session:
-                await session.post(
+                resp = await session.post(
                     self.webhook_url,
                     json={"content": content},
                 )
+                if resp.status >= 400:
+                    logger.error(
+                        "Discord webhook returned %d: %s", resp.status, await resp.text()
+                    )
+                else:
+                    logger.info("Discord notification sent (status %d)", resp.status)
         except Exception:
             logger.exception("Failed to send Discord notification")
 

@@ -38,7 +38,7 @@ class Broker:
             port=self.port,
             clientId=self.client_id,
             account=self.account,
-            readonly=True,
+            readonly=False,
         )
         logger.info("Connected to IBKR — account: %s", self.ib.managedAccounts())
 

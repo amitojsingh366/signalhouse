@@ -64,16 +64,24 @@ async def run() -> None:
         try:
             logger.info("Connecting to IBKR (attempt %d/%d)...", attempt, max_retries)
             await broker.connect()
-            await strategy.initialize()
-            await notifier.send("**Bot started** — connected to IBKR")
             break
         except Exception:
             if attempt == max_retries:
                 logger.exception("Failed to connect to IBKR after %d attempts", max_retries)
                 await notifier.error_alert("Failed to connect to IBKR — giving up")
                 sys.exit(1)
-            logger.warning("Connection attempt %d failed, retrying in 15s...", attempt)
+            logger.warning(
+                "Connection attempt %d failed, retrying in 15s...", attempt, exc_info=True
+            )
             await asyncio.sleep(15)
+
+    # Initialize strategy (tolerates read-only mode)
+    try:
+        await strategy.initialize()
+    except Exception:
+        logger.warning("Strategy init had errors (possibly read-only mode), continuing anyway")
+
+    await notifier.send("**Bot started** — connected to IBKR")
 
     interval = config["schedule"]["scan_interval_minutes"] * 60
     daily_status_sent = False

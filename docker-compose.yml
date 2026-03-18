@@ -16,7 +16,7 @@ services:
       - "5900:5900"
     volumes:
       - ib-gateway-data:/home/ibgateway/Jts
-      - ./config/ibc.ini:/home/ibgateway/ibc/config.ini
+      - ibc-config:/home/ibgateway/ibc
 
   trader:
     build: .
@@ -28,3 +28,4 @@ services:
 
 volumes:
   ib-gateway-data:
+  ibc-config:

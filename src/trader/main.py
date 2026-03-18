@@ -83,6 +83,9 @@ async def run() -> None:
 
     await notifier.send("**Bot started** — connected to IBKR")
 
+    # Test order: buy 1 share of RY.TO and immediately sell it
+    await test_order(broker, notifier)
+
     interval = config["schedule"]["scan_interval_minutes"] * 60
     daily_status_sent = False
 
@@ -121,6 +124,32 @@ async def run() -> None:
         await notifier.send("**Bot stopped**")
         broker.disconnect()
         logger.info("Bot shut down cleanly")
+
+
+async def test_order(broker: Broker, notifier: Notifier) -> None:
+    """Buy 1 share of RY.TO and sell it back to verify API trading works."""
+    symbol = "RY.TO"
+    logger.info("=== TEST ORDER: Buying 1 x %s ===", symbol)
+    try:
+        trade = await broker.buy(symbol, 1)
+        fill_price = trade.orderStatus.avgFillPrice
+        logger.info("=== TEST ORDER: Buy filled @ $%.2f ===", fill_price)
+        await notifier.send(f"**Test order**: Bought 1 x {symbol} @ ${fill_price:.2f}")
+    except Exception:
+        logger.exception("=== TEST ORDER: Buy FAILED ===")
+        await notifier.error_alert(f"Test order FAILED for {symbol} — check API permissions")
+        return
+
+    # Sell it back
+    logger.info("=== TEST ORDER: Selling 1 x %s ===", symbol)
+    try:
+        trade = await broker.sell(symbol, 1)
+        fill_price = trade.orderStatus.avgFillPrice
+        logger.info("=== TEST ORDER: Sell filled @ $%.2f — test PASSED ===", fill_price)
+        await notifier.send(f"**Test order**: Sold 1 x {symbol} @ ${fill_price:.2f} — API trading works!")
+    except Exception:
+        logger.exception("=== TEST ORDER: Sell FAILED ===")
+        await notifier.error_alert(f"Test sell FAILED for {symbol}")
 
 
 def main() -> None:

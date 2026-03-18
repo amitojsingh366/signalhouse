@@ -119,8 +119,21 @@ class Broker:
         )
         return bars
 
+    async def _wait_for_fill(self, trade: Trade, timeout: float = 30) -> Trade:
+        """Wait for a trade to fill or fail. Raises on rejection/cancellation."""
+        start = asyncio.get_event_loop().time()
+        while asyncio.get_event_loop().time() - start < timeout:
+            status = trade.orderStatus.status
+            if status == "Filled":
+                return trade
+            if status in ("Cancelled", "Inactive", "ApiCancelled"):
+                last_log = trade.log[-1].message if trade.log else "unknown reason"
+                raise RuntimeError(f"Order {status}: {last_log}")
+            await asyncio.sleep(0.5)
+        raise RuntimeError(f"Order timed out after {timeout}s (status: {trade.orderStatus.status})")
+
     async def buy(self, symbol: str, quantity: int, order_type: str = "market") -> Trade:
-        """Place a buy order."""
+        """Place a buy order and wait for fill confirmation."""
         contract = self.make_contract(symbol)
         await self.ib.qualifyContractsAsync(contract)
 
@@ -135,10 +148,10 @@ class Broker:
 
         trade = self.ib.placeOrder(contract, order)
         logger.info("BUY %d x %s — order ID %s", quantity, symbol, trade.order.orderId)
-        return trade
+        return await self._wait_for_fill(trade)
 
     async def sell(self, symbol: str, quantity: int, order_type: str = "market") -> Trade:
-        """Place a sell order."""
+        """Place a sell order and wait for fill confirmation."""
         contract = self.make_contract(symbol)
         await self.ib.qualifyContractsAsync(contract)
 
@@ -153,4 +166,4 @@ class Broker:
 
         trade = self.ib.placeOrder(contract, order)
         logger.info("SELL %d x %s — order ID %s", quantity, symbol, trade.order.orderId)
-        return trade
+        return await self._wait_for_fill(trade)

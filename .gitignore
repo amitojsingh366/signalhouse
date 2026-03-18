@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Local config with secrets
+config/settings.local.yaml
+.env
+
+# Data files
+data/*.csv
+data/*.db
+
+# Logs
+logs/
+*.log

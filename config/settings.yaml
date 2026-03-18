@@ -1,0 +1,79 @@
+# Trading Bot Configuration
+# Copy to settings.local.yaml and fill in your values
+
+broker:
+  host: "127.0.0.1"
+  port: 4002  # 4002 = IB Gateway paper, 4001 = IB Gateway live
+  client_id: 1
+  account: ""  # Your IBKR account ID
+
+strategy:
+  # Universe: liquid TSX stocks + CAD-hedged ETFs
+  symbols:
+    # CAD-hedged ETFs
+    - "XSP.TO"   # S&P 500 CAD-hedged
+    - "ZQQ.TO"   # NASDAQ-100 CAD-hedged
+    - "ZSP.TO"   # S&P 500 CAD-hedged (BMO)
+    - "HXS.TO"   # S&P 500 CAD-hedged (Horizons)
+    # Large-cap TSX stocks
+    - "RY.TO"    # Royal Bank
+    - "TD.TO"    # TD Bank
+    - "SHOP.TO"  # Shopify
+    - "CNR.TO"   # CN Rail
+    - "ENB.TO"   # Enbridge
+    - "CP.TO"    # CP Rail
+    - "BMO.TO"   # BMO
+    - "BN.TO"    # Brookfield
+    - "CSU.TO"   # Constellation Software
+    - "ATD.TO"   # Alimentation Couche-Tard
+    - "MFC.TO"   # Manulife
+    - "SU.TO"    # Suncor
+    - "TRI.TO"   # Thomson Reuters
+    - "WCN.TO"   # Waste Connections
+    - "QSR.TO"   # Restaurant Brands
+    - "GIB-A.TO" # CGI Group
+    - "DOL.TO"   # Dollarama
+    - "SAP.TO"   # Saputo
+    - "MG.TO"    # Magna International
+    - "AEM.TO"   # Agnico Eagle Mines
+    - "WFG.TO"   # West Fraser Timber
+    - "CCL-B.TO" # CCL Industries
+    - "IFC.TO"   # Intact Financial
+    - "NTR.TO"   # Nutrien
+    - "ABX.TO"   # Barrick Gold
+    - "L.TO"     # Loblaw
+    - "FTS.TO"   # Fortis
+
+  # Signal parameters
+  momentum:
+    fast_period: 10
+    slow_period: 30
+    rsi_period: 14
+    rsi_oversold: 30
+    rsi_overbought: 70
+
+  mean_reversion:
+    bb_period: 20
+    bb_std: 2.0
+    lookback_days: 60
+
+  # Holding period
+  min_hold_days: 2
+  max_hold_days: 7
+
+risk:
+  max_position_pct: 0.50      # Max 50% of portfolio in one position
+  max_positions: 2             # Max simultaneous positions
+  stop_loss_pct: 0.05          # 5% hard stop loss
+  trailing_stop_pct: 0.03      # 3% trailing stop
+  max_daily_loss_pct: 0.08     # 8% max daily drawdown, halt trading
+  max_total_drawdown_pct: 0.20 # 20% max total drawdown, halt all trading
+
+notifications:
+  discord_webhook_url: ""  # Your Discord webhook URL
+
+schedule:
+  # Eastern Time
+  market_open: "09:30"
+  market_close: "16:00"
+  scan_interval_minutes: 15  # Check signals every 15 min during market hours

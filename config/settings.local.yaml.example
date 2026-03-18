@@ -1,0 +1,8 @@
+# Copy this file to settings.local.yaml and fill in your values
+# settings.local.yaml is gitignored and overrides settings.yaml
+
+broker:
+  account: "YOUR_IBKR_ACCOUNT_ID"
+
+notifications:
+  discord_webhook_url: "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL"

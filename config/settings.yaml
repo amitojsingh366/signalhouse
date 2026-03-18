@@ -17,7 +17,7 @@ strategy:
     - "HXS.TO"   # S&P 500 CAD-hedged (Horizons)
     - "TEC.TO"   # Global Technology Leaders (TD)
     - "XQQ.TO"   # NASDAQ-100 CAD-hedged (iShares)
-    - "QQC-F.TO" # NASDAQ-100 CAD-hedged (Invesco)
+    # QQC-F.TO removed — IBKR can't resolve hyphenated symbol
     # CDRs — CAD-hedged single-stock on CBOE Canada (.NE suffix)
     - "AAPL.NE"  # Apple
     - "MSFT.NE"  # Microsoft
@@ -45,13 +45,13 @@ strategy:
     - "TRI.TO"   # Thomson Reuters
     - "WCN.TO"   # Waste Connections
     - "QSR.TO"   # Restaurant Brands
-    - "GIB-A.TO" # CGI Group
+    # GIB-A.TO removed — IBKR can't resolve hyphenated symbol
     - "DOL.TO"   # Dollarama
     - "SAP.TO"   # Saputo
     - "MG.TO"    # Magna International
     - "AEM.TO"   # Agnico Eagle Mines
     - "WFG.TO"   # West Fraser Timber
-    - "CCL-B.TO" # CCL Industries
+    # CCL-B.TO removed — IBKR can't resolve hyphenated symbol
     - "IFC.TO"   # Intact Financial
     - "NTR.TO"   # Nutrien
     - "ABX.TO"   # Barrick Gold

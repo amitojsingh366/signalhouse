@@ -96,7 +96,7 @@ class Broker:
         if symbol.endswith(".NE"):
             clean = symbol.replace(".NE", "")
             return Stock(clean, "SMART", "CAD")
-        clean = symbol.replace(".TO", "").replace("-", " ")
+        clean = symbol.replace(".TO", "")
         return Stock(clean, "SMART", "CAD", primaryExchange="TSE")
 
     async def get_historical_data(

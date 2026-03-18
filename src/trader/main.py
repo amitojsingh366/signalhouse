@@ -58,15 +58,22 @@ async def run() -> None:
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
 
-    # Connect to IBKR
-    try:
-        await broker.connect()
-        await strategy.initialize()
-        await notifier.send("**Bot started** — connected to IBKR")
-    except Exception:
-        logger.exception("Failed to connect to IBKR")
-        await notifier.error_alert("Failed to connect to IBKR — is IB Gateway running?")
-        sys.exit(1)
+    # Connect to IBKR with retries (IB Gateway may take time to start)
+    max_retries = 10
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info("Connecting to IBKR (attempt %d/%d)...", attempt, max_retries)
+            await broker.connect()
+            await strategy.initialize()
+            await notifier.send("**Bot started** — connected to IBKR")
+            break
+        except Exception:
+            if attempt == max_retries:
+                logger.exception("Failed to connect to IBKR after %d attempts", max_retries)
+                await notifier.error_alert("Failed to connect to IBKR — giving up")
+                sys.exit(1)
+            logger.warning("Connection attempt %d failed, retrying in 15s...", attempt)
+            await asyncio.sleep(15)
 
     interval = config["schedule"]["scan_interval_minutes"] * 60
     daily_status_sent = False

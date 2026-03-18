@@ -83,8 +83,11 @@ async def run() -> None:
 
     await notifier.send("**Bot started** — connected to IBKR")
 
-    # Test order: buy 1 share of RY.TO and immediately sell it
-    await test_order(broker, notifier)
+    # Test order: buy 1 share of RY.TO and immediately sell it (only during market hours)
+    if is_weekday() and is_market_hours(config):
+        await test_order(broker, notifier)
+    else:
+        logger.info("Skipping test order — market is closed")
 
     interval = config["schedule"]["scan_interval_minutes"] * 60
     daily_status_sent = False

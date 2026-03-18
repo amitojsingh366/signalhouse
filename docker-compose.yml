@@ -9,6 +9,7 @@ services:
       TWS_SETTINGS_PATH: /home/ibgateway/Jts
       VNC_SERVER_PASSWORD: "trader"
       IBC_ReadOnlyLogin: "no"
+      IBC_ReadOnlyApi: "no"
       IBC_AcceptIncomingConnectionAction: "accept"
     ports:
       - "4002:4002"

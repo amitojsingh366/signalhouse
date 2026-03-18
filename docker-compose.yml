@@ -11,11 +11,12 @@ services:
       IBC_ReadOnlyLogin: "no"
       IBC_AcceptIncomingConnectionAction: "accept"
     ports:
-      - "4002:4002"  # Paper trading API
-      - "4001:4001"  # Live trading API
-      - "5900:5900"  # VNC (for initial setup)
+      - "4002:4002"
+      - "4001:4001"
+      - "5900:5900"
     volumes:
       - ib-gateway-data:/home/ibgateway/Jts
+      - ./config/ibc.ini:/home/ibgateway/ibc/config.ini
 
   trader:
     build: .

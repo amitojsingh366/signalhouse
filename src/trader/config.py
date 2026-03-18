@@ -26,7 +26,10 @@ def load_config(config_dir: Path | None = None) -> dict[str, Any]:
       DISCORD_WEBHOOK_URL → notifications.discord_webhook_url
     """
     if config_dir is None:
-        config_dir = Path(__file__).parent.parent.parent / "config"
+        # Check working directory first (Docker), then source tree
+        cwd_config = Path.cwd() / "config"
+        src_config = Path(__file__).parent.parent.parent / "config"
+        config_dir = cwd_config if (cwd_config / "settings.yaml").exists() else src_config
 
     base_path = config_dir / "settings.yaml"
     local_path = config_dir / "settings.local.yaml"

@@ -99,6 +99,18 @@ async def run() -> None:
             now = datetime.now(ET)
 
             if is_weekday() and is_market_hours(config):
+                # Auto-reconnect if broker dropped
+                if not broker.is_connected:
+                    logger.warning("Broker disconnected — attempting reconnect...")
+                    try:
+                        await broker.connect()
+                        logger.info("Reconnected to IBKR")
+                        await notifier.send("**Reconnected** to IBKR after disconnect")
+                    except Exception:
+                        logger.exception("Reconnect failed, will retry next cycle")
+                        await asyncio.sleep(15)
+                        continue
+
                 # Reset daily tracking at market open
                 if now.time() < time(9, 45):
                     risk.reset_daily(broker.get_account_value())

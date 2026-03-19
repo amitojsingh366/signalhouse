@@ -17,6 +17,9 @@ services:
       - "4002:4002"
       - "4001:4001"
       - "5900:5900"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     volumes:
       - ib-gateway-data:/home/ibgateway/Jts
 

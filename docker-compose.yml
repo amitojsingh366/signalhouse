@@ -22,13 +22,33 @@ services:
       - 1.1.1.1
     volumes:
       - ib-gateway-data:/home/ibgateway/Jts
+    healthcheck:
+      # Check if the API port is accepting connections
+      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/4002' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+    labels:
+      - "autoheal=true"
+
+  # Auto-restart unhealthy containers (e.g., ib-gateway after failed login)
+  autoheal:
+    image: willfarrell/autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: "autoheal"
+      AUTOHEAL_INTERVAL: 60
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
   trader:
     build: .
     restart: unless-stopped
     network_mode: "service:ib-gateway"
     depends_on:
-      - ib-gateway
+      ib-gateway:
+        condition: service_healthy
     volumes:
       - ./config:/app/config:ro
       - ./logs:/app/logs

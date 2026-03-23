@@ -45,14 +45,10 @@ services:
   trader:
     build: .
     restart: unless-stopped
-    environment:
-      IBKR_HOST: ib-gateway
+    network_mode: "service:ib-gateway"
     depends_on:
       ib-gateway:
         condition: service_healthy
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     volumes:
       - ./config:/app/config:ro
       - ./logs:/app/logs

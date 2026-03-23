@@ -91,6 +91,8 @@ async def run() -> None:
 
     interval = config["schedule"]["scan_interval_minutes"] * 60
     daily_status_sent = False
+    consecutive_reconnect_failures = 0
+    max_reconnect_failures = 5
 
     logger.info("Bot running — scanning every %d minutes during market hours", interval // 60)
 
@@ -106,8 +108,22 @@ async def run() -> None:
                         await broker.connect()
                         logger.info("Reconnected to IBKR")
                         await notifier.send("**Reconnected** to IBKR after disconnect")
+                        consecutive_reconnect_failures = 0
                     except Exception:
-                        logger.exception("Reconnect failed, will retry next cycle")
+                        consecutive_reconnect_failures += 1
+                        logger.exception(
+                            "Reconnect failed (%d/%d)",
+                            consecutive_reconnect_failures,
+                            max_reconnect_failures,
+                        )
+                        if consecutive_reconnect_failures >= max_reconnect_failures:
+                            logger.error(
+                                "Too many reconnect failures — exiting for restart"
+                            )
+                            await notifier.error_alert(
+                                "Too many reconnect failures — restarting bot"
+                            )
+                            sys.exit(1)
                         await asyncio.sleep(15)
                         continue
 

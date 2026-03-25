@@ -603,22 +603,44 @@ async def _send_insights_embeds(
         inline=True,
     )
 
-    # Holdings with signals
+    # Holdings with signals and actionable advice
     for h in insights["holdings"]:
-        sig_emoji = {
-            "BUY": "\U0001f7e2", "SELL": "\U0001f534", "HOLD": "\U0001f7e1"
-        }.get(h["signal"], "\u26AA")
+        action = h.get("action", "HOLD")
+        action_emojis = {
+            "HOLD": "\U0001f7e1",    # yellow — stay put
+            "HOLD+": "\U0001f7e2",   # green — hold or add
+            "SELL": "\U0001f534",    # red — exit
+            "SWAP": "\U0001f504",    # arrows — swap to something better
+        }
+        action_emoji = action_emojis.get(action, "\u26AA")
         pnl_emoji = "\U0001f7e2" if h["pnl_pct"] >= 0 else "\U0001f534"
+
+        # Build value text
         top_reasons = h["reasons"][:2]
         reasons_str = " | ".join(r for r in top_reasons if not r.startswith("Price:"))
+        detail = h.get("action_detail", "")
+
+        value_lines = [
+            f"{h['quantity']:.4f} sh @ ${h['price']:.2f} "
+            f"{pnl_emoji} {h['pnl_pct']:+.1f}%",
+        ]
+        if reasons_str:
+            value_lines.append(reasons_str)
+        if detail:
+            value_lines.append(f"**\u27A1 {detail}**")
+
+        # Show swap alternative if one exists
+        alt = h.get("alternative")
+        if alt:
+            value_lines.append(
+                f"\U0001f4A1 Consider **{alt['symbol']}** "
+                f"(BUY {alt['strength']:.0%}, ${alt['price']:.2f})"
+            )
+
         embed.add_field(
-            name=f"{sig_emoji} {h['symbol']} ({h['signal']})",
-            value=(
-                f"{h['quantity']:.4f} sh @ ${h['price']:.2f} "
-                f"{pnl_emoji} {h['pnl_pct']:+.1f}%\n"
-                f"{reasons_str}"
-            ),
-            inline=True,
+            name=f"{action_emoji} {h['symbol']} \u2014 {action}",
+            value="\n".join(value_lines),
+            inline=False,
         )
 
     embed.set_footer(text=now_str)

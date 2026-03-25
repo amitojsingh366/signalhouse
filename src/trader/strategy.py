@@ -399,10 +399,132 @@ class Strategy:
                     pass
         return None
 
+    async def _find_better_alternative(
+        self,
+        symbol: str,
+        holding_signal: SignalResult,
+        live_prices: dict[str, float],
+    ) -> dict[str, Any] | None:
+        """Find a stronger BUY signal to potentially replace a weak holding.
+
+        Looks in the same sector first, then the broader universe.
+        Returns info about the best alternative, or None.
+        """
+        sector = self.get_sector(symbol)
+        held_symbols = set(self.portfolio.holdings.keys())
+
+        # Get sector peers first, then a sample of the broader universe
+        candidates: list[str] = []
+        for sym in self.symbols:
+            if sym in held_symbols or sym == symbol:
+                continue
+            if self.get_sector(sym) == sector:
+                candidates.insert(0, sym)  # sector peers first
+            elif len(candidates) < 20:
+                candidates.append(sym)
+
+        best: dict[str, Any] | None = None
+        for candidate in candidates[:15]:  # limit for speed
+            try:
+                df = await self.market_data.get_historical_data(
+                    candidate, period="60d"
+                )
+                if df is None or len(df) < 35:
+                    continue
+                df = compute_indicators(df, self.config)
+                sent = await self.sentiment.analyze(candidate)
+                result = generate_signal(
+                    df, self.config, sentiment_score=sent.total_score
+                )
+                if result.signal != Signal.BUY or result.strength < 0.4:
+                    continue
+
+                price = float(df["close"].iloc[-1])
+                cand_sector = self.get_sector(candidate)
+                is_same_sector = cand_sector == sector
+
+                # Pick the strongest buy, preferring same-sector swaps
+                if best is None or (
+                    result.strength > best["strength"]
+                    or (is_same_sector and not best.get("same_sector"))
+                ):
+                    reasons = list(result.reasons) + sent.reasons
+                    best = {
+                        "symbol": candidate,
+                        "signal": result.signal.value,
+                        "strength": result.strength,
+                        "price": price,
+                        "sector": cand_sector,
+                        "same_sector": is_same_sector,
+                        "reasons": reasons[:3],
+                    }
+            except Exception:
+                continue
+
+        return best
+
+    def _holding_action(
+        self,
+        signal_result: SignalResult,
+        pnl_pct: float,
+        alternative: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Decide actionable advice for a holding: HOLD, SELL, or SWAP.
+
+        Returns {"action": str, "detail": str, "alternative": ... | None}.
+        """
+        sig = signal_result.signal
+        strength = signal_result.strength
+
+        # Strong sell signal → recommend selling
+        if sig == Signal.SELL and strength >= 0.3:
+            if alternative:
+                return {
+                    "action": "SWAP",
+                    "detail": (
+                        f"Sell signal ({strength:.0%}) — consider swapping to "
+                        f"{alternative['symbol']} (BUY {alternative['strength']:.0%})"
+                    ),
+                    "alternative": alternative,
+                }
+            return {
+                "action": "SELL",
+                "detail": f"Sell signal ({strength:.0%}) — consider exiting",
+                "alternative": None,
+            }
+
+        # Weak hold with a much better alternative → suggest swap
+        if sig == Signal.HOLD and alternative and alternative["strength"] >= 0.5:
+            return {
+                "action": "SWAP",
+                "detail": (
+                    f"Holding flat — {alternative['symbol']} has a stronger "
+                    f"outlook (BUY {alternative['strength']:.0%})"
+                ),
+                "alternative": alternative,
+            }
+
+        # Buy signal on current holding → hold or add
+        if sig == Signal.BUY:
+            return {
+                "action": "HOLD+",
+                "detail": f"Buy signal ({strength:.0%}) — hold or consider adding",
+                "alternative": None,
+            }
+
+        # Default hold
+        return {
+            "action": "HOLD",
+            "detail": "No strong signal — continue holding",
+            "alternative": None,
+        }
+
     async def get_daily_insights(self) -> dict[str, Any]:
         """Generate market insights for holdings and notable movers.
 
         Used for morning pre-market briefing and evening recap.
+        Each holding includes an actionable recommendation (hold/sell/swap)
+        and a potential better alternative if one exists.
         """
         held_symbols = list(self.portfolio.holdings.keys())
         prices = (
@@ -410,7 +532,7 @@ class Strategy:
             if held_symbols else {}
         )
 
-        # Analyse each holding
+        # Analyse each holding with actionable advice
         holding_insights: list[dict[str, Any]] = []
         for symbol, h in self.portfolio.holdings.items():
             price = prices.get(symbol, h["avg_cost"])
@@ -419,6 +541,16 @@ class Strategy:
                 if h["avg_cost"] > 0 else 0.0
             )
             signal_result = await self.analyze_symbol(symbol)
+
+            # Find a better alternative if holding is weak
+            alternative = None
+            if signal_result.signal != Signal.BUY:
+                alternative = await self._find_better_alternative(
+                    symbol, signal_result, prices
+                )
+
+            advice = self._holding_action(signal_result, pnl_pct, alternative)
+
             holding_insights.append({
                 "symbol": symbol,
                 "quantity": h["quantity"],
@@ -429,6 +561,9 @@ class Strategy:
                 "strength": signal_result.strength,
                 "reasons": signal_result.reasons,
                 "sector": self.get_sector(symbol),
+                "action": advice["action"],
+                "action_detail": advice["detail"],
+                "alternative": advice.get("alternative"),
             })
 
         # Get premarket movers

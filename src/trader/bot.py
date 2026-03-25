@@ -115,8 +115,92 @@ class RecheckView(discord.ui.View):
 # Confirmation View for Screenshot Upload
 # ---------------------------------------------------------------------------
 
+def _build_upload_embed(parsed: list[dict[str, Any]]) -> discord.Embed:
+    """Build the confirmation embed showing parsed holdings."""
+    lines = []
+    for h in parsed:
+        lines.append(
+            f"\u2022 **{h['symbol']}** \u2014 {h['quantity']:.4f} shares, "
+            f"${h['market_value_cad']:.2f} CAD"
+        )
+    embed = discord.Embed(
+        title="Parsed Holdings \u2014 Confirm?",
+        description="\n".join(lines),
+        color=0x3498DB,
+    )
+    embed.set_footer(text="This will replace all current holdings in the tracker.")
+    return embed
+
+
+class EditSymbolModal(discord.ui.Modal):
+    """Modal to edit a single symbol's parsed data."""
+
+    def __init__(
+        self,
+        parsed: list[dict[str, Any]],
+        index: int,
+        portfolio: Portfolio,
+        risk: RiskManager,
+    ) -> None:
+        h = parsed[index]
+        super().__init__(title=f"Edit Symbol {index + 1}/{len(parsed)}")
+        self.parsed = parsed
+        self.index = index
+        self.portfolio = portfolio
+        self.risk = risk
+
+        self.symbol_input = discord.ui.TextInput(
+            label="Symbol",
+            default=h["symbol"],
+            required=True,
+            max_length=20,
+        )
+        self.quantity_input = discord.ui.TextInput(
+            label="Quantity (shares)",
+            default=f"{h['quantity']:.4f}",
+            required=True,
+            max_length=20,
+        )
+        self.value_input = discord.ui.TextInput(
+            label="Market Value (CAD)",
+            default=f"{h['market_value_cad']:.2f}",
+            required=True,
+            max_length=20,
+        )
+
+        self.add_item(self.symbol_input)
+        self.add_item(self.quantity_input)
+        self.add_item(self.value_input)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        try:
+            self.parsed[self.index] = {
+                "symbol": self.symbol_input.value.strip().upper(),
+                "quantity": float(self.quantity_input.value.strip()),
+                "market_value_cad": float(self.value_input.value.strip()),
+            }
+        except ValueError:
+            await interaction.response.send_message(
+                "Invalid number — quantity and value must be numeric.", ephemeral=True
+            )
+            return
+
+        next_idx = self.index + 1
+        if next_idx < len(self.parsed):
+            # Show modal for next symbol
+            modal = EditSymbolModal(
+                self.parsed, next_idx, self.portfolio, self.risk
+            )
+            await interaction.response.send_modal(modal)
+        else:
+            # All symbols edited — show updated confirmation
+            embed = _build_upload_embed(self.parsed)
+            view = ConfirmUploadView(self.parsed, self.portfolio, self.risk)
+            await interaction.response.edit_message(embed=embed, view=view)
+
+
 class ConfirmUploadView(discord.ui.View):
-    """Yes/No buttons to confirm screenshot-parsed holdings."""
+    """Yes/No/Edit buttons to confirm screenshot-parsed holdings."""
 
     def __init__(
         self,
@@ -124,7 +208,7 @@ class ConfirmUploadView(discord.ui.View):
         portfolio: Portfolio,
         risk: RiskManager,
     ) -> None:
-        super().__init__(timeout=120)
+        super().__init__(timeout=300)
         self.parsed = parsed
         self.portfolio = portfolio
         self.risk = risk
@@ -139,6 +223,16 @@ class ConfirmUploadView(discord.ui.View):
             f"Portfolio updated with {len(self.parsed)} holdings."
         )
         self.stop()
+
+    @discord.ui.button(label="Edit", style=discord.ButtonStyle.primary, emoji="\u270F\uFE0F")
+    async def edit(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        if not self.parsed:
+            await interaction.response.send_message("Nothing to edit.", ephemeral=True)
+            return
+        modal = EditSymbolModal(self.parsed, 0, self.portfolio, self.risk)
+        await interaction.response.send_modal(modal)
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, emoji="\u274C")
     async def cancel(
@@ -486,20 +580,7 @@ async def upload_cmd(
         return
 
     # Show parsed results for confirmation
-    lines = []
-    for h in parsed:
-        lines.append(
-            f"\u2022 **{h['symbol']}** \u2014 {h['quantity']:.4f} shares, "
-            f"${h['market_value_cad']:.2f} CAD"
-        )
-
-    embed = discord.Embed(
-        title="Parsed Holdings \u2014 Confirm?",
-        description="\n".join(lines),
-        color=0x3498DB,
-    )
-    embed.set_footer(text="This will replace all current holdings in the tracker.")
-
+    embed = _build_upload_embed(parsed)
     view = ConfirmUploadView(parsed, bot.portfolio, bot.risk)
     await interaction.followup.send(embed=embed, view=view)
 

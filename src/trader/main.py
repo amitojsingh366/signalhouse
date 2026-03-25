@@ -11,6 +11,7 @@ from trader.config import load_config
 from trader.market_data import MarketData
 from trader.portfolio import Portfolio
 from trader.risk import RiskManager
+from trader.sentiment import SentimentAnalyzer
 from trader.strategy import Strategy
 
 
@@ -51,7 +52,8 @@ def main() -> None:
     portfolio.load()
     portfolio.sync_risk_manager(risk)
 
-    strategy = Strategy(market_data, risk, portfolio, config)
+    sentiment = SentimentAnalyzer(cdr_to_us=market_data.cdr_to_us)
+    strategy = Strategy(market_data, risk, portfolio, config, sentiment=sentiment)
 
     logger.info(
         "Starting bot — tracking %d symbols, %d holdings loaded",

@@ -12,6 +12,7 @@ from typing import Any
 from trader.market_data import MarketData
 from trader.portfolio import Portfolio
 from trader.risk import RiskManager
+from trader.sentiment import SentimentAnalyzer
 from trader.signals import Signal, SignalResult, compute_indicators, generate_signal
 
 logger = logging.getLogger(__name__)
@@ -24,11 +25,15 @@ class Strategy:
         risk: RiskManager,
         portfolio: Portfolio,
         config: dict[str, Any],
+        sentiment: SentimentAnalyzer | None = None,
     ) -> None:
         self.market_data = market_data
         self.risk = risk
         self.portfolio = portfolio
         self.config = config
+        self.sentiment = sentiment or SentimentAnalyzer(
+            cdr_to_us=getattr(market_data, "cdr_to_us", None)
+        )
         self.max_sector_pct: float = config["strategy"].get("max_sector_pct", 0.40)
 
         # Build flat symbol list + sector lookup from config
@@ -89,8 +94,14 @@ class Strategy:
             )
 
         df = compute_indicators(df, self.config)
-        result = generate_signal(df, self.config)
+
+        # Fetch sentiment (parallel with nothing, but cached so usually instant)
+        sent = await self.sentiment.analyze(symbol)
+        result = generate_signal(df, self.config, sentiment_score=sent.total_score)
         result.symbol = symbol
+
+        # Attach sentiment reasons
+        result.reasons.extend(sent.reasons)
 
         # Attach current price and ATR for context
         result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
@@ -117,14 +128,21 @@ class Strategy:
                     continue
 
                 df = compute_indicators(df, self.config)
-                result = generate_signal(df, self.config)
+
+                # Fetch sentiment (cached, so fast for repeated calls)
+                sent = await self.sentiment.analyze(symbol)
+                result = generate_signal(
+                    df, self.config, sentiment_score=sent.total_score
+                )
                 result.symbol = symbol
 
                 # Only include actionable signals
                 if result.signal == Signal.BUY and result.strength >= 0.4:
+                    result.reasons.extend(sent.reasons)
                     result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
                     results.append(result)
                 elif result.signal == Signal.SELL and result.strength >= 0.3:
+                    result.reasons.extend(sent.reasons)
                     result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
                     results.append(result)
 
@@ -183,12 +201,16 @@ class Strategy:
                 df = await self.market_data.get_historical_data(symbol, period="30d")
                 if df is not None and len(df) >= 35:
                     df = compute_indicators(df, self.config)
-                    result = generate_signal(df, self.config)
+                    sent = await self.sentiment.analyze(symbol)
+                    result = generate_signal(
+                        df, self.config, sentiment_score=sent.total_score
+                    )
                     if result.signal == Signal.SELL and result.strength >= 0.3:
+                        all_reasons = result.reasons + sent.reasons
                         alerts.append({
                             "symbol": symbol,
                             "reason": "Sell signal",
-                            "detail": ", ".join(result.reasons),
+                            "detail": ", ".join(all_reasons),
                             "severity": "medium",
                             "current_price": current_price,
                             "entry_price": h["avg_cost"],
@@ -232,7 +254,10 @@ class Strategy:
                 df = await self.market_data.get_historical_data(symbol, period="30d")
                 if df is not None and len(df) >= 35:
                     df = compute_indicators(df, self.config)
-                    result = generate_signal(df, self.config)
+                    sent = await self.sentiment.analyze(symbol)
+                    result = generate_signal(
+                        df, self.config, sentiment_score=sent.total_score
+                    )
                     if result.signal == Signal.SELL:
                         sell_score = result.strength
                     elif result.signal == Signal.HOLD:

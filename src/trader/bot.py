@@ -336,6 +336,7 @@ class TraderBot(commands.Bot):
         self.tree.add_command(holdings_cmd)
         self.tree.add_command(pnl_cmd)
         self.tree.add_command(recommend_cmd)
+        self.tree.add_command(check_cmd)
         self.tree.add_command(status_cmd)
 
         # Sync to guild (instant) rather than global (takes up to an hour)
@@ -814,6 +815,191 @@ async def _parse_screenshot(
     return resolved
 
 
+class EditHoldingModal(discord.ui.Modal):
+    """Modal to edit a single holding's data."""
+
+    def __init__(
+        self,
+        holdings_list: list[dict[str, Any]],
+        index: int,
+        portfolio: Portfolio,
+        risk: RiskManager,
+    ) -> None:
+        h = holdings_list[index]
+        super().__init__(title=f"Edit Holding {index + 1}/{len(holdings_list)}")
+        self.holdings_list = holdings_list
+        self.index = index
+        self.portfolio = portfolio
+        self.risk = risk
+
+        self.symbol_input = discord.ui.TextInput(
+            label="Symbol",
+            default=h["symbol"],
+            required=True,
+            max_length=20,
+        )
+        self.quantity_input = discord.ui.TextInput(
+            label="Quantity (shares)",
+            default=f"{h['quantity']:.4f}",
+            required=True,
+            max_length=20,
+        )
+        self.avg_cost_input = discord.ui.TextInput(
+            label="Avg Cost per Share (CAD)",
+            default=f"{h['avg_cost']:.2f}",
+            required=True,
+            max_length=20,
+        )
+
+        self.add_item(self.symbol_input)
+        self.add_item(self.quantity_input)
+        self.add_item(self.avg_cost_input)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        try:
+            self.holdings_list[self.index] = {
+                "symbol": self.symbol_input.value.strip().upper(),
+                "quantity": float(self.quantity_input.value.strip()),
+                "avg_cost": float(self.avg_cost_input.value.strip()),
+            }
+        except ValueError:
+            await interaction.response.send_message(
+                "Invalid number \u2014 quantity and cost must be numeric.", ephemeral=True
+            )
+            return
+
+        next_idx = self.index + 1
+        if next_idx < len(self.holdings_list):
+            embed = _build_holdings_edit_progress(self.holdings_list, next_idx)
+            view = EditNextHoldingView(
+                self.holdings_list, next_idx, self.portfolio, self.risk
+            )
+            await interaction.response.edit_message(embed=embed, view=view)
+        else:
+            # All done — apply changes
+            await interaction.response.defer()
+            await self._apply_holdings(interaction)
+
+    async def _apply_holdings(self, interaction: discord.Interaction) -> None:
+        """Apply the edited holdings to the portfolio."""
+        parsed = [
+            {
+                "symbol": h["symbol"],
+                "quantity": h["quantity"],
+                "market_value_cad": h["quantity"] * h["avg_cost"],
+            }
+            for h in self.holdings_list
+        ]
+        await self.portfolio.sync_from_snapshot(parsed, self.risk)
+        await interaction.followup.send(
+            f"Portfolio updated with {len(parsed)} holdings."
+        )
+
+
+def _build_holdings_edit_progress(
+    holdings_list: list[dict[str, Any]], next_idx: int
+) -> discord.Embed:
+    """Show which holdings have been edited so far."""
+    lines = []
+    for i, h in enumerate(holdings_list):
+        check = "\u2705" if i < next_idx else "\u270F\uFE0F"
+        value = h["quantity"] * h["avg_cost"]
+        lines.append(
+            f"{check} **{h['symbol']}** \u2014 {h['quantity']:.4f} shares, "
+            f"avg ${h['avg_cost']:.2f} (${value:.2f})"
+        )
+    embed = discord.Embed(
+        title=f"Editing Holdings ({next_idx}/{len(holdings_list)} done)",
+        description="\n".join(lines),
+        color=0xF39C12,
+    )
+    embed.set_footer(text=f"Next: {holdings_list[next_idx]['symbol']}")
+    return embed
+
+
+class EditNextHoldingView(discord.ui.View):
+    """Button to open the next holding's edit modal."""
+
+    def __init__(
+        self,
+        holdings_list: list[dict[str, Any]],
+        index: int,
+        portfolio: Portfolio,
+        risk: RiskManager,
+    ) -> None:
+        super().__init__(timeout=300)
+        self.holdings_list = holdings_list
+        self.index = index
+        self.portfolio = portfolio
+        self.risk = risk
+
+    @discord.ui.button(
+        label="Edit Next", style=discord.ButtonStyle.primary, emoji="\u270F\uFE0F"
+    )
+    async def edit_next(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        modal = EditHoldingModal(
+            self.holdings_list, self.index, self.portfolio, self.risk
+        )
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(
+        label="Save & Finish", style=discord.ButtonStyle.success, emoji="\u2705"
+    )
+    async def save_finish(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        await interaction.response.defer()
+        parsed = [
+            {
+                "symbol": h["symbol"],
+                "quantity": h["quantity"],
+                "market_value_cad": h["quantity"] * h["avg_cost"],
+            }
+            for h in self.holdings_list
+        ]
+        await self.portfolio.sync_from_snapshot(parsed, self.risk)
+        await interaction.followup.send(
+            f"Portfolio updated with {len(parsed)} holdings."
+        )
+        self.stop()
+
+
+class HoldingsView(discord.ui.View):
+    """Edit button for the /holdings display."""
+
+    def __init__(self, portfolio: Portfolio, risk: RiskManager) -> None:
+        super().__init__(timeout=300)
+        self.portfolio = portfolio
+        self.risk = risk
+
+    @discord.ui.button(
+        label="Edit Holdings", style=discord.ButtonStyle.primary, emoji="\u270F\uFE0F"
+    )
+    async def edit_holdings(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        if not self.portfolio.holdings:
+            await interaction.response.send_message(
+                "No holdings to edit.", ephemeral=True
+            )
+            return
+
+        # Build editable list from current holdings
+        holdings_list = [
+            {
+                "symbol": sym,
+                "quantity": h["quantity"],
+                "avg_cost": h["avg_cost"],
+            }
+            for sym, h in self.portfolio.holdings.items()
+        ]
+
+        modal = EditHoldingModal(holdings_list, 0, self.portfolio, self.risk)
+        await interaction.response.send_modal(modal)
+
+
 @app_commands.command(name="holdings", description="View current portfolio holdings")
 async def holdings_cmd(interaction: discord.Interaction) -> None:
     bot: TraderBot = interaction.client  # type: ignore[assignment]
@@ -859,7 +1045,8 @@ async def holdings_cmd(interaction: discord.Interaction) -> None:
     )
     embed.add_field(name="Cash", value=f"${bot.portfolio.cash:.2f}", inline=True)
     embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
-    await interaction.followup.send(embed=embed)
+    view = HoldingsView(bot.portfolio, bot.risk)
+    await interaction.followup.send(embed=embed, view=view)
 
 
 @app_commands.command(name="pnl", description="View P&L breakdown")
@@ -965,6 +1152,91 @@ def _build_sell_embed(sig: SignalResult) -> discord.Embed:
     embed.add_field(name="Strength", value=f"{sig.strength:.0%}", inline=True)
     embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
     return embed
+
+
+@app_commands.command(name="check", description="Check signal and sentiment for a specific symbol")
+@app_commands.describe(symbol="Stock symbol (e.g. NVDA.NE, RY.TO, AAPL)")
+async def check_cmd(interaction: discord.Interaction, symbol: str) -> None:
+    bot: TraderBot = interaction.client  # type: ignore[assignment]
+    symbol = symbol.upper().strip()
+
+    await interaction.response.defer(thinking=True)
+
+    # Resolve bare tickers
+    if "." not in symbol:
+        resolved = await bot.market_data.resolve_symbol(symbol)
+        if resolved:
+            symbol = resolved
+        else:
+            await interaction.followup.send(
+                f"Could not find data for `{symbol}`. Try adding a suffix like `.TO` or `.NE`.",
+                ephemeral=True,
+            )
+            return
+
+    result = await bot.strategy.analyze_symbol(symbol)
+
+    color = (
+        0x2ECC71 if result.signal == Signal.BUY
+        else 0xE74C3C if result.signal == Signal.SELL
+        else 0x95A5A6
+    )
+    embed = discord.Embed(
+        title=f"{symbol} \u2014 {result.signal.value} Signal",
+        description="\n".join(f"\u2022 {r}" for r in result.reasons),
+        color=color,
+    )
+    embed.add_field(
+        name="Signal",
+        value=f"{signal_emoji(result.signal)} {result.signal.value}",
+        inline=True,
+    )
+    embed.add_field(name="Strength", value=f"{result.strength:.0%}", inline=True)
+
+    # Show holding info if user holds this symbol
+    h = bot.portfolio.holdings.get(symbol)
+    if h:
+        prices = await bot.market_data.get_batch_prices([symbol])
+        price = prices.get(symbol, h["avg_cost"])
+        pnl_pct = (price - h["avg_cost"]) / h["avg_cost"] * 100 if h["avg_cost"] > 0 else 0.0
+        pnl_emoji = "\U0001f7e2" if pnl_pct >= 0 else "\U0001f534"
+        embed.add_field(
+            name="Your Position",
+            value=(
+                f"{h['quantity']:.4f} shares @ ${h['avg_cost']:.2f}\n"
+                f"Current: ${price:.2f} {pnl_emoji} {pnl_pct:+.1f}%"
+            ),
+            inline=False,
+        )
+
+    embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
+    await interaction.followup.send(embed=embed, view=RecheckView())
+
+
+@check_cmd.autocomplete("symbol")
+async def check_autocomplete(
+    interaction: discord.Interaction, current: str
+) -> list[app_commands.Choice[str]]:
+    bot: TraderBot = interaction.client  # type: ignore[assignment]
+    current_upper = current.upper()
+
+    choices: list[app_commands.Choice[str]] = []
+
+    # Held symbols first (prioritized)
+    for sym in bot.portfolio.holdings:
+        if current_upper in sym:
+            choices.append(app_commands.Choice(name=f"\u2B50 {sym} (held)", value=sym))
+
+    # Then all tracked symbols
+    for sym in bot.strategy.symbols:
+        if sym in bot.portfolio.holdings:
+            continue  # already added above
+        if current_upper in sym:
+            choices.append(app_commands.Choice(name=sym, value=sym))
+        if len(choices) >= 25:  # Discord limit
+            break
+
+    return choices[:25]
 
 
 @app_commands.command(name="recommend", description="Get current buy/sell recommendations")

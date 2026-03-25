@@ -48,6 +48,7 @@ src/trader/
 ├── portfolio.py      # JSON-backed portfolio tracking (holdings, trades, P&L)
 ├── signals.py        # Technical analysis: EMA, RSI, MACD, Bollinger Bands → BUY/SELL/HOLD
 ├── strategy.py       # Recommendation engine — scans universe, generates signals (no execution)
+├── sentiment.py      # Market sentiment — analyst consensus, Fear & Greed, news headlines
 ├── risk.py           # Position sizing (ATR-based), stop losses, drawdown circuit breakers
 ├── vision.py         # Claude API vision — parses brokerage screenshots into holdings
 └── backtest.py       # Replays historical bars through signal generator
@@ -69,19 +70,29 @@ src/trader/
 | `/holdings` | View current portfolio with live prices and P&L |
 | `/pnl` | Daily + total P&L breakdown |
 | `/recommend` | Get current top buy/sell signals (on-demand) |
+| `/check <symbol>` | Check signal + sentiment for any symbol (autocompletes held tokens) |
 | `/status` | Bot uptime, portfolio summary |
 
 ## Bot Features
 
 ### Signal Recommendations
-- Scans 43 symbols every 15 min during market hours
+- Scans 92 symbols every 15 min during market hours
 - Posts top BUY/SELL signals with strength % and reasons
 - Every signal has a **Recheck** button — re-runs analysis on click
 - Pre-market movers at 8:00 AM ET (US counterparts for CDRs)
+- `/check` command for on-demand signal checks with autocomplete
+
+### Market Sentiment (sentiment.py)
+- **Analyst consensus** via yfinance: Strong Buy/Buy/Hold/Sell counts → score ±1.0
+- **CNN Fear & Greed Index** via `fear-greed` lib: market-wide mood → contrarian modifier ±0.5
+- **News headline sentiment**: keyword-based scoring of recent headlines → ±0.5
+- All data cached (analyst 4h, Fear & Greed 1h, news 30min) to respect rate limits
+- Failures silently default to neutral (0) — never blocks signal generation
 
 ### Portfolio Tracking
 - User reports trades via `/buy` and `/sell` (supports fractional shares)
 - `/upload` parses brokerage screenshots using Claude vision API
+- `/holdings` has Edit button to modify holdings inline
 - Symbol resolution: tries `.TO` → `.NE` → US for bare tickers
 - JSON persistence at `data/portfolio.json`
 
@@ -123,7 +134,9 @@ The bot scans ~43 securities (configured in `config/settings.yaml`). Symbols end
 
 - Server: `your-server` (Ubuntu ARM, your server)
 - SSH: `ssh -i your-ssh-key ubuntu@your-server`
-- Repo on server: `~/trader/`
+- Repo on server: `/home/ubuntu/trader/`
+- Deploy: `git push` → SSH → `cd ~/trader && git pull origin main && docker compose up -d --build`
+- Secrets in `.env` on server (not in git)
 
 ## Key Constraints
 

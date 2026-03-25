@@ -80,13 +80,16 @@ def compute_indicators(df: pd.DataFrame, config: dict) -> pd.DataFrame:
     return df
 
 
-def generate_signal(df: pd.DataFrame, config: dict) -> SignalResult:
+def generate_signal(
+    df: pd.DataFrame, config: dict, sentiment_score: float = 0.0
+) -> SignalResult:
     """Generate a trading signal from an indicator-enriched DataFrame.
 
     Uses a scoring system:
     - Momentum signals: EMA crossover, RSI extremes, MACD
     - Mean reversion signals: Bollinger Band touches
     - Volume confirmation
+    - Sentiment: analyst consensus, Fear & Greed, news (passed in via sentiment_score)
 
     Each factor contributes a score. Net positive = BUY, net negative = SELL.
     """
@@ -159,8 +162,13 @@ def generate_signal(df: pd.DataFrame, config: dict) -> SignalResult:
                 score -= 0.5
                 reasons.append(f"High volume confirms ({vol_ratio:.1f}x avg)")
 
+    # --- Sentiment ---
+    if abs(sentiment_score) > 0.01:
+        score += sentiment_score
+        # Reason is added by the caller (strategy.py) for more detail
+
     # --- Convert score to signal ---
-    max_possible = 6.0  # Approximate max score
+    max_possible = 8.0  # Approximate max score (6 technical + 2 sentiment)
     strength = min(abs(score) / max_possible, 1.0)
 
     if score >= 2.0:

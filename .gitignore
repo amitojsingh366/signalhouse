@@ -16,6 +16,7 @@ config/settings.local.yaml
 # Data files
 data/*.csv
 data/*.db
+data/*.json
 
 # Logs
 logs/

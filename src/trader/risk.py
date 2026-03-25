@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class OpenTrade:
     symbol: str
     entry_price: float
-    quantity: int
+    quantity: float
     entry_time: datetime
     highest_price: float  # For trailing stop
     stop_price: float  # Current stop loss price
@@ -69,7 +69,7 @@ class RiskManager:
             return False
         return len(self.open_trades) < self.risk["max_positions"]
 
-    def calculate_position_size(self, portfolio_value: float, price: float, atr: float) -> int:
+    def calculate_position_size(self, portfolio_value: float, price: float, atr: float) -> float:
         """Calculate number of shares to buy.
 
         Uses ATR-based sizing: risk a fixed % of portfolio per trade,
@@ -95,7 +95,7 @@ class RiskManager:
         # Must buy at least 1 share
         return max(shares, 1) if max_dollars >= price else 0
 
-    def register_entry(self, symbol: str, price: float, quantity: int) -> None:
+    def register_entry(self, symbol: str, price: float, quantity: float) -> None:
         """Record a new position entry."""
         stop = price * (1 - self.risk["stop_loss_pct"])
         self.open_trades[symbol] = OpenTrade(

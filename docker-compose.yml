@@ -1,57 +1,13 @@
 services:
-  ib-gateway:
-    image: ghcr.io/gnzsnz/ib-gateway:latest
-    restart: unless-stopped
-    environment:
-      TWS_USERID: ${IBKR_USERNAME}
-      TWS_PASSWORD: ${IBKR_PASSWORD}
-      TRADING_MODE: ${TRADING_MODE:-paper}
-      TWS_SETTINGS_PATH: /home/ibgateway/Jts
-      VNC_SERVER_PASSWORD: "trader"
-      IBC_ReadOnlyLogin: "no"
-      READ_ONLY_API: "no"
-      IBC_AcceptIncomingConnectionAction: "accept"
-      IBC_BypassOrderPrecautions: "yes"
-      IBC_ExistingSessionDetectedAction: "primary"
-    ports:
-      - "4002:4002"
-      - "4001:4001"
-      - "5900:5900"
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    volumes:
-      - ib-gateway-data:/home/ibgateway/Jts
-    healthcheck:
-      # Check if the API port is accepting connections
-      test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/127.0.0.1/4002' || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 120s
-    labels:
-      - "autoheal=true"
-
-  # Auto-restart unhealthy containers (e.g., ib-gateway after failed login)
-  autoheal:
-    image: willfarrell/autoheal
-    restart: unless-stopped
-    environment:
-      AUTOHEAL_CONTAINER_LABEL: "autoheal"
-      AUTOHEAL_INTERVAL: 60
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-
   trader:
     build: .
     restart: unless-stopped
-    network_mode: "service:ib-gateway"
-    depends_on:
-      ib-gateway:
-        condition: service_healthy
+    environment:
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
       - ./config:/app/config:ro
+      - ./data:/app/data
       - ./logs:/app/logs
-
-volumes:
-  ib-gateway-data:

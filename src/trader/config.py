@@ -22,8 +22,10 @@ def load_config(config_dir: Path | None = None) -> dict[str, Any]:
     """Load settings.yaml, then overlay settings.local.yaml if it exists.
 
     Environment variables override config values:
-      IBKR_HOST → broker.host
-      DISCORD_WEBHOOK_URL → notifications.discord_webhook_url
+      DISCORD_BOT_TOKEN → discord.bot_token
+      DISCORD_CHANNEL_ID → discord.channel_id
+      DISCORD_GUILD_ID → discord.guild_id
+      ANTHROPIC_API_KEY → anthropic.api_key
     """
     if config_dir is None:
         # Check working directory first (Docker), then source tree
@@ -44,9 +46,13 @@ def load_config(config_dir: Path | None = None) -> dict[str, Any]:
                 config = _deep_merge(config, local)
 
     # Environment variable overrides (useful in Docker)
-    if host := os.environ.get("IBKR_HOST"):
-        config["broker"]["host"] = host
-    if webhook := os.environ.get("DISCORD_WEBHOOK_URL"):
-        config["notifications"]["discord_webhook_url"] = webhook
+    if token := os.environ.get("DISCORD_BOT_TOKEN"):
+        config.setdefault("discord", {})["bot_token"] = token
+    if channel := os.environ.get("DISCORD_CHANNEL_ID"):
+        config.setdefault("discord", {})["channel_id"] = channel
+    if guild := os.environ.get("DISCORD_GUILD_ID"):
+        config.setdefault("discord", {})["guild_id"] = guild
+    if api_key := os.environ.get("ANTHROPIC_API_KEY"):
+        config.setdefault("anthropic", {})["api_key"] = api_key
 
     return config

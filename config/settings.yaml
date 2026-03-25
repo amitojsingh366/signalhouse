@@ -1,11 +1,13 @@
-# Trading Bot Configuration
-# Copy to settings.local.yaml and fill in your values
+# Trading Recommendation Bot Configuration
+# Copy to settings.local.yaml and fill in your secrets
 
-broker:
-  host: "127.0.0.1"
-  port: 4002  # 4002 = IB Gateway paper, 4001 = IB Gateway live
-  client_id: 1
-  account: ""  # Your IBKR account ID
+discord:
+  bot_token: ""      # Discord bot token (override via DISCORD_BOT_TOKEN env var)
+  channel_id: ""     # Channel ID where bot posts (override via DISCORD_CHANNEL_ID)
+  guild_id: ""       # Server ID for slash command sync (override via DISCORD_GUILD_ID)
+
+anthropic:
+  api_key: ""        # For Claude vision screenshot parsing (override via ANTHROPIC_API_KEY)
 
 strategy:
   # Universe: liquid TSX stocks + CAD-hedged ETFs + CDRs
@@ -17,7 +19,6 @@ strategy:
     - "HXS.TO"   # S&P 500 CAD-hedged (Horizons)
     - "TEC.TO"   # Global Technology Leaders (TD)
     - "XQQ.TO"   # NASDAQ-100 CAD-hedged (iShares)
-    # QQC-F.TO removed — IBKR can't resolve hyphenated symbol
     # CDRs — CAD-hedged single-stock on CBOE Canada (.NE suffix)
     - "AAPL.NE"  # Apple
     - "MSFT.NE"  # Microsoft
@@ -45,13 +46,11 @@ strategy:
     - "TRI.TO"   # Thomson Reuters
     - "WCN.TO"   # Waste Connections
     - "QSR.TO"   # Restaurant Brands
-    # GIB-A.TO removed — IBKR can't resolve hyphenated symbol
     - "DOL.TO"   # Dollarama
     - "SAP.TO"   # Saputo
     - "MG.TO"    # Magna International
     - "AEM.TO"   # Agnico Eagle Mines
     - "WFG.TO"   # West Fraser Timber
-    # CCL-B.TO removed — IBKR can't resolve hyphenated symbol
     - "IFC.TO"   # Intact Financial
     - "NTR.TO"   # Nutrien
     - "ABX.TO"   # Barrick Gold
@@ -83,11 +82,9 @@ risk:
   max_daily_loss_pct: 0.08     # 8% max daily drawdown, halt trading
   max_total_drawdown_pct: 0.20 # 20% max total drawdown, halt all trading
 
-notifications:
-  discord_webhook_url: ""  # Your Discord webhook URL
-
 schedule:
   # Eastern Time
   market_open: "09:30"
   market_close: "16:00"
+  premarket_start: "08:00"
   scan_interval_minutes: 15  # Check signals every 15 min during market hours

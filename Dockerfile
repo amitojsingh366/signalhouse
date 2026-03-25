@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+RUN mkdir -p /app/data /app/logs
+
 COPY pyproject.toml .
 COPY src/ src/
 COPY config/settings.yaml config/settings.yaml

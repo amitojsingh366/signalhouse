@@ -12,6 +12,20 @@ import anthropic
 
 logger = logging.getLogger(__name__)
 
+
+def _detect_media_type(data: bytes) -> str:
+    """Detect image media type from file magic bytes."""
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data[:3] == b"GIF":
+        return "image/gif"
+    return "image/png"  # fallback
+
+
 PARSE_PROMPT = """Extract all stock/ETF holdings from this brokerage screenshot.
 
 Return ONLY a JSON array with this exact format, no other text:
@@ -70,11 +84,14 @@ async def parse_holdings_screenshot(
     Args:
         image_data: Raw image bytes (PNG, JPG, etc.)
         api_key: Anthropic API key
-        media_type: MIME type of the image (image/png, image/jpeg, etc.)
+        media_type: MIME type hint (overridden by magic byte detection)
 
     Returns:
         List of dicts with keys: symbol, quantity, market_value_cad
     """
+    # Detect actual image type from bytes — Discord content_type can be wrong
+    media_type = _detect_media_type(image_data)
+
     try:
         response_text = await asyncio.to_thread(
             _call_claude_vision, image_data, api_key, media_type

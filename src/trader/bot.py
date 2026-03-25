@@ -20,6 +20,7 @@ from trader.vision import parse_holdings_screenshot
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
+PT = ZoneInfo("America/Vancouver")
 
 
 # ---------------------------------------------------------------------------
@@ -350,6 +351,8 @@ class TraderBot(commands.Bot):
         self.scan_loop.start()
         self.daily_status_loop.start()
         self.premarket_loop.start()
+        self.morning_briefing_loop.start()
+        self.evening_recap_loop.start()
 
     async def on_ready(self) -> None:
         logger.info("Bot ready as %s", self.user)
@@ -524,6 +527,155 @@ class TraderBot(commands.Bot):
     @premarket_loop.before_loop
     async def before_premarket(self) -> None:
         await self.wait_until_ready()
+
+    # Morning briefing: 8:30 AM ET (1hr before open, ~5:30 AM Vancouver)
+    @tasks.loop(time=time(8, 30, tzinfo=ET))
+    async def morning_briefing_loop(self) -> None:
+        now = datetime.now(ET)
+        if now.weekday() >= 5:
+            return
+
+        channel = self.get_channel(self.channel_id)
+        if not channel or not isinstance(channel, discord.TextChannel):
+            return
+
+        try:
+            insights = await self.strategy.get_daily_insights()
+            await _send_insights_embeds(
+                channel, insights, title="Morning Briefing"
+            )
+        except Exception:
+            logger.exception("Error sending morning briefing")
+
+    @morning_briefing_loop.before_loop
+    async def before_morning(self) -> None:
+        await self.wait_until_ready()
+
+    # Evening recap: 10 PM Vancouver (= 1 AM ET next day)
+    @tasks.loop(time=time(22, 0, tzinfo=PT))
+    async def evening_recap_loop(self) -> None:
+        now = datetime.now(ET)
+        # Skip weekends (Sat/Sun evening have no market data)
+        if now.weekday() in (5, 6):
+            return
+
+        channel = self.get_channel(self.channel_id)
+        if not channel or not isinstance(channel, discord.TextChannel):
+            return
+
+        try:
+            insights = await self.strategy.get_daily_insights()
+            await _send_insights_embeds(
+                channel, insights, title="Evening Recap"
+            )
+        except Exception:
+            logger.exception("Error sending evening recap")
+
+    @evening_recap_loop.before_loop
+    async def before_evening(self) -> None:
+        await self.wait_until_ready()
+
+
+async def _send_insights_embeds(
+    channel: discord.TextChannel,
+    insights: dict[str, Any],
+    title: str,
+) -> None:
+    """Send market insights as a series of embeds."""
+    now_str = datetime.now(ET).strftime("%Y-%m-%d %H:%M ET")
+
+    # 1. Portfolio overview
+    pnl_val = insights["total_pnl"]
+    embed = discord.Embed(
+        title=f"{title} \u2014 Portfolio",
+        color=pnl_color(pnl_val),
+    )
+    embed.add_field(
+        name="Value", value=f"${insights['portfolio_value']:.2f}", inline=True
+    )
+    embed.add_field(
+        name="Cash", value=f"${insights['cash']:.2f}", inline=True
+    )
+    embed.add_field(
+        name="Total P&L",
+        value=f"${pnl_val:+.2f} ({insights['total_pnl_pct']:+.1f}%)",
+        inline=True,
+    )
+
+    # Holdings with signals
+    for h in insights["holdings"]:
+        sig_emoji = {
+            "BUY": "\U0001f7e2", "SELL": "\U0001f534", "HOLD": "\U0001f7e1"
+        }.get(h["signal"], "\u26AA")
+        pnl_emoji = "\U0001f7e2" if h["pnl_pct"] >= 0 else "\U0001f534"
+        top_reasons = h["reasons"][:2]
+        reasons_str = " | ".join(r for r in top_reasons if not r.startswith("Price:"))
+        embed.add_field(
+            name=f"{sig_emoji} {h['symbol']} ({h['signal']})",
+            value=(
+                f"{h['quantity']:.4f} sh @ ${h['price']:.2f} "
+                f"{pnl_emoji} {h['pnl_pct']:+.1f}%\n"
+                f"{reasons_str}"
+            ),
+            inline=True,
+        )
+
+    embed.set_footer(text=now_str)
+    await channel.send(embed=embed)
+
+    # 2. Pre-market movers (morning only, if available)
+    premarket = insights.get("premarket", [])
+    if premarket:
+        pm_embed = discord.Embed(
+            title=f"{title} \u2014 Pre-Market Movers",
+            color=0x3498DB,
+        )
+        for m in premarket:
+            direction = "\U0001f7e2" if m["change_pct"] > 0 else "\U0001f534"
+            pm_embed.add_field(
+                name=f"{direction} {m['cdr_symbol']} ({m['us_symbol']})",
+                value=f"${m['premarket_price']:.2f} ({m['change_pct']:+.1%})",
+                inline=True,
+            )
+        pm_embed.set_footer(text=now_str)
+        await channel.send(embed=pm_embed)
+
+    # 3. Notable movers in tracked universe
+    movers = insights.get("top_movers", [])
+    if movers:
+        mv_embed = discord.Embed(
+            title=f"{title} \u2014 Notable Movers",
+            description="Tracked stocks with significant moves:",
+            color=0x9B59B6,
+        )
+        for m in movers[:8]:
+            direction = "\U0001f7e2" if m["change_pct"] > 0 else "\U0001f534"
+            mv_embed.add_field(
+                name=f"{direction} {m['symbol']}",
+                value=f"${m['price']:.2f} ({m['change_pct']:+.1f}%) [{m['sector']}]",
+                inline=True,
+            )
+        mv_embed.set_footer(text=now_str)
+        await channel.send(embed=mv_embed)
+
+    # 4. Sector exposure
+    exposure = insights.get("sector_exposure", {})
+    if exposure:
+        lines = []
+        for sector, data in sorted(
+            exposure.items(), key=lambda x: x[1]["pct"], reverse=True
+        ):
+            bar_len = int(data["pct"] * 20)
+            bar = "\u2588" * bar_len + "\u2591" * (20 - bar_len)
+            syms = ", ".join(data["symbols"])
+            lines.append(f"`{bar}` **{sector}** {data['pct']:.0%} ({syms})")
+        sec_embed = discord.Embed(
+            title=f"{title} \u2014 Sector Exposure",
+            description="\n".join(lines),
+            color=0x3498DB,
+        )
+        sec_embed.set_footer(text=now_str)
+        await channel.send(embed=sec_embed)
 
 
 # ---------------------------------------------------------------------------
@@ -788,8 +940,9 @@ def _build_buy_embed(
         s = fund["sell"]
         pnl_emoji = "\U0001f7e2" if s["pnl_pct"] >= 0 else "\U0001f534"
         sell_label = "Sell signal" if s["has_sell_signal"] else "Weakest holding"
+        action = s.get("sell_action", "Sell all")
         embed.add_field(
-            name=f"\U0001f4b0 Sell to fund: {s['symbol']}",
+            name=f"\U0001f4b0 {action} {s['symbol']} to fund",
             value=(
                 f"{sell_label} \u2014 {s['quantity']:.4f} shares @ ${s['price']:.2f}\n"
                 f"Value: ${s['value']:.2f} {pnl_emoji} ({s['pnl_pct']:+.1f}%)\n"
@@ -803,7 +956,7 @@ def _build_buy_embed(
 
 
 def _build_sell_embed(sig: SignalResult) -> discord.Embed:
-    """Build a SELL signal embed."""
+    """Build a SELL signal embed for a held position."""
     embed = discord.Embed(
         title=f"{sig.symbol} \u2014 SELL Signal",
         description="\n".join(f"\u2022 {r}" for r in sig.reasons),

@@ -278,15 +278,24 @@ class Strategy:
         all_signals = await self.scan_universe()
 
         buys = [s for s in all_signals if s.signal == Signal.BUY]
-        sells = [s for s in all_signals if s.signal == Signal.SELL]
+        all_sells = [s for s in all_signals if s.signal == Signal.SELL]
+
+        # Only show sell signals for stocks the user actually holds
+        held_symbols = list(self.portfolio.holdings.keys())
+        sells = [s for s in all_sells if s.symbol in held_symbols]
 
         # Get live prices for portfolio context
-        held_symbols = list(self.portfolio.holdings.keys())
         prices = (
             await self.market_data.get_batch_prices(held_symbols)
             if held_symbols else {}
         )
         exposure = self.get_sector_exposure(prices)
+
+        # Annotate sell signals with quantity info
+        for sig in sells:
+            h = self.portfolio.holdings.get(sig.symbol)
+            if h:
+                sig.reasons.append(f"You hold {h['quantity']:.4f} shares — sell all")
 
         # Filter buys: penalise signals that would over-concentrate a sector
         filtered_buys: list[SignalResult] = []
@@ -313,16 +322,13 @@ class Strategy:
         if top_buys and held_symbols and cash < 50.0:
             ranked_to_sell = await self._rank_holdings_to_sell(prices)
             if ranked_to_sell:
-                # Pair each buy with the best holding to sell for funding
                 for buy_sig in top_buys:
+                    buy_price = self._extract_price(buy_sig)
                     buy_sector = self.get_sector(buy_sig.symbol)
-                    # Prefer selling from same sector (rebalance) or weakest
                     best = None
                     for candidate in ranked_to_sell:
-                        # Don't suggest selling what we just recommended buying
                         if candidate["symbol"] == buy_sig.symbol:
                             continue
-                        # Prefer same-sector swaps
                         if best is None:
                             best = candidate
                         elif (
@@ -331,11 +337,116 @@ class Strategy:
                         ):
                             best = candidate
                     if best:
-                        funding.append({"buy": buy_sig.symbol, "sell": best})
+                        # Calculate how many shares to sell to fund the buy
+                        sell_info = dict(best)
+                        if buy_price and buy_price > 0:
+                            # Sell enough to buy ~1 share or all if holding is small
+                            needed = buy_price
+                            if sell_info["value"] <= needed * 1.5:
+                                sell_info["sell_qty"] = sell_info["quantity"]
+                                sell_info["sell_action"] = "Sell all"
+                            else:
+                                qty_to_sell = needed / sell_info["price"]
+                                sell_info["sell_qty"] = round(qty_to_sell, 4)
+                                sell_info["sell_action"] = (
+                                    f"Sell {qty_to_sell:.4f} shares"
+                                )
+                        else:
+                            sell_info["sell_qty"] = sell_info["quantity"]
+                            sell_info["sell_action"] = "Sell all"
+                        funding.append({"buy": buy_sig.symbol, "sell": sell_info})
 
         return {
             "buys": top_buys,
             "sells": top_sells,
             "funding": funding,
             "sector_exposure": exposure,
+        }
+
+    @staticmethod
+    def _extract_price(sig: SignalResult) -> float | None:
+        """Extract price from a signal's reasons list (e.g. 'Price: $123.45')."""
+        for r in sig.reasons:
+            if r.startswith("Price: $"):
+                try:
+                    return float(r.split("$")[1])
+                except (ValueError, IndexError):
+                    pass
+        return None
+
+    async def get_daily_insights(self) -> dict[str, Any]:
+        """Generate market insights for holdings and notable movers.
+
+        Used for morning pre-market briefing and evening recap.
+        """
+        held_symbols = list(self.portfolio.holdings.keys())
+        prices = (
+            await self.market_data.get_batch_prices(held_symbols)
+            if held_symbols else {}
+        )
+
+        # Analyse each holding
+        holding_insights: list[dict[str, Any]] = []
+        for symbol, h in self.portfolio.holdings.items():
+            price = prices.get(symbol, h["avg_cost"])
+            pnl_pct = (
+                (price - h["avg_cost"]) / h["avg_cost"] * 100
+                if h["avg_cost"] > 0 else 0.0
+            )
+            signal_result = await self.analyze_symbol(symbol)
+            holding_insights.append({
+                "symbol": symbol,
+                "quantity": h["quantity"],
+                "price": price,
+                "pnl_pct": pnl_pct,
+                "value": h["quantity"] * price,
+                "signal": signal_result.signal.value,
+                "strength": signal_result.strength,
+                "reasons": signal_result.reasons,
+                "sector": self.get_sector(symbol),
+            })
+
+        # Get premarket movers
+        premarket = await self.get_premarket_movers()
+
+        # Get sector exposure
+        exposure = self.get_sector_exposure(prices)
+
+        # Get top universe movers (scan a subset for speed)
+        top_movers: list[dict[str, Any]] = []
+        for symbol in self.symbols[:30]:
+            if symbol in held_symbols:
+                continue
+            try:
+                df = await self.market_data.get_historical_data(symbol, period="5d")
+                if df is not None and len(df) >= 2:
+                    prev = float(df["close"].iloc[-2])
+                    curr = float(df["close"].iloc[-1])
+                    if prev > 0:
+                        change = (curr - prev) / prev * 100
+                        if abs(change) >= 2.0:
+                            top_movers.append({
+                                "symbol": symbol,
+                                "price": curr,
+                                "change_pct": change,
+                                "sector": self.get_sector(symbol),
+                            })
+            except Exception:
+                continue
+        top_movers.sort(key=lambda x: abs(x["change_pct"]), reverse=True)
+
+        total_value = self.portfolio.get_portfolio_value(prices)
+        pnl_data = self.portfolio.get_daily_pnl(prices)
+
+        return {
+            "holdings": holding_insights,
+            "premarket": premarket[:5],
+            "top_movers": top_movers[:8],
+            "sector_exposure": exposure,
+            "portfolio_value": total_value,
+            "daily_pnl": pnl_data["daily_pnl"],
+            "daily_pnl_pct": pnl_data["daily_pnl_pct"],
+            "total_pnl": pnl_data["total_pnl"],
+            "total_pnl_pct": pnl_data["total_pnl_pct"],
+            "cash": self.portfolio.cash,
         }

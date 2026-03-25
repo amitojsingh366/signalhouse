@@ -10,52 +10,141 @@ anthropic:
   api_key: ""        # For Claude vision screenshot parsing (override via ANTHROPIC_API_KEY)
 
 strategy:
-  # Universe: liquid TSX stocks + CAD-hedged ETFs + CDRs
-  symbols:
-    # CAD-hedged ETFs
-    - "XSP.TO"   # S&P 500 CAD-hedged (iShares)
-    - "ZQQ.TO"   # NASDAQ-100 CAD-hedged (BMO)
-    - "ZSP.TO"   # S&P 500 CAD-hedged (BMO)
-    - "HXS.TO"   # S&P 500 CAD-hedged (Horizons)
-    - "TEC.TO"   # Global Technology Leaders (TD)
-    - "XQQ.TO"   # NASDAQ-100 CAD-hedged (iShares)
-    # CDRs — CAD-hedged single-stock on CBOE Canada (.NE suffix)
-    - "AAPL.NE"  # Apple
-    - "MSFT.NE"  # Microsoft
-    - "GOOG.NE"  # Alphabet
-    - "AMD.NE"   # AMD
-    - "ASML.NE"  # ASML
-    - "NVDA.NE"  # NVIDIA
-    - "AMZN.NE"  # Amazon
-    - "META.NE"  # Meta
-    - "TSLA.NE"  # Tesla
-    - "NFLX.NE"  # Netflix
-    # Large-cap TSX stocks
-    - "RY.TO"    # Royal Bank
-    - "TD.TO"    # TD Bank
-    - "SHOP.TO"  # Shopify
-    - "CNR.TO"   # CN Rail
-    - "ENB.TO"   # Enbridge
-    - "CP.TO"    # CP Rail
-    - "BMO.TO"   # BMO
-    - "BN.TO"    # Brookfield
-    - "CSU.TO"   # Constellation Software
-    - "ATD.TO"   # Alimentation Couche-Tard
-    - "MFC.TO"   # Manulife
-    - "SU.TO"    # Suncor
-    - "TRI.TO"   # Thomson Reuters
-    - "WCN.TO"   # Waste Connections
-    - "QSR.TO"   # Restaurant Brands
-    - "DOL.TO"   # Dollarama
-    - "SAP.TO"   # Saputo
-    - "MG.TO"    # Magna International
-    - "AEM.TO"   # Agnico Eagle Mines
-    - "WFG.TO"   # West Fraser Timber
-    - "IFC.TO"   # Intact Financial
-    - "NTR.TO"   # Nutrien
-    - "ABX.TO"   # Barrick Gold
-    - "L.TO"     # Loblaw
-    - "FTS.TO"   # Fortis
+  # Universe grouped by sector — used for diversification tracking
+  sectors:
+    # --- Technology: Semiconductors, Software, Cloud ---
+    technology:
+      - {symbol: "NVDA.NE",  name: "NVIDIA (CDR)"}
+      - {symbol: "AMD.NE",   name: "AMD (CDR)"}
+      - {symbol: "AAPL.NE",  name: "Apple (CDR)"}
+      - {symbol: "MSFT.NE",  name: "Microsoft (CDR)"}
+      - {symbol: "GOOG.NE",  name: "Alphabet (CDR)"}
+      - {symbol: "META.NE",  name: "Meta (CDR)"}
+      - {symbol: "AMZN.NE",  name: "Amazon (CDR)"}
+      - {symbol: "NFLX.NE",  name: "Netflix (CDR)"}
+      - {symbol: "TSLA.NE",  name: "Tesla (CDR)"}
+      - {symbol: "ASML.NE",  name: "ASML (CDR)"}
+      - {symbol: "CRM.NE",   name: "Salesforce (CDR)"}
+      - {symbol: "AVGO.NE",  name: "Broadcom (CDR)"}
+      - {symbol: "ADBE.NE",  name: "Adobe (CDR)"}
+      - {symbol: "INTC.NE",  name: "Intel (CDR)"}
+      - {symbol: "ORCL.NE",  name: "Oracle (CDR)"}
+      - {symbol: "AMD.TO",   name: "AMD (TSX-listed)"}
+      - {symbol: "SHOP.TO",  name: "Shopify"}
+      - {symbol: "CSU.TO",   name: "Constellation Software"}
+      - {symbol: "OTEX.TO",  name: "Open Text"}
+      - {symbol: "TEC.TO",   name: "TD Global Tech Leaders ETF"}
+      - {symbol: "MU.TO",    name: "Micron (TSX-listed)"}
+
+    # --- Financials: Banks, Insurance, Fintech ---
+    financials:
+      - {symbol: "RY.TO",    name: "Royal Bank"}
+      - {symbol: "TD.TO",    name: "TD Bank"}
+      - {symbol: "BMO.TO",   name: "BMO"}
+      - {symbol: "BN.TO",    name: "Brookfield Corp"}
+      - {symbol: "MFC.TO",   name: "Manulife"}
+      - {symbol: "IFC.TO",   name: "Intact Financial"}
+      - {symbol: "V.NE",     name: "Visa (CDR)"}
+      - {symbol: "MA.NE",    name: "Mastercard (CDR)"}
+      - {symbol: "JPM.NE",   name: "JPMorgan (CDR)"}
+      - {symbol: "GS.NE",    name: "Goldman Sachs (CDR)"}
+
+    # --- Energy: Oil/Gas, Pipelines, Renewables ---
+    energy:
+      - {symbol: "SU.TO",    name: "Suncor"}
+      - {symbol: "ENB.TO",   name: "Enbridge"}
+      - {symbol: "CNQ.TO",   name: "Canadian Natural Resources"}
+      - {symbol: "TRP.TO",   name: "TC Energy"}
+      - {symbol: "CVE.TO",   name: "Cenovus Energy"}
+      - {symbol: "XOM.NE",   name: "ExxonMobil (CDR)"}
+      - {symbol: "CVX.NE",   name: "Chevron (CDR)"}
+
+    # --- Healthcare & Pharma ---
+    healthcare:
+      - {symbol: "JNJ.NE",   name: "Johnson & Johnson (CDR)"}
+      - {symbol: "UNH.NE",   name: "UnitedHealth (CDR)"}
+      - {symbol: "PFE.NE",   name: "Pfizer (CDR)"}
+      - {symbol: "LLY.NE",   name: "Eli Lilly (CDR)"}
+      - {symbol: "ABBV.NE",  name: "AbbVie (CDR)"}
+
+    # --- Aerospace & Defense ---
+    aerospace_defense:
+      - {symbol: "LMT.NE",   name: "Lockheed Martin (CDR)"}
+      - {symbol: "BA.NE",    name: "Boeing (CDR)"}
+      - {symbol: "RTX.NE",   name: "RTX / Raytheon (CDR)"}
+      - {symbol: "CAE.TO",   name: "CAE Inc"}
+
+    # --- Industrials: Manufacturing, Logistics, Rail ---
+    industrials:
+      - {symbol: "CNR.TO",   name: "CN Rail"}
+      - {symbol: "CP.TO",    name: "CP Rail"}
+      - {symbol: "WCN.TO",   name: "Waste Connections"}
+      - {symbol: "MG.TO",    name: "Magna International"}
+      - {symbol: "TRI.TO",   name: "Thomson Reuters"}
+      - {symbol: "CAT.NE",   name: "Caterpillar (CDR)"}
+      - {symbol: "HON.NE",   name: "Honeywell (CDR)"}
+      - {symbol: "UPS.NE",   name: "UPS (CDR)"}
+
+    # --- Consumer: Retail, Food, Luxury ---
+    consumer:
+      - {symbol: "ATD.TO",   name: "Alimentation Couche-Tard"}
+      - {symbol: "DOL.TO",   name: "Dollarama"}
+      - {symbol: "L.TO",     name: "Loblaw"}
+      - {symbol: "QSR.TO",   name: "Restaurant Brands"}
+      - {symbol: "SAP.TO",   name: "Saputo"}
+      - {symbol: "COST.NE",  name: "Costco (CDR)"}
+      - {symbol: "WMT.NE",   name: "Walmart (CDR)"}
+      - {symbol: "MCD.NE",   name: "McDonald's (CDR)"}
+      - {symbol: "KO.NE",    name: "Coca-Cola (CDR)"}
+      - {symbol: "PEP.NE",   name: "PepsiCo (CDR)"}
+      - {symbol: "PG.NE",    name: "Procter & Gamble (CDR)"}
+
+    # --- Materials: Mining, Metals, Forestry ---
+    materials:
+      - {symbol: "AEM.TO",   name: "Agnico Eagle Mines"}
+      - {symbol: "ABX.TO",   name: "Barrick Gold"}
+      - {symbol: "NTR.TO",   name: "Nutrien"}
+      - {symbol: "WFG.TO",   name: "West Fraser Timber"}
+      - {symbol: "MNT.TO",   name: "Mint Corp"}
+      - {symbol: "TECK.TO",  name: "Teck Resources"}
+      - {symbol: "FNV.TO",   name: "Franco-Nevada"}
+
+    # --- Telecom ---
+    telecom:
+      - {symbol: "T.TO",     name: "Telus"}
+      - {symbol: "BCE.TO",   name: "BCE Inc"}
+      - {symbol: "RCI-B.TO", name: "Rogers Communications"}
+
+    # --- Utilities ---
+    utilities:
+      - {symbol: "FTS.TO",   name: "Fortis"}
+      - {symbol: "H.TO",     name: "Hydro One"}
+      - {symbol: "AQN.TO",   name: "Algonquin Power"}
+      - {symbol: "NEE.NE",   name: "NextEra Energy (CDR)"}
+
+    # --- Real Estate / REITs ---
+    real_estate:
+      - {symbol: "BAM.TO",   name: "Brookfield Asset Mgmt"}
+      - {symbol: "REI-UN.TO", name: "RioCan REIT"}
+      - {symbol: "HR-UN.TO", name: "H&R REIT"}
+      - {symbol: "CAR-UN.TO", name: "Canadian Apartment REIT"}
+
+    # --- Crypto / Digital Assets ---
+    crypto:
+      - {symbol: "IBIT.NE",  name: "iShares Bitcoin ETF (CDR)"}
+      - {symbol: "BTCX-B.TO", name: "CI Galaxy Bitcoin ETF"}
+      - {symbol: "ETHX-B.TO", name: "CI Galaxy Ethereum ETF"}
+
+    # --- Broad Market ETFs (CAD-hedged) ---
+    etfs:
+      - {symbol: "XSP.TO",   name: "iShares S&P 500 CAD-hedged"}
+      - {symbol: "ZQQ.TO",   name: "BMO NASDAQ-100 CAD-hedged"}
+      - {symbol: "ZSP.TO",   name: "BMO S&P 500 CAD-hedged"}
+      - {symbol: "HXS.TO",   name: "Horizons S&P 500 CAD-hedged"}
+      - {symbol: "XQQ.TO",   name: "iShares NASDAQ-100 CAD-hedged"}
+
+  # Diversification limits
+  max_sector_pct: 0.40  # Max 40% of portfolio in one sector
 
   # Signal parameters
   momentum:

@@ -14,7 +14,7 @@ from discord.ext import commands, tasks
 from trader.market_data import MarketData
 from trader.portfolio import Portfolio
 from trader.risk import RiskManager
-from trader.signals import Signal
+from trader.signals import Signal, SignalResult
 from trader.strategy import Strategy
 from trader.vision import parse_holdings_screenshot
 
@@ -187,11 +187,10 @@ class EditSymbolModal(discord.ui.Modal):
 
         next_idx = self.index + 1
         if next_idx < len(self.parsed):
-            # Show modal for next symbol
-            modal = EditSymbolModal(
-                self.parsed, next_idx, self.portfolio, self.risk
-            )
-            await interaction.response.send_modal(modal)
+            # Can't open another modal from a modal submit — show a button instead
+            embed = _build_edit_progress_embed(self.parsed, next_idx)
+            view = EditNextView(self.parsed, next_idx, self.portfolio, self.risk)
+            await interaction.response.edit_message(embed=embed, view=view)
         else:
             # All symbols edited — show updated confirmation
             embed = _build_upload_embed(self.parsed)
@@ -199,8 +198,67 @@ class EditSymbolModal(discord.ui.Modal):
             await interaction.response.edit_message(embed=embed, view=view)
 
 
+def _build_edit_progress_embed(
+    parsed: list[dict[str, Any]], next_idx: int
+) -> discord.Embed:
+    """Build embed showing edit progress and what's next."""
+    lines = []
+    for i, h in enumerate(parsed):
+        check = "\u2705" if i < next_idx else "\u270F\uFE0F"
+        lines.append(
+            f"{check} **{h['symbol']}** \u2014 {h['quantity']:.4f} shares, "
+            f"${h['market_value_cad']:.2f} CAD"
+        )
+    embed = discord.Embed(
+        title=f"Editing Holdings ({next_idx}/{len(parsed)} done)",
+        description="\n".join(lines),
+        color=0xF39C12,
+    )
+    h = parsed[next_idx]
+    embed.set_footer(text=f"Next: {h['symbol']}")
+    return embed
+
+
+class EditNextView(discord.ui.View):
+    """Button to open the modal for the next symbol (workaround for modal chaining)."""
+
+    def __init__(
+        self,
+        parsed: list[dict[str, Any]],
+        index: int,
+        portfolio: Portfolio,
+        risk: RiskManager,
+    ) -> None:
+        super().__init__(timeout=300)
+        self.parsed = parsed
+        self.index = index
+        self.portfolio = portfolio
+        self.risk = risk
+
+    @discord.ui.button(
+        label="Edit Next", style=discord.ButtonStyle.primary, emoji="\u270F\uFE0F"
+    )
+    async def edit_next(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        modal = EditSymbolModal(
+            self.parsed, self.index, self.portfolio, self.risk
+        )
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(
+        label="Skip Rest", style=discord.ButtonStyle.secondary, emoji="\u23ED\uFE0F"
+    )
+    async def skip_rest(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ) -> None:
+        embed = _build_upload_embed(self.parsed)
+        view = ConfirmUploadView(self.parsed, self.portfolio, self.risk)
+        await interaction.response.edit_message(embed=embed, view=view)
+
+
 class ConfirmUploadView(discord.ui.View):
-    """Yes/No/Edit buttons to confirm screenshot-parsed holdings."""
+    """Confirm/Edit/Cancel buttons for screenshot-parsed holdings."""
 
     def __init__(
         self,
@@ -344,24 +402,13 @@ class TraderBot(commands.Bot):
 
             # Scan for new signals
             recs = await self.strategy.get_top_recommendations(n=3)
+            funding = recs.get("funding", [])
             for sig in recs["buys"]:
-                embed = discord.Embed(
-                    title=f"{sig.symbol} \u2014 BUY Signal",
-                    description="\n".join(f"\u2022 {r}" for r in sig.reasons),
-                    color=0x2ECC71,
-                )
-                embed.add_field(name="Strength", value=f"{sig.strength:.0%}", inline=True)
-                embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
+                embed = _build_buy_embed(sig, funding)
                 await channel.send(embed=embed, view=RecheckView())
 
             for sig in recs["sells"]:
-                embed = discord.Embed(
-                    title=f"{sig.symbol} \u2014 SELL Signal",
-                    description="\n".join(f"\u2022 {r}" for r in sig.reasons),
-                    color=0xE74C3C,
-                )
-                embed.add_field(name="Strength", value=f"{sig.strength:.0%}", inline=True)
-                embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
+                embed = _build_sell_embed(sig)
                 await channel.send(embed=embed, view=RecheckView())
 
         except Exception:
@@ -724,6 +771,49 @@ async def pnl_cmd(interaction: discord.Interaction) -> None:
     await interaction.followup.send(embed=embed)
 
 
+def _build_buy_embed(
+    sig: SignalResult, funding: list[dict[str, Any]]
+) -> discord.Embed:
+    """Build a BUY signal embed with optional sell-to-fund suggestion."""
+    embed = discord.Embed(
+        title=f"{sig.symbol} \u2014 BUY Signal",
+        description="\n".join(f"\u2022 {r}" for r in sig.reasons),
+        color=0x2ECC71,
+    )
+    embed.add_field(name="Strength", value=f"{sig.strength:.0%}", inline=True)
+
+    # Find funding suggestion for this buy
+    fund = next((f for f in funding if f["buy"] == sig.symbol), None)
+    if fund:
+        s = fund["sell"]
+        pnl_emoji = "\U0001f7e2" if s["pnl_pct"] >= 0 else "\U0001f534"
+        sell_label = "Sell signal" if s["has_sell_signal"] else "Weakest holding"
+        embed.add_field(
+            name=f"\U0001f4b0 Sell to fund: {s['symbol']}",
+            value=(
+                f"{sell_label} \u2014 {s['quantity']:.4f} shares @ ${s['price']:.2f}\n"
+                f"Value: ${s['value']:.2f} {pnl_emoji} ({s['pnl_pct']:+.1f}%)\n"
+                f"Sector: {s['sector']} ({s['sector_pct']:.0%} of portfolio)"
+            ),
+            inline=False,
+        )
+
+    embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
+    return embed
+
+
+def _build_sell_embed(sig: SignalResult) -> discord.Embed:
+    """Build a SELL signal embed."""
+    embed = discord.Embed(
+        title=f"{sig.symbol} \u2014 SELL Signal",
+        description="\n".join(f"\u2022 {r}" for r in sig.reasons),
+        color=0xE74C3C,
+    )
+    embed.add_field(name="Strength", value=f"{sig.strength:.0%}", inline=True)
+    embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
+    return embed
+
+
 @app_commands.command(name="recommend", description="Get current buy/sell recommendations")
 async def recommend_cmd(interaction: discord.Interaction) -> None:
     bot: TraderBot = interaction.client  # type: ignore[assignment]
@@ -736,24 +826,34 @@ async def recommend_cmd(interaction: discord.Interaction) -> None:
         await interaction.followup.send("No actionable signals right now. Market may be quiet.")
         return
 
-    for sig in recs["buys"]:
-        embed = discord.Embed(
-            title=f"{sig.symbol} \u2014 BUY Signal",
-            description="\n".join(f"\u2022 {r}" for r in sig.reasons),
-            color=0x2ECC71,
+    # Show sector exposure summary if we have holdings
+    exposure = recs.get("sector_exposure", {})
+    if exposure:
+        lines = []
+        for sector, data in sorted(
+            exposure.items(), key=lambda x: x[1]["pct"], reverse=True
+        ):
+            bar_len = int(data["pct"] * 20)
+            bar = "\u2588" * bar_len + "\u2591" * (20 - bar_len)
+            syms = ", ".join(data["symbols"])
+            lines.append(f"`{bar}` **{sector}** {data['pct']:.0%} ({syms})")
+        exp_embed = discord.Embed(
+            title="Portfolio Sector Exposure",
+            description="\n".join(lines),
+            color=0x3498DB,
         )
-        embed.add_field(name="Strength", value=f"{sig.strength:.0%}", inline=True)
-        embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
+        exp_embed.add_field(
+            name="Cash", value=f"${bot.portfolio.cash:.2f}", inline=True
+        )
+        await interaction.followup.send(embed=exp_embed)
+
+    funding = recs.get("funding", [])
+    for sig in recs["buys"]:
+        embed = _build_buy_embed(sig, funding)
         await interaction.followup.send(embed=embed, view=RecheckView())
 
     for sig in recs["sells"]:
-        embed = discord.Embed(
-            title=f"{sig.symbol} \u2014 SELL Signal",
-            description="\n".join(f"\u2022 {r}" for r in sig.reasons),
-            color=0xE74C3C,
-        )
-        embed.add_field(name="Strength", value=f"{sig.strength:.0%}", inline=True)
-        embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
+        embed = _build_sell_embed(sig)
         await interaction.followup.send(embed=embed, view=RecheckView())
 
 

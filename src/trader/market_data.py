@@ -11,25 +11,40 @@ import yfinance as yf
 
 logger = logging.getLogger(__name__)
 
-# Map CDR symbols (.NE) to their US counterparts for premarket data
-CDR_TO_US: dict[str, str] = {
-    "AAPL.NE": "AAPL",
-    "MSFT.NE": "MSFT",
-    "GOOG.NE": "GOOG",
-    "AMD.NE": "AMD",
-    "ASML.NE": "ASML",
-    "NVDA.NE": "NVDA",
-    "AMZN.NE": "AMZN",
-    "META.NE": "META",
-    "TSLA.NE": "TSLA",
-    "NFLX.NE": "NFLX",
+# Map CDR symbols (.NE) to their US counterparts for premarket data.
+# Auto-derived: strip .NE suffix. Explicit overrides only for non-obvious mappings.
+_CDR_OVERRIDES: dict[str, str] = {
+    "GOOG.NE": "GOOGL",  # CDR uses GOOG but yfinance premarket needs GOOGL
 }
+
+
+def _build_cdr_map(symbols: list[str]) -> dict[str, str]:
+    """Build CDR→US map from symbol list. Any .NE symbol maps to its base."""
+    mapping: dict[str, str] = {}
+    for sym in symbols:
+        if sym.endswith(".NE"):
+            base = sym.removesuffix(".NE")
+            mapping[sym] = _CDR_OVERRIDES.get(sym, base)
+    return mapping
 
 
 class MarketData:
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
-        self.symbols: list[str] = config["strategy"]["symbols"]
+
+        # Build flat symbol list from sectors dict or legacy flat list
+        sectors = config["strategy"].get("sectors")
+        if sectors and isinstance(sectors, dict):
+            self.symbols: list[str] = []
+            for entries in sectors.values():
+                for entry in entries:
+                    sym = entry if isinstance(entry, str) else entry["symbol"]
+                    if sym not in self.symbols:
+                        self.symbols.append(sym)
+        else:
+            self.symbols = config["strategy"].get("symbols", [])
+
+        self.cdr_to_us = _build_cdr_map(self.symbols)
 
     def _resolve_ticker(self, symbol: str) -> str:
         """Resolve a symbol to a yfinance-compatible ticker.
@@ -58,7 +73,7 @@ class MarketData:
 
         if df is None or df.empty:
             # For .NE symbols, fall back to US counterpart
-            us_ticker = CDR_TO_US.get(symbol)
+            us_ticker = self.cdr_to_us.get(symbol)
             if us_ticker:
                 logger.info("No data for %s, falling back to US ticker %s", symbol, us_ticker)
                 try:
@@ -158,7 +173,7 @@ class MarketData:
         movers: list[dict[str, Any]] = []
 
         async def check_one(symbol: str) -> dict[str, Any] | None:
-            us_ticker = CDR_TO_US.get(symbol)
+            us_ticker = self.cdr_to_us.get(symbol)
             if not us_ticker:
                 return None
             try:

@@ -21,8 +21,24 @@ ET = ZoneInfo("America/New_York")
 # Edit Holdings Views / Modals
 # ---------------------------------------------------------------------------
 
-class EditHoldingModal(discord.ui.Modal):
-    """Modal to edit a single holding's data."""
+def _build_holdings_edit_list(holdings_list: list[dict[str, Any]]) -> discord.Embed:
+    """Show all holdings in the edit view."""
+    lines = []
+    for h in holdings_list:
+        value = h["quantity"] * h["avg_cost"]
+        lines.append(
+            f"\u2022 **{h['symbol']}** \u2014 {h['quantity']:.4f} shares, "
+            f"avg ${h['avg_cost']:.2f} (${value:.2f})"
+        )
+    return discord.Embed(
+        title="Edit Holdings",
+        description="\n".join(lines),
+        color=0xF39C12,
+        ).set_footer(text="Select a holding to edit, or Save to apply changes.")
+
+
+class EditSingleHoldingModal(discord.ui.Modal):
+    """Modal to edit one holding, then return to the select view."""
 
     def __init__(
         self,
@@ -32,7 +48,7 @@ class EditHoldingModal(discord.ui.Modal):
         risk: RiskManager,
     ) -> None:
         h = holdings_list[index]
-        super().__init__(title=f"Edit Holding {index + 1}/{len(holdings_list)}")
+        super().__init__(title=f"Edit {h['symbol']}")
         self.holdings_list = holdings_list
         self.index = index
         self.portfolio = portfolio
@@ -74,84 +90,52 @@ class EditHoldingModal(discord.ui.Modal):
             )
             return
 
-        next_idx = self.index + 1
-        if next_idx < len(self.holdings_list):
-            embed = _build_holdings_edit_progress(self.holdings_list, next_idx)
-            view = EditNextHoldingView(
-                self.holdings_list, next_idx, self.portfolio, self.risk
-            )
-            await interaction.response.edit_message(embed=embed, view=view)
-        else:
-            await interaction.response.defer()
-            await self._apply_holdings(interaction)
-
-    async def _apply_holdings(self, interaction: discord.Interaction) -> None:
-        parsed = [
-            {
-                "symbol": h["symbol"],
-                "quantity": h["quantity"],
-                "market_value_cad": h["quantity"] * h["avg_cost"],
-            }
-            for h in self.holdings_list
-        ]
-        await self.portfolio.sync_from_snapshot(parsed, self.risk)
-        await interaction.followup.send(
-            f"Portfolio updated with {len(parsed)} holdings."
-        )
+        embed = _build_holdings_edit_list(self.holdings_list)
+        view = HoldingSelectView(self.holdings_list, self.portfolio, self.risk)
+        await interaction.response.edit_message(embed=embed, view=view)
 
 
-def _build_holdings_edit_progress(
-    holdings_list: list[dict[str, Any]], next_idx: int
-) -> discord.Embed:
-    """Show which holdings have been edited so far."""
-    lines = []
-    for i, h in enumerate(holdings_list):
-        check = "\u2705" if i < next_idx else "\u270F\uFE0F"
-        value = h["quantity"] * h["avg_cost"]
-        lines.append(
-            f"{check} **{h['symbol']}** \u2014 {h['quantity']:.4f} shares, "
-            f"avg ${h['avg_cost']:.2f} (${value:.2f})"
-        )
-    embed = discord.Embed(
-        title=f"Editing Holdings ({next_idx}/{len(holdings_list)} done)",
-        description="\n".join(lines),
-        color=0xF39C12,
-    )
-    embed.set_footer(text=f"Next: {holdings_list[next_idx]['symbol']}")
-    return embed
-
-
-class EditNextHoldingView(discord.ui.View):
-    """Button to open the next holding's edit modal."""
+class HoldingSelectView(discord.ui.View):
+    """Dropdown to pick which holding to edit + Save button."""
 
     def __init__(
         self,
         holdings_list: list[dict[str, Any]],
-        index: int,
         portfolio: Portfolio,
         risk: RiskManager,
     ) -> None:
         super().__init__(timeout=300)
         self.holdings_list = holdings_list
-        self.index = index
         self.portfolio = portfolio
         self.risk = risk
 
-    @discord.ui.button(
-        label="Edit Next", style=discord.ButtonStyle.primary, emoji="\u270F\uFE0F"
-    )
-    async def edit_next(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ) -> None:
-        modal = EditHoldingModal(
-            self.holdings_list, self.index, self.portfolio, self.risk
+        options = []
+        for i, h in enumerate(holdings_list[:25]):
+            value = h["quantity"] * h["avg_cost"]
+            options.append(discord.SelectOption(
+                label=h["symbol"],
+                description=f"{h['quantity']:.4f} sh @ ${h['avg_cost']:.2f} (${value:.2f})",
+                value=str(i),
+            ))
+
+        self.select = discord.ui.Select(
+            placeholder="Select a holding to edit\u2026",
+            options=options,
+        )
+        self.select.callback = self._on_select
+        self.add_item(self.select)
+
+    async def _on_select(self, interaction: discord.Interaction) -> None:
+        index = int(self.select.values[0])
+        modal = EditSingleHoldingModal(
+            self.holdings_list, index, self.portfolio, self.risk
         )
         await interaction.response.send_modal(modal)
 
     @discord.ui.button(
-        label="Save & Finish", style=discord.ButtonStyle.success, emoji="\u2705"
+        label="Save", style=discord.ButtonStyle.success, emoji="\u2705"
     )
-    async def save_finish(
+    async def save(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
         await interaction.response.defer()
@@ -199,8 +183,9 @@ class HoldingsView(discord.ui.View):
             for sym, h in self.portfolio.holdings.items()
         ]
 
-        modal = EditHoldingModal(holdings_list, 0, self.portfolio, self.risk)
-        await interaction.response.send_modal(modal)
+        embed = _build_holdings_edit_list(holdings_list)
+        view = HoldingSelectView(holdings_list, self.portfolio, self.risk)
+        await interaction.response.edit_message(embed=embed, view=view)
 
 
 # ---------------------------------------------------------------------------

@@ -39,25 +39,19 @@ def _build_upload_embed(parsed: list[dict[str, Any]]) -> discord.Embed:
     return embed
 
 
-def _build_edit_progress_embed(
-    parsed: list[dict[str, Any]], next_idx: int
-) -> discord.Embed:
-    """Build embed showing edit progress and what's next."""
+def _build_upload_edit_list(parsed: list[dict[str, Any]]) -> discord.Embed:
+    """Show all parsed holdings in the edit view."""
     lines = []
-    for i, h in enumerate(parsed):
-        check = "\u2705" if i < next_idx else "\u270F\uFE0F"
+    for h in parsed:
         lines.append(
-            f"{check} **{h['symbol']}** \u2014 {h['quantity']:.4f} shares, "
+            f"\u2022 **{h['symbol']}** \u2014 {h['quantity']:.4f} shares, "
             f"${h['market_value_cad']:.2f} CAD"
         )
-    embed = discord.Embed(
-        title=f"Editing Holdings ({next_idx}/{len(parsed)} done)",
+    return discord.Embed(
+        title="Edit Parsed Holdings",
         description="\n".join(lines),
         color=0xF39C12,
-    )
-    h = parsed[next_idx]
-    embed.set_footer(text=f"Next: {h['symbol']}")
-    return embed
+    ).set_footer(text="Select a holding to edit, or Done to go back.")
 
 
 async def _parse_screenshot(
@@ -90,8 +84,8 @@ async def _parse_screenshot(
 # Views / Modals
 # ---------------------------------------------------------------------------
 
-class EditSymbolModal(discord.ui.Modal):
-    """Modal to edit a single symbol's parsed data."""
+class EditSingleSymbolModal(discord.ui.Modal):
+    """Modal to edit one parsed symbol, then return to the select view."""
 
     def __init__(
         self,
@@ -101,7 +95,7 @@ class EditSymbolModal(discord.ui.Modal):
         risk: RiskManager,
     ) -> None:
         h = parsed[index]
-        super().__init__(title=f"Edit Symbol {index + 1}/{len(parsed)}")
+        super().__init__(title=f"Edit {h['symbol']}")
         self.parsed = parsed
         self.index = index
         self.portfolio = portfolio
@@ -139,52 +133,55 @@ class EditSymbolModal(discord.ui.Modal):
             }
         except ValueError:
             await interaction.response.send_message(
-                "Invalid number — quantity and value must be numeric.", ephemeral=True
+                "Invalid number \u2014 quantity and value must be numeric.", ephemeral=True
             )
             return
 
-        next_idx = self.index + 1
-        if next_idx < len(self.parsed):
-            embed = _build_edit_progress_embed(self.parsed, next_idx)
-            view = EditNextView(self.parsed, next_idx, self.portfolio, self.risk)
-            await interaction.response.edit_message(embed=embed, view=view)
-        else:
-            embed = _build_upload_embed(self.parsed)
-            view = ConfirmUploadView(self.parsed, self.portfolio, self.risk)
-            await interaction.response.edit_message(embed=embed, view=view)
+        embed = _build_upload_edit_list(self.parsed)
+        view = UploadEditSelectView(self.parsed, self.portfolio, self.risk)
+        await interaction.response.edit_message(embed=embed, view=view)
 
 
-class EditNextView(discord.ui.View):
-    """Button to open the modal for the next symbol (workaround for modal chaining)."""
+class UploadEditSelectView(discord.ui.View):
+    """Dropdown to pick which parsed holding to edit + Done button."""
 
     def __init__(
         self,
         parsed: list[dict[str, Any]],
-        index: int,
         portfolio: Portfolio,
         risk: RiskManager,
     ) -> None:
         super().__init__(timeout=300)
         self.parsed = parsed
-        self.index = index
         self.portfolio = portfolio
         self.risk = risk
 
-    @discord.ui.button(
-        label="Edit Next", style=discord.ButtonStyle.primary, emoji="\u270F\uFE0F"
-    )
-    async def edit_next(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ) -> None:
-        modal = EditSymbolModal(
-            self.parsed, self.index, self.portfolio, self.risk
+        options = []
+        for i, h in enumerate(parsed[:25]):
+            options.append(discord.SelectOption(
+                label=h["symbol"],
+                description=f"{h['quantity']:.4f} sh, ${h['market_value_cad']:.2f} CAD",
+                value=str(i),
+            ))
+
+        self.select = discord.ui.Select(
+            placeholder="Select a holding to edit\u2026",
+            options=options,
+        )
+        self.select.callback = self._on_select
+        self.add_item(self.select)
+
+    async def _on_select(self, interaction: discord.Interaction) -> None:
+        index = int(self.select.values[0])
+        modal = EditSingleSymbolModal(
+            self.parsed, index, self.portfolio, self.risk
         )
         await interaction.response.send_modal(modal)
 
     @discord.ui.button(
-        label="Skip Rest", style=discord.ButtonStyle.secondary, emoji="\u23ED\uFE0F"
+        label="Done", style=discord.ButtonStyle.success, emoji="\u2705"
     )
-    async def skip_rest(
+    async def done(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
         embed = _build_upload_embed(self.parsed)
@@ -224,8 +221,9 @@ class ConfirmUploadView(discord.ui.View):
         if not self.parsed:
             await interaction.response.send_message("Nothing to edit.", ephemeral=True)
             return
-        modal = EditSymbolModal(self.parsed, 0, self.portfolio, self.risk)
-        await interaction.response.send_modal(modal)
+        embed = _build_upload_edit_list(self.parsed)
+        view = UploadEditSelectView(self.parsed, self.portfolio, self.risk)
+        await interaction.response.edit_message(embed=embed, view=view)
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger, emoji="\u274C")
     async def cancel(

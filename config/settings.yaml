@@ -34,7 +34,7 @@ strategy:
       - {symbol: "CSU.TO",   name: "Constellation Software"}
       - {symbol: "OTEX.TO",  name: "Open Text"}
       - {symbol: "TEC.TO",   name: "TD Global Tech Leaders ETF"}
-      - {symbol: "MU.TO",    name: "Micron (TSX-listed)"}
+      - {symbol: "MU.NE",    name: "Micron (CDR)"}
 
     # --- Financials: Banks, Insurance, Fintech ---
     financials:
@@ -106,7 +106,7 @@ strategy:
       - {symbol: "NTR.TO",   name: "Nutrien"}
       - {symbol: "WFG.TO",   name: "West Fraser Timber"}
       - {symbol: "MNT.TO",   name: "Mint Corp"}
-      - {symbol: "TECK.TO",  name: "Teck Resources"}
+      - {symbol: "TECK-B.TO", name: "Teck Resources"}
       - {symbol: "FNV.TO",   name: "Franco-Nevada"}
 
     # --- Telecom ---

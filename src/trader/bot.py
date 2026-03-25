@@ -1032,38 +1032,67 @@ async def holdings_cmd(interaction: discord.Interaction) -> None:
         )
         return
 
-    await interaction.response.defer()
+    await interaction.response.defer(thinking=True)
 
     symbols = list(bot.portfolio.holdings.keys())
     prices = await bot.market_data.get_batch_prices(symbols)
-    holdings = bot.portfolio.get_holdings_with_pnl(prices)
 
-    total_value = sum(h["market_value"] for h in holdings)
-    total_pnl = sum(h["pnl"] for h in holdings)
+    action_emojis = {
+        "HOLD": "\U0001f7e1", "HOLD+": "\U0001f7e2",
+        "SELL": "\U0001f534", "SWAP": "\U0001f504",
+    }
 
-    embed = discord.Embed(
-        title="Current Holdings",
-        color=pnl_color(total_pnl),
-    )
+    total_value = 0.0
+    total_cost = 0.0
 
-    for h in holdings:
-        emoji = "\U0001f7e2" if h["pnl_pct"] >= 0 else "\U0001f534"
-        embed.add_field(
-            name=f"{emoji} {h['symbol']}",
-            value=(
-                f"{h['quantity']:.4f} shares\n"
-                f"Avg cost: ${h['avg_cost']:.2f}\n"
-                f"Current: ${h['current_price']:.2f}\n"
-                f"Value: ${h['market_value']:.2f}\n"
-                f"P&L: ${h['pnl']:+.2f} ({h['pnl_pct']:+.1f}%)"
-            ),
-            inline=True,
+    embed = discord.Embed(title="Current Holdings", color=0x3498DB)
+
+    for sym in symbols:
+        h = bot.portfolio.holdings[sym]
+        price = prices.get(sym, h["avg_cost"])
+        value = h["quantity"] * price
+        cost = h["quantity"] * h["avg_cost"]
+        total_value += value
+        total_cost += cost
+
+        # Get actionable advice (no alternatives for speed)
+        advice = await bot.strategy.get_holding_advice(
+            sym, price, find_alternatives=False
         )
 
+        action = advice["action"]
+        action_emoji = action_emojis.get(action, "\u26AA")
+        pnl_pct = advice["pnl_pct"]
+        pnl_emoji = "\U0001f7e2" if pnl_pct >= 0 else "\U0001f534"
+
+        # Filter out noise reasons (Price:, ATR:, Sector:)
+        top_reasons = [
+            r for r in advice["reasons"][:3]
+            if not r.startswith(("Price:", "ATR:", "Sector:"))
+        ]
+        reasons_str = " | ".join(top_reasons) if top_reasons else ""
+        detail = advice.get("action_detail", "")
+
+        value_lines = [
+            f"{h['quantity']:.4f} sh @ ${price:.2f} {pnl_emoji} {pnl_pct:+.1f}%",
+            f"Avg: ${h['avg_cost']:.2f} | Value: ${value:.2f}",
+        ]
+        if reasons_str:
+            value_lines.append(reasons_str)
+        if detail:
+            value_lines.append(f"**\u27A1 {detail}**")
+
+        embed.add_field(
+            name=f"{action_emoji} {sym} \u2014 {action}",
+            value="\n".join(value_lines),
+            inline=False,
+        )
+
+    total_pnl = total_value - total_cost
     embed.add_field(
         name="Total",
         value=f"${total_value:.2f} ({total_pnl:+.2f})",
-        inline=False,
+        inline=True,
     )
     embed.add_field(name="Cash", value=f"${bot.portfolio.cash:.2f}", inline=True)
     embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
@@ -1150,13 +1179,27 @@ def _build_buy_embed(
         pnl_emoji = "\U0001f7e2" if s["pnl_pct"] >= 0 else "\U0001f534"
         sell_label = "Sell signal" if s["has_sell_signal"] else "Weakest holding"
         action = s.get("sell_action", "Sell all")
+
+        # Include signal/sentiment reasons for the sell suggestion
+        sell_reasons = [
+            r for r in s.get("reasons", [])[:2]
+            if not r.startswith(("Price:", "ATR:", "Sector:"))
+        ]
+        reasons_str = " | ".join(sell_reasons) if sell_reasons else ""
+
+        value_lines = [
+            f"{sell_label} \u2014 {s['quantity']:.4f} sh @ ${s['price']:.2f}",
+            f"Value: ${s['value']:.2f} {pnl_emoji} ({s['pnl_pct']:+.1f}%)",
+        ]
+        if reasons_str:
+            value_lines.append(reasons_str)
+        value_lines.append(
+            f"Sector: {s['sector']} ({s['sector_pct']:.0%} of portfolio)"
+        )
+
         embed.add_field(
             name=f"\U0001f4b0 {action} {s['symbol']} to fund",
-            value=(
-                f"{sell_label} \u2014 {s['quantity']:.4f} shares @ ${s['price']:.2f}\n"
-                f"Value: ${s['value']:.2f} {pnl_emoji} ({s['pnl_pct']:+.1f}%)\n"
-                f"Sector: {s['sector']} ({s['sector_pct']:.0%} of portfolio)"
-            ),
+            value="\n".join(value_lines),
             inline=False,
         )
 
@@ -1215,13 +1258,14 @@ async def check_cmd(interaction: discord.Interaction, symbol: str) -> None:
     )
     embed.add_field(name="Strength", value=f"{result.strength:.0%}", inline=True)
 
-    # Show holding info if user holds this symbol
+    # Show holding info + actionable advice if user holds this symbol
     h = bot.portfolio.holdings.get(symbol)
     if h:
         prices = await bot.market_data.get_batch_prices([symbol])
         price = prices.get(symbol, h["avg_cost"])
         pnl_pct = (price - h["avg_cost"]) / h["avg_cost"] * 100 if h["avg_cost"] > 0 else 0.0
         pnl_emoji = "\U0001f7e2" if pnl_pct >= 0 else "\U0001f534"
+
         embed.add_field(
             name="Your Position",
             value=(
@@ -1230,6 +1274,46 @@ async def check_cmd(interaction: discord.Interaction, symbol: str) -> None:
             ),
             inline=False,
         )
+
+        # Get actionable advice with alternatives
+        alternative = None
+        if result.signal != Signal.BUY:
+            alternative = await bot.strategy._find_better_alternative(
+                symbol, result, {symbol: price}
+            )
+        advice = bot.strategy._holding_action(result, pnl_pct, alternative)
+
+        action = advice["action"]
+        action_emojis = {
+            "HOLD": "\U0001f7e1", "HOLD+": "\U0001f7e2",
+            "SELL": "\U0001f534", "SWAP": "\U0001f504",
+        }
+        action_emoji = action_emojis.get(action, "\u26AA")
+        detail = advice.get("detail", "")
+        if detail:
+            embed.add_field(
+                name=f"{action_emoji} Advice: {action}",
+                value=detail,
+                inline=False,
+            )
+
+        alt = advice.get("alternative")
+        if alt:
+            alt_reasons = " | ".join(
+                r for r in alt.get("reasons", [])[:2]
+                if not r.startswith(("Price:", "ATR:"))
+            )
+            alt_text = (
+                f"**{alt['symbol']}** \u2014 BUY {alt['strength']:.0%} "
+                f"@ ${alt['price']:.2f}"
+            )
+            if alt_reasons:
+                alt_text += f"\n{alt_reasons}"
+            embed.add_field(
+                name="\U0001f4a1 Consider Instead",
+                value=alt_text,
+                inline=False,
+            )
 
     embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
     await interaction.followup.send(embed=embed, view=RecheckView())

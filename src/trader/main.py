@@ -29,6 +29,9 @@ def main() -> None:
             logging.FileHandler("logs/trader.log", mode="a"),
         ],
     )
+    # Suppress noisy yfinance ERROR logs (404s for ETFs without fundamentals, etc.)
+    # Our code already handles these gracefully — sentiment defaults to neutral on failure
+    logging.getLogger("yfinance").setLevel(logging.CRITICAL)
     logger = logging.getLogger(__name__)
 
     config = load_config()

@@ -250,6 +250,7 @@ class Strategy:
 
             # Run signal analysis on the held position
             sell_score = 0.0
+            signal_reasons: list[str] = []
             try:
                 df = await self.market_data.get_historical_data(symbol, period="30d")
                 if df is not None and len(df) >= 35:
@@ -258,6 +259,7 @@ class Strategy:
                     result = generate_signal(
                         df, self.config, sentiment_score=sent.total_score
                     )
+                    signal_reasons = result.reasons + sent.reasons
                     if result.signal == Signal.SELL:
                         sell_score = result.strength
                     elif result.signal == Signal.HOLD:
@@ -282,6 +284,7 @@ class Strategy:
                 "sector_pct": sector_pct,
                 "sell_score": score,
                 "has_sell_signal": sell_score >= 0.3,
+                "reasons": signal_reasons,
             })
 
         ranked.sort(key=lambda x: x["sell_score"], reverse=True)
@@ -519,6 +522,54 @@ class Strategy:
             "alternative": None,
         }
 
+    async def get_holding_advice(
+        self,
+        symbol: str,
+        price: float,
+        find_alternatives: bool = True,
+    ) -> dict[str, Any]:
+        """Get actionable advice for a held symbol.
+
+        Reusable by /holdings (find_alternatives=False for speed),
+        /check, and scheduled recaps (find_alternatives=True).
+        Returns signal, action (HOLD/HOLD+/SELL/SWAP), reasons, and alternative.
+        """
+        h = self.portfolio.holdings.get(symbol)
+        if not h:
+            return {
+                "signal": "HOLD",
+                "strength": 0.0,
+                "reasons": [],
+                "pnl_pct": 0.0,
+                "action": "HOLD",
+                "action_detail": "Not currently held",
+                "alternative": None,
+            }
+
+        pnl_pct = (
+            (price - h["avg_cost"]) / h["avg_cost"] * 100
+            if h["avg_cost"] > 0 else 0.0
+        )
+        signal_result = await self.analyze_symbol(symbol)
+
+        alternative = None
+        if find_alternatives and signal_result.signal != Signal.BUY:
+            alternative = await self._find_better_alternative(
+                symbol, signal_result, {symbol: price}
+            )
+
+        advice = self._holding_action(signal_result, pnl_pct, alternative)
+
+        return {
+            "signal": signal_result.signal.value,
+            "strength": signal_result.strength,
+            "reasons": signal_result.reasons,
+            "pnl_pct": pnl_pct,
+            "action": advice["action"],
+            "action_detail": advice["detail"],
+            "alternative": advice.get("alternative"),
+        }
+
     async def get_daily_insights(self) -> dict[str, Any]:
         """Generate market insights for holdings and notable movers.
 
@@ -536,33 +587,22 @@ class Strategy:
         holding_insights: list[dict[str, Any]] = []
         for symbol, h in self.portfolio.holdings.items():
             price = prices.get(symbol, h["avg_cost"])
-            pnl_pct = (
-                (price - h["avg_cost"]) / h["avg_cost"] * 100
-                if h["avg_cost"] > 0 else 0.0
+            advice = await self.get_holding_advice(
+                symbol, price, find_alternatives=True
             )
-            signal_result = await self.analyze_symbol(symbol)
-
-            # Find a better alternative if holding is weak
-            alternative = None
-            if signal_result.signal != Signal.BUY:
-                alternative = await self._find_better_alternative(
-                    symbol, signal_result, prices
-                )
-
-            advice = self._holding_action(signal_result, pnl_pct, alternative)
 
             holding_insights.append({
                 "symbol": symbol,
                 "quantity": h["quantity"],
                 "price": price,
-                "pnl_pct": pnl_pct,
+                "pnl_pct": advice["pnl_pct"],
                 "value": h["quantity"] * price,
-                "signal": signal_result.signal.value,
-                "strength": signal_result.strength,
-                "reasons": signal_result.reasons,
+                "signal": advice["signal"],
+                "strength": advice["strength"],
+                "reasons": advice["reasons"],
                 "sector": self.get_sector(symbol),
                 "action": advice["action"],
-                "action_detail": advice["detail"],
+                "action_detail": advice["action_detail"],
                 "alternative": advice.get("alternative"),
             })
 

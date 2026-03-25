@@ -36,6 +36,9 @@ class Strategy:
         )
         self.max_sector_pct: float = config["strategy"].get("max_sector_pct", 0.40)
 
+        # Cache last scan results so /holdings can reflect sell-to-fund suggestions
+        self._cached_recommendations: dict[str, Any] | None = None
+
         # Build flat symbol list + sector lookup from config
         self.symbol_to_sector: dict[str, str] = {}
         self.symbols: list[str] = []
@@ -384,12 +387,15 @@ class Strategy:
                             sell_info["sell_action"] = "Sell all"
                         funding.append({"buy": buy_sig.symbol, "sell": sell_info})
 
-        return {
+        result = {
             "buys": top_buys,
             "sells": top_sells,
             "funding": funding,
             "sector_exposure": exposure,
         }
+        # Cache so /holdings and other commands reflect the same swap suggestions
+        self._cached_recommendations = result
+        return result
 
     @staticmethod
     def _extract_price(sig: SignalResult) -> float | None:
@@ -559,6 +565,40 @@ class Strategy:
             )
 
         advice = self._holding_action(signal_result, pnl_pct, alternative)
+
+        # If individual analysis says HOLD, check if the last universe scan
+        # found a better buy that this holding should fund (sell-to-fund).
+        # This keeps /holdings consistent with /recommend and scheduled scans.
+        if advice["action"] == "HOLD" and self._cached_recommendations:
+            for f in self._cached_recommendations.get("funding", []):
+                if f["sell"]["symbol"] == symbol:
+                    buy_sym = f["buy"]
+                    buy_sig = next(
+                        (b for b in self._cached_recommendations["buys"]
+                         if b.symbol == buy_sym),
+                        None,
+                    )
+                    if buy_sig:
+                        alt_price = self._extract_price(buy_sig)
+                        alt_reasons = [
+                            r for r in buy_sig.reasons[:3]
+                            if not r.startswith(("Price:", "ATR:", "Sector:"))
+                        ]
+                        advice = {
+                            "action": "SWAP",
+                            "detail": (
+                                f"Better opportunity — consider swapping to "
+                                f"{buy_sym} (BUY {buy_sig.strength:.0%})"
+                            ),
+                            "alternative": {
+                                "symbol": buy_sym,
+                                "strength": buy_sig.strength,
+                                "price": alt_price,
+                                "sector": self.get_sector(buy_sym),
+                                "reasons": alt_reasons,
+                            },
+                        }
+                    break
 
         return {
             "signal": signal_result.signal.value,

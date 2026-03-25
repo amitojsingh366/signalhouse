@@ -43,7 +43,15 @@ mypy src/
 src/trader/
 ├── main.py           # Entry point — wires components, starts Discord bot
 ├── config.py         # Loads settings.yaml + settings.local.yaml (secrets)
-├── bot.py            # Discord bot — slash commands, recheck buttons, scheduled tasks
+├── bot.py            # Core TraderBot class, shared helpers, extension loader
+├── cogs/             # Discord.py cog extensions (one per feature area)
+│   ├── __init__.py   # Extension registry (EXTENSIONS list)
+│   ├── trading.py    # /buy, /sell commands
+│   ├── portfolio.py  # /holdings, /pnl commands + edit views
+│   ├── signals.py    # /recommend, /check commands + recheck button
+│   ├── upload.py     # /upload command + screenshot parsing views
+│   ├── status.py     # /status command
+│   └── tasks.py      # Scheduled loops (scans, daily status, briefings, recaps)
 ├── market_data.py    # yfinance wrapper — fetches prices and historical data
 ├── portfolio.py      # JSON-backed portfolio tracking (holdings, trades, P&L)
 ├── signals.py        # Technical analysis: EMA, RSI, MACD, Bollinger Bands → BUY/SELL/HOLD
@@ -54,7 +62,7 @@ src/trader/
 └── backtest.py       # Replays historical bars through signal generator
 ```
 
-**Data flow:** `bot.py` runs scheduled scans every 15 min during market hours → `strategy.scan_universe()` → for each symbol, `market_data` fetches historical bars via yfinance → `signals` computes indicators and generates BUY/SELL/HOLD → bot posts top signals to Discord with recheck buttons. User reports trades via `/buy` and `/sell` slash commands → `portfolio` tracks holdings and P&L.
+**Data flow:** `cogs/tasks.py` runs scheduled scans every 15 min during market hours → `strategy.scan_universe()` → for each symbol, `market_data` fetches historical bars via yfinance → `signals` computes indicators and generates BUY/SELL/HOLD → bot posts top signals to Discord with recheck buttons. User reports trades via `/buy` and `/sell` slash commands (in `cogs/trading.py`) → `portfolio` tracks holdings and P&L. Each cog is a discord.py extension loaded automatically by `bot.py` at startup.
 
 **Config:** `config/settings.yaml` has defaults. Create `config/settings.local.yaml` (gitignored) for secrets (Discord bot token, channel ID, Anthropic API key). Local file merges over defaults. Environment variables `DISCORD_BOT_TOKEN`, `DISCORD_CHANNEL_ID`, `DISCORD_GUILD_ID`, and `ANTHROPIC_API_KEY` override config (used by Docker).
 

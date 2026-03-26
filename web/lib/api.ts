@@ -195,6 +195,20 @@ export const api = {
   getHoldings: () => fetchAPI<PortfolioSummary>("/api/portfolio/holdings"),
   getPnl: () => fetchAPI<PnlSummary>("/api/portfolio/pnl"),
   getSnapshots: () => fetchAPI<SnapshotOut[]>("/api/portfolio/snapshots"),
+  updateHolding: (symbol: string, quantity?: number, avg_cost?: number) =>
+    fetchAPI<{ symbol: string; quantity: number; avg_cost: number }>("/api/portfolio/holding", {
+      method: "PUT",
+      body: JSON.stringify({ symbol, quantity, avg_cost }),
+    }),
+  deleteHolding: (symbol: string) =>
+    fetchAPI<{ status: string; symbol: string }>(`/api/portfolio/holding/${encodeURIComponent(symbol)}`, {
+      method: "DELETE",
+    }),
+  updateCash: (cash: number) =>
+    fetchAPI<{ cash: number }>("/api/portfolio/cash", {
+      method: "PUT",
+      body: JSON.stringify({ cash }),
+    }),
 
   // Trades
   recordBuy: (symbol: string, quantity: number, price: number) =>

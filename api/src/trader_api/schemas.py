@@ -58,6 +58,16 @@ class PnlSummary(BaseModel):
     recent_trades: list[TradeOut] = []
 
 
+class HoldingUpdate(BaseModel):
+    symbol: str
+    quantity: float | None = None
+    avg_cost: float | None = None
+
+
+class CashUpdate(BaseModel):
+    cash: float
+
+
 # --- Trades ---
 
 class TradeIn(BaseModel):

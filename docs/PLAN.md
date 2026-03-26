@@ -33,7 +33,15 @@
   - [x] 8.3 Dashboard: progressive loading — stat cards render from cache instantly, charts/signals load async
   - [x] 8.4 Move sector exposure chart from Signals page to Dashboard
   - [x] 8.5 Signals: always-visible search bar above async-loading signal cards
-  - [ ] 8.6 Deploy to server
+  - [x] 8.6 Deploy to server
+- [ ] Step 9: Portfolio Editing & Theme Overhaul
+  - [x] 9.1 Add `update_holding`, `delete_holding`, `update_cash` methods to Portfolio service
+  - [x] 9.2 Fix cash tracking: `record_buy` deducts cash, `record_sell` adds proceeds
+  - [x] 9.3 Add API endpoints: `PUT /api/portfolio/holding`, `DELETE /api/portfolio/holding/{symbol}`, `PUT /api/portfolio/cash`
+  - [x] 9.4 Portfolio page: click holding row to open edit panel (qty, avg cost, delete)
+  - [x] 9.5 Portfolio page: click Cash stat card to edit cash balance
+  - [x] 9.6 Theme: dark black background (#09090b), purple accent (#a78bfa), zinc-based surfaces
+  - [ ] 9.7 Deploy to server
 
 ---
 

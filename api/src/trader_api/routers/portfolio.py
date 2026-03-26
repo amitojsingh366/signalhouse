@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trader_api.database import get_db
 from trader_api.deps import get_market_data, get_risk, make_portfolio, make_strategy
-from trader_api.schemas import HoldingAdvice, PnlSummary, PortfolioSummary, SnapshotOut, TradeOut
+from trader_api.schemas import (
+    CashUpdate,
+    HoldingAdvice,
+    HoldingOut,
+    HoldingUpdate,
+    PnlSummary,
+    PortfolioSummary,
+    SnapshotOut,
+    TradeOut,
+)
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
@@ -104,3 +113,28 @@ async def get_pnl(db: AsyncSession = Depends(get_db)):
 async def get_snapshots(db: AsyncSession = Depends(get_db)):
     portfolio = make_portfolio(db)
     return await portfolio.get_all_snapshots()
+
+
+@router.put("/holding", response_model=HoldingOut)
+async def update_holding(data: HoldingUpdate, db: AsyncSession = Depends(get_db)):
+    portfolio = make_portfolio(db)
+    result = await portfolio.update_holding(data.symbol.upper(), data.quantity, data.avg_cost)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Holding {data.symbol} not found")
+    return HoldingOut(**result)
+
+
+@router.delete("/holding/{symbol}")
+async def delete_holding(symbol: str, db: AsyncSession = Depends(get_db)):
+    portfolio = make_portfolio(db)
+    deleted = await portfolio.delete_holding(symbol.upper())
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Holding {symbol} not found")
+    return {"status": "deleted", "symbol": symbol.upper()}
+
+
+@router.put("/cash")
+async def update_cash(data: CashUpdate, db: AsyncSession = Depends(get_db)):
+    portfolio = make_portfolio(db)
+    new_cash = await portfolio.update_cash(data.cash)
+    return {"cash": new_cash}

@@ -96,11 +96,16 @@ class Portfolio:
         )
         self.db.add(trade)
 
+        # Deduct cash
+        meta = await self._get_meta()
+        meta.cash -= total
+
         if risk is not None:
             risk.register_entry(symbol, price, quantity)
 
         await self.db.commit()
-        logger.info("Recorded BUY: %.4f x %s @ $%.2f", quantity, symbol, price)
+        self._meta_cache = None
+        logger.info("Recorded BUY: %.4f x %s @ $%.2f (cash now $%.2f)", quantity, symbol, price, meta.cash)
         return {
             "symbol": symbol,
             "action": "BUY",
@@ -146,14 +151,19 @@ class Portfolio:
         )
         self.db.add(trade)
 
+        # Add proceeds to cash
+        meta = await self._get_meta()
+        meta.cash += total
+
         if risk is not None:
             if remaining < 0.0001:
                 risk.register_exit(symbol)
 
         await self.db.commit()
+        self._meta_cache = None
         logger.info(
-            "Recorded SELL: %.4f x %s @ $%.2f — P&L: $%.2f (%.1f%%)",
-            quantity, symbol, price, pnl, pnl_pct,
+            "Recorded SELL: %.4f x %s @ $%.2f — P&L: $%.2f (%.1f%%) (cash now $%.2f)",
+            quantity, symbol, price, pnl, pnl_pct, meta.cash,
         )
         return {
             "symbol": symbol,
@@ -207,6 +217,50 @@ class Portfolio:
             "Synced %d holdings from snapshot (total value: $%.2f)",
             len(parsed_holdings), total_value,
         )
+
+    async def update_holding(
+        self, symbol: str, quantity: float | None = None, avg_cost: float | None = None
+    ) -> dict[str, Any] | None:
+        """Update quantity and/or avg_cost for an existing holding."""
+        result = await self.db.execute(select(Holding).where(Holding.symbol == symbol))
+        h = result.scalar_one_or_none()
+        if h is None:
+            return None
+
+        if quantity is not None:
+            h.quantity = quantity
+        if avg_cost is not None:
+            h.avg_cost = avg_cost
+
+        await self.db.commit()
+        await self.db.refresh(h)
+        logger.info("Updated holding %s: qty=%.4f avg_cost=%.2f", symbol, h.quantity, h.avg_cost)
+        return {
+            "symbol": h.symbol,
+            "quantity": h.quantity,
+            "avg_cost": h.avg_cost,
+            "entry_date": h.entry_date.isoformat() if h.entry_date else "",
+        }
+
+    async def delete_holding(self, symbol: str) -> bool:
+        """Delete a holding entirely."""
+        result = await self.db.execute(select(Holding).where(Holding.symbol == symbol))
+        h = result.scalar_one_or_none()
+        if h is None:
+            return False
+        await self.db.delete(h)
+        await self.db.commit()
+        logger.info("Deleted holding %s", symbol)
+        return True
+
+    async def update_cash(self, cash: float) -> float:
+        """Set the cash balance directly."""
+        meta = await self._get_meta()
+        meta.cash = cash
+        await self.db.commit()
+        self._meta_cache = None
+        logger.info("Updated cash to $%.2f", cash)
+        return cash
 
     async def get_portfolio_value(self, live_prices: dict[str, float]) -> float:
         meta = await self._get_meta()

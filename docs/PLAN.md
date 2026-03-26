@@ -126,10 +126,12 @@ Sector exposure chart uses a purple gradient (brightest → dimmest by weight).
 - [x] **Step 9:** Portfolio editing (CRUD endpoints), cash tracking (buy deducts/sell adds), dark theme overhaul, P&L fixes (exclude cash, include realized)
 - [x] **Step 10:** Color consolidation (purple positive, red negative, amber warning), skeleton loading states, trade history chronological ordering, sector chart purple gradient with hover
 
+- [x] **Step 11:** Dashboard polish — CTAs under stat cards, empty state cards for charts/signals, sector tooltip fix, section order: CTAs → signals → equity → sector
+
+
 ---
 
 ## Next Steps
 
-- [x] **Step 11:** Dashboard polish — CTAs under stat cards, empty state cards for charts/signals, sector tooltip fix, section order: CTAs → signals → equity → sector
+- TBD
 
-**Note:** Always `git push origin main` before deploying via SSH.

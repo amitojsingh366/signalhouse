@@ -92,47 +92,6 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Dashboard</h1>
 
-      {/* Stat cards — render immediately from cache or show skeleton */}
-      {statsLoading && !hasStats ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <CardSkeleton />
-          <CardSkeleton />
-          <CardSkeleton />
-          <CardSkeleton />
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="Portfolio Value"
-            value={portfolio?.total_value ?? 0}
-            format="currency"
-            change={pnl?.total_pnl_pct}
-            changeLabel="total"
-            icon={DollarSign}
-          />
-          <StatCard
-            title="Daily P&L"
-            value={pnl?.daily_pnl ?? 0}
-            format="currency"
-            change={pnl?.daily_pnl_pct}
-            changeLabel="today"
-            icon={TrendingUp}
-          />
-          <StatCard
-            title="Cash Available"
-            value={portfolio?.cash ?? 0}
-            format="currency"
-            icon={Wallet}
-          />
-          <StatCard
-            title="Holdings"
-            value={portfolio?.holdings.length ?? 0}
-            format="number"
-            icon={Briefcase}
-          />
-        </div>
-      )}
-
       {/* Quick actions */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Link href="/trades" className="glass-card-hover flex items-center gap-3 p-4">
@@ -172,6 +131,47 @@ export default function DashboardPage() {
           </div>
         </Link>
       </div>
+
+       {/* Stat cards — render immediately from cache or show skeleton */}
+      {statsLoading && !hasStats ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Portfolio Value"
+            value={portfolio?.total_value ?? 0}
+            format="currency"
+            change={pnl?.total_pnl_pct}
+            changeLabel="total"
+            icon={DollarSign}
+          />
+          <StatCard
+            title="Daily P&L"
+            value={pnl?.daily_pnl ?? 0}
+            format="currency"
+            change={pnl?.daily_pnl_pct}
+            changeLabel="today"
+            icon={TrendingUp}
+          />
+          <StatCard
+            title="Cash Available"
+            value={portfolio?.cash ?? 0}
+            format="currency"
+            icon={Wallet}
+          />
+          <StatCard
+            title="Holdings"
+            value={portfolio?.holdings.length ?? 0}
+            format="number"
+            icon={Briefcase}
+          />
+        </div>
+      )}
 
       {/* Latest signals preview */}
       {signals && (signals.buys.length > 0 || signals.sells.length > 0) ? (

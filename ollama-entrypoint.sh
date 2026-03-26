@@ -4,15 +4,19 @@ ollama serve &
 
 # Wait for server to be ready
 echo "Waiting for Ollama server to start..."
-until curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; do
+until ollama list > /dev/null 2>&1; do
   sleep 1
 done
 echo "Ollama server is ready."
 
 # Pull the vision model if not already present
-echo "Pulling qwen2.5vl:3b model..."
-ollama pull qwen2.5vl:3b
-echo "Model ready."
+if ! ollama list | grep -q "qwen2.5vl:3b"; then
+  echo "Pulling qwen2.5vl:3b model..."
+  ollama pull qwen2.5vl:3b
+  echo "Model ready."
+else
+  echo "qwen2.5vl:3b model already present."
+fi
 
 # Keep the server running in foreground
 wait

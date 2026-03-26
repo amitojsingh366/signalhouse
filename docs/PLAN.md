@@ -270,5 +270,5 @@ ssh -i your-ssh-key ubuntu@your-server \
 
 See `docs/NEXT_STEPS.md` for the full roadmap (Phase 1: Validate & Tune, Phase 2: Improve Strategy, Phase 3: Scale Up, Phase 4: Advanced Features).
 
-- [x] **Step 15:** Exempt same-sector swaps from sector cap penalty — sell-to-fund pairs within the same sector no longer penalize buy signal strength
-- [ ] **Step 16:** Fix empty recommendations when only non-held sell signals exist — show non-held sells as watchlist alerts, improve logging
+- [x] **Step 15:** Same-sector swap exemption + watchlist alerts — sell-to-fund pairs within the same sector no longer penalize buy signal strength; non-held sell signals now show as "Watchlist Alerts" on signals page and dashboard instead of being silently filtered
+- TBD

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { Briefcase, RefreshCw, Pencil, Trash2, X, Check, DollarSign } from "lucide-react";
 import { api } from "@/lib/api";
 import type { PortfolioSummary, HoldingAdvice } from "@/lib/api";
@@ -49,6 +49,11 @@ function EditHoldingPanel({
       setDeleting(false);
     }
   }
+
+  useEffect(() => {
+    setQty(holding.quantity.toString());
+    setCost(holding.avg_cost.toString());
+  }, [holding]);
 
   return (
     <div className="glass-card p-5">
@@ -342,6 +347,7 @@ export default function PortfolioPage() {
               value={data.cash}
               format="currency"
               icon={DollarSign}
+              className="h-full"
             />
           </button>
           <StatCard

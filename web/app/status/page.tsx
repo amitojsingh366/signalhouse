@@ -36,7 +36,7 @@ function StatusItem({
   status?: "ok" | "warning" | "error";
 }) {
   const statusColors = {
-    ok: "text-green-400",
+    ok: "text-brand-400",
     warning: "text-yellow-400",
     error: "text-red-400",
   };
@@ -47,7 +47,7 @@ function StatusItem({
         className={cn(
           "rounded-lg p-3",
           status === "ok"
-            ? "bg-green-500/20"
+            ? "bg-brand-500/20"
             : status === "error"
               ? "bg-red-500/20"
               : status === "warning"

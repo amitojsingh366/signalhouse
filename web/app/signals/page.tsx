@@ -7,6 +7,7 @@ import type { RecommendationOut, SignalOut, SymbolInfo } from "@/lib/api";
 import { formatCurrency, formatPercent, cn, pnlColor } from "@/lib/utils";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { SearchBar } from "@/components/ui/search-bar";
+import { Skeleton, SignalCardsSkeleton, CardSkeleton } from "@/components/ui/loading";
 
 function SignalCard({ signal }: { signal: SignalOut }) {
   return (
@@ -118,10 +119,7 @@ export default function SignalsPage() {
 
       {/* Checked symbol result */}
       {checkLoading && (
-        <div className="glass-card flex items-center gap-3 p-4">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-          <span className="text-sm text-slate-400">Analyzing...</span>
-        </div>
+        <CardSkeleton />
       )}
       {checked && !checkLoading && (
         <div className="glass-card p-5">
@@ -159,9 +157,14 @@ export default function SignalsPage() {
 
       {/* Signal cards — show cached data or loading state */}
       {recsLoading ? (
-        <div className="flex flex-col items-center gap-3 py-12">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-          <p className="text-sm text-slate-500">Loading signals...</p>
+        <div className="space-y-6">
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <Skeleton className="h-2 w-2 rounded-full" />
+              <Skeleton className="h-5 w-24" />
+            </div>
+            <SignalCardsSkeleton count={3} />
+          </div>
         </div>
       ) : (
         <>
@@ -169,7 +172,7 @@ export default function SignalsPage() {
           {recs && recs.buys.length > 0 && (
             <div>
               <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-                <span className="h-2 w-2 rounded-full bg-green-400" />
+                <span className="h-2 w-2 rounded-full bg-brand-400" />
                 Buy Signals
               </h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

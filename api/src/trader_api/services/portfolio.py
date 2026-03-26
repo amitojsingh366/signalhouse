@@ -387,7 +387,7 @@ class Portfolio:
 
     async def get_recent_trades(self, limit: int = 20) -> list[dict[str, Any]]:
         result = await self.db.execute(
-            select(Trade).order_by(Trade.timestamp.desc()).limit(limit)
+            select(Trade).order_by(Trade.timestamp.desc(), Trade.id.desc()).limit(limit)
         )
         trades = list(result.scalars().all())
         trades.reverse()  # oldest first

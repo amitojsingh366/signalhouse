@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import type { UploadHolding } from "@/lib/api";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { UploadingSkeleton } from "@/components/ui/loading";
 
 export default function UploadPage() {
   const { toast } = useToast();
@@ -109,10 +110,7 @@ export default function UploadPage() {
       >
         <input {...getInputProps()} />
         {uploading ? (
-          <>
-            <div className="mb-3 h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-            <p className="text-sm text-slate-400">Parsing screenshot...</p>
-          </>
+          <UploadingSkeleton />
         ) : (
           <>
             <Upload className="mb-3 h-10 w-10 text-slate-500" />
@@ -196,7 +194,7 @@ export default function UploadPage() {
                 <button
                   onClick={handleConfirm}
                   disabled={confirming || editing.length === 0}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 py-2 text-sm font-medium text-white transition-colors hover:bg-green-500 disabled:opacity-50"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-600 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500 disabled:opacity-50"
                 >
                   <Check className="h-4 w-4" />
                   {confirming ? "Confirming..." : "Confirm"}

@@ -1,9 +1,11 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -22,23 +24,39 @@ interface SectorChartProps {
   className?: string;
 }
 
-const COLORS = [
-  "#2e91ff", "#22c55e", "#f59e0b", "#ef4444", "#a855f7",
-  "#06b6d4", "#ec4899", "#f97316", "#14b8a6", "#8b5cf6",
-  "#64748b", "#e11d48",
-];
+// Purple gradient from bright to dim
+function getPurpleShade(index: number, total: number, activeIndex: number | null): string {
+  // Base opacity: highest bar is brightest, lowest is dimmest
+  const baseOpacity = 1 - (index / Math.max(total - 1, 1)) * 0.6;
+  // When hovering, dim all except the active one
+  if (activeIndex !== null) {
+    return index === activeIndex
+      ? `rgba(167, 139, 250, ${Math.min(baseOpacity + 0.15, 1)})`
+      : `rgba(167, 139, 250, ${baseOpacity * 0.35})`;
+  }
+  return `rgba(167, 139, 250, ${baseOpacity})`;
+}
 
 export function SectorChart({ exposure, className }: SectorChartProps) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
   const data = Object.entries(exposure)
-    .map(([sector, val], i) => {
+    .map(([sector, val]) => {
       const pct = typeof val === "object" && val !== null ? (val as SectorExposureValue).pct : (val as number);
       return {
         sector,
         exposure: Math.round((pct ?? 0) * 10000) / 100,
-        fill: COLORS[i % COLORS.length],
       };
     })
     .sort((a, b) => b.exposure - a.exposure);
+
+  const handleMouseEnter = useCallback((_: unknown, index: number) => {
+    setActiveIndex(index);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setActiveIndex(null);
+  }, []);
 
   if (data.length === 0) {
     return (
@@ -60,32 +78,48 @@ export function SectorChart({ exposure, className }: SectorChartProps) {
       </h3>
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={data} layout="vertical">
-          <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" horizontal={false} />
           <XAxis
             type="number"
-            stroke="#64748b"
+            stroke="#52525b"
             fontSize={11}
             tickFormatter={(v) => `${v}%`}
           />
           <YAxis
             type="category"
             dataKey="sector"
-            stroke="#64748b"
+            stroke="#52525b"
             fontSize={11}
             width={90}
             tickLine={false}
           />
           <Tooltip
+            cursor={false}
             contentStyle={{
-              backgroundColor: "#1e293b",
-              border: "1px solid #334155",
+              backgroundColor: "#18181b",
+              border: "1px solid rgba(167, 139, 250, 0.3)",
               borderRadius: "8px",
               fontSize: "12px",
+              color: "#e4e4e7",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.4)",
             }}
             formatter={(value: number) => [`${value}%`, "Exposure"]}
-            labelStyle={{ color: "#94a3b8" }}
+            labelStyle={{ color: "#a78bfa", fontWeight: 500 }}
           />
-          <Bar dataKey="exposure" radius={[0, 4, 4, 0]} />
+          <Bar
+            dataKey="exposure"
+            radius={[0, 4, 4, 0]}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+          >
+            {data.map((_, index) => (
+              <Cell
+                key={`cell-${index}`}
+                fill={getPurpleShade(index, data.length, activeIndex)}
+                style={{ transition: "fill 0.2s ease" }}
+              />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>

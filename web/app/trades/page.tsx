@@ -101,7 +101,7 @@ function TradeForm({
           className={cn(
             "flex-1 rounded-lg py-2 text-sm font-medium transition-colors",
             action === "buy"
-              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+              ? "bg-brand-500/20 text-brand-400 border border-brand-500/30"
               : "bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10"
           )}
         >
@@ -193,7 +193,7 @@ function TradeForm({
           className={cn(
             "w-full rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-50",
             action === "buy"
-              ? "bg-emerald-600 text-white hover:bg-emerald-500"
+              ? "bg-brand-600 text-white hover:bg-brand-500"
               : "bg-red-600 text-white hover:bg-red-500"
           )}
         >

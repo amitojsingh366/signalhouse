@@ -23,7 +23,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { EquityChart } from "@/components/ui/equity-chart";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { SectorChart } from "@/components/ui/sector-chart";
-import { CardSkeleton } from "@/components/ui/loading";
+import { CardSkeleton, ChartSkeleton, SectorChartSkeleton, SignalsSkeleton } from "@/components/ui/loading";
 
 export default function DashboardPage() {
   // Phase 1: stat cards (instant from cache)
@@ -137,21 +137,21 @@ export default function DashboardPage() {
       {snapshots.length > 0 ? (
         <EquityChart snapshots={snapshots} />
       ) : chartsLoading ? (
-        <div className="glass-card flex h-[280px] items-center justify-center">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-        </div>
+        <ChartSkeleton />
       ) : null}
 
       {/* Sector exposure chart (moved from signals page) */}
-      {signals && Object.keys(signals.sector_exposure).length > 0 && (
+      {signals && Object.keys(signals.sector_exposure).length > 0 ? (
         <SectorChart exposure={signals.sector_exposure} />
-      )}
+      ) : chartsLoading ? (
+        <SectorChartSkeleton />
+      ) : null}
 
       {/* CTAs */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Link href="/trades" className="glass-card-hover flex items-center gap-3 p-4">
-          <div className="rounded-lg bg-green-500/20 p-2">
-            <ArrowLeftRight className="h-5 w-5 text-green-400" />
+          <div className="rounded-lg bg-brand-500/20 p-2">
+            <ArrowLeftRight className="h-5 w-5 text-brand-400" />
           </div>
           <div>
             <p className="text-sm font-medium">Record Trade</p>
@@ -168,8 +168,8 @@ export default function DashboardPage() {
           </div>
         </Link>
         <Link href="/portfolio" className="glass-card-hover flex items-center gap-3 p-4">
-          <div className="rounded-lg bg-purple-500/20 p-2">
-            <Briefcase className="h-5 w-5 text-purple-400" />
+          <div className="rounded-lg bg-brand-500/20 p-2">
+            <Briefcase className="h-5 w-5 text-brand-400" />
           </div>
           <div>
             <p className="text-sm font-medium">Portfolio</p>
@@ -177,8 +177,8 @@ export default function DashboardPage() {
           </div>
         </Link>
         <Link href="/upload" className="glass-card-hover flex items-center gap-3 p-4">
-          <div className="rounded-lg bg-yellow-500/20 p-2">
-            <Upload className="h-5 w-5 text-yellow-400" />
+          <div className="rounded-lg bg-brand-500/20 p-2">
+            <Upload className="h-5 w-5 text-brand-400" />
           </div>
           <div>
             <p className="text-sm font-medium">Upload Screenshot</p>
@@ -218,9 +218,7 @@ export default function DashboardPage() {
           </div>
         </div>
       ) : chartsLoading ? (
-        <div className="glass-card flex h-32 items-center justify-center">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-        </div>
+        <SignalsSkeleton />
       ) : null}
     </div>
   );

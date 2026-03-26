@@ -78,25 +78,25 @@ export function EquityChart({ snapshots, className }: EquityChartProps) {
               <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="5%"
-                  stopColor={isPositive ? "#22c55e" : "#ef4444"}
+                  stopColor={isPositive ? "#a78bfa" : "#ef4444"}
                   stopOpacity={0.3}
                 />
                 <stop
                   offset="95%"
-                  stopColor={isPositive ? "#22c55e" : "#ef4444"}
+                  stopColor={isPositive ? "#a78bfa" : "#ef4444"}
                   stopOpacity={0}
                 />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
             <XAxis
               dataKey="date"
-              stroke="#64748b"
+              stroke="#52525b"
               fontSize={11}
               tickLine={false}
             />
             <YAxis
-              stroke="#64748b"
+              stroke="#52525b"
               fontSize={11}
               tickLine={false}
               tickFormatter={(v) => `$${v}`}
@@ -104,18 +104,20 @@ export function EquityChart({ snapshots, className }: EquityChartProps) {
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: "#1e293b",
-                border: "1px solid #334155",
+                backgroundColor: "#18181b",
+                border: "1px solid rgba(167, 139, 250, 0.3)",
                 borderRadius: "8px",
                 fontSize: "12px",
+                color: "#e4e4e7",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.4)",
               }}
               formatter={(value: number) => [formatCurrency(value), "Value"]}
-              labelStyle={{ color: "#94a3b8" }}
+              labelStyle={{ color: "#a78bfa", fontWeight: 500 }}
             />
             <Area
               type="monotone"
               dataKey="value"
-              stroke={isPositive ? "#22c55e" : "#ef4444"}
+              stroke={isPositive ? "#a78bfa" : "#ef4444"}
               strokeWidth={2}
               fill="url(#colorValue)"
             />

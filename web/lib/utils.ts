@@ -26,7 +26,7 @@ export function formatNumber(value: number, decimals = 2): string {
 }
 
 export function pnlColor(value: number): string {
-  if (value > 0) return "text-green-400";
+  if (value > 0) return "text-brand-400";
   if (value < 0) return "text-red-400";
   return "text-slate-400";
 }

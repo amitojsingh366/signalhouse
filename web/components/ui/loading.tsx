@@ -37,6 +37,128 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
   );
 }
 
+export function ChartSkeleton({ height = 280, className }: { height?: number; className?: string }) {
+  return (
+    <div className={cn("glass-card p-5", className)}>
+      <div className="mb-4 flex items-center justify-between">
+        <Skeleton className="h-4 w-24" />
+        <div className="flex gap-1">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <Skeleton key={i} className="h-7 w-8 rounded-md" />
+          ))}
+        </div>
+      </div>
+      <div style={{ height: height - 60 }} className="relative overflow-hidden">
+        {/* Fake chart silhouette */}
+        <svg className="absolute inset-0 h-full w-full px-8 pb-6" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="skelGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="white" stopOpacity="0.06" />
+              <stop offset="100%" stopColor="white" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M0,80 Q30,60 60,65 T120,50 T180,55 T240,40 T300,45 T360,30 T420,35 T480,25 T540,30 T600,20 L600,100 L0,100 Z"
+            fill="url(#skelGrad)"
+            className="animate-pulse"
+            vectorEffect="non-scaling-stroke"
+          />
+          <path
+            d="M0,80 Q30,60 60,65 T120,50 T180,55 T240,40 T300,45 T360,30 T420,35 T480,25 T540,30 T600,20"
+            fill="none"
+            stroke="rgba(255,255,255,0.06)"
+            strokeWidth="2"
+            className="animate-pulse"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+        <div className="absolute bottom-0 left-0 right-0 flex items-end">
+          {/* No bar chart items needed */}
+        </div>
+        {/* Axis lines */}
+        <div className="absolute bottom-5 left-8 right-0">
+          <Skeleton className="h-px w-full opacity-30" />
+        </div>
+        <div className="absolute bottom-0 left-8 right-0 flex justify-between">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-3 w-10" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function SectorChartSkeleton({ className }: { className?: string }) {
+  return (
+    <div className={cn("glass-card p-5", className)}>
+      <Skeleton className="mb-4 h-4 w-32" />
+      <div className="space-y-3">
+        {[75, 55, 30].map((w, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <Skeleton className="h-3 w-16 shrink-0" />
+            <div className="skeleton h-6 rounded" style={{ width: `${w}%` }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function SignalsSkeleton({ count = 6 }: { count?: number }) {
+  return (
+    <div className="glass-card p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-3 w-14" />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: count }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-4 py-3"
+          >
+            <div className="space-y-1.5">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-3 w-28" />
+            </div>
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function SignalCardsSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="glass-card p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <Skeleton className="h-5 w-20" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+          <Skeleton className="mb-2 h-3 w-24" />
+          <div className="space-y-1">
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-3/4" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function UploadingSkeleton() {
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <Skeleton className="h-10 w-10 rounded-full" />
+      <Skeleton className="h-4 w-36" />
+    </div>
+  );
+}
+
 export function PageLoader() {
   return (
     <div className="flex h-64 items-center justify-center">

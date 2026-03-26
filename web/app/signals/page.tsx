@@ -63,33 +63,66 @@ function SignalCard({ signal, expanded, onToggle }: { signal: SignalOut; expande
   );
 }
 
-function ExitAlertCard({ alert }: { alert: ExitAlert }) {
+function ExitAlertCard({ alert, expanded, onToggle }: { alert: ExitAlert; expanded: boolean; onToggle: () => void }) {
   const isHigh = alert.severity === "high";
   return (
-    <div className={cn(
-      "glass-card p-4 border",
-      isHigh ? "border-red-500/30 bg-red-500/[0.05]" : "border-amber-500/20 bg-amber-500/[0.03]"
-    )}>
+    <div
+      className={cn(
+        "glass-card p-4 cursor-pointer transition-colors hover:bg-white/[0.05] border",
+        isHigh ? "border-red-500/30 bg-red-500/[0.06]" : "border-amber-500/20 bg-amber-500/[0.04]"
+      )}
+      onClick={onToggle}
+    >
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <AlertTriangle className={cn("h-4 w-4", isHigh ? "text-red-400" : "text-amber-400")} />
+          <AlertTriangle className={cn("h-4 w-4 shrink-0", isHigh ? "text-red-400" : "text-amber-400")} />
           <span className="text-lg font-semibold">{alert.symbol}</span>
         </div>
+        <div className="flex items-center gap-2">
+          {alert.score !== 0 && (
+            <span className="text-xs font-mono text-slate-500">
+              {alert.score > 0 ? "+" : ""}{alert.score}/8
+            </span>
+          )}
+          <SignalBadge signal={alert.signal} strength={alert.strength} />
+        </div>
+      </div>
+      {/* Stop loss / reason badge */}
+      <div className="mb-2 flex items-center gap-2">
         <span className={cn(
-          "rounded-full px-2 py-0.5 text-xs font-medium",
+          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
           isHigh ? "bg-red-500/20 text-red-400" : "bg-amber-500/20 text-amber-400"
         )}>
+          <AlertTriangle className="h-3 w-3" />
           {alert.reason}
         </span>
-      </div>
-      <p className="mb-2 text-sm text-slate-400">{alert.detail}</p>
-      <div className="flex items-center gap-4 text-xs text-slate-500">
-        <span>Entry: {formatCurrency(alert.entry_price)}</span>
-        <span>Current: {formatCurrency(alert.current_price)}</span>
-        <span className={cn("font-medium", alert.pnl_pct >= 0 ? "text-emerald-400" : "text-red-400")}>
-          {formatPercent(alert.pnl_pct)}
+        <span className={cn("text-sm font-semibold", alert.pnl_pct >= 0 ? "text-emerald-400" : "text-red-400")}>
+          {alert.pnl_pct >= 0 ? "+" : ""}{alert.pnl_pct.toFixed(1)}%
         </span>
       </div>
+      {/* Entry / Current prices */}
+      <div className="mb-2 flex items-center gap-4 text-sm">
+        <span className="text-slate-500">Entry: <span className="text-slate-300">{formatCurrency(alert.entry_price)}</span></span>
+        <span className="text-slate-500">Current: <span className={cn("font-medium", alert.pnl_pct >= 0 ? "text-emerald-400" : "text-red-400")}>{formatCurrency(alert.current_price)}</span></span>
+      </div>
+      {alert.sector && (
+        <p className="mb-2 text-xs text-slate-500">{alert.sector}</p>
+      )}
+      {/* Score breakdown reasons */}
+      {alert.reasons.length > 0 && (
+        <ul className="space-y-1">
+          {alert.reasons.map((r, i) => (
+            <li key={i} className="text-xs text-slate-400">
+              <ScoreTag text={r} />
+            </li>
+          ))}
+        </ul>
+      )}
+      {expanded && (
+        <div className="mt-4" onClick={(e) => e.stopPropagation()}>
+          <PriceChart symbol={alert.symbol} />
+        </div>
+      )}
     </div>
   );
 }
@@ -268,7 +301,12 @@ function SignalsContent() {
               <p className="mb-3 text-xs text-slate-500">Stop losses, time exits, and sell signals for your holdings — act on these first</p>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {recs.exit_alerts.map((a) => (
-                  <ExitAlertCard key={a.symbol} alert={a} />
+                  <ExitAlertCard
+                    key={a.symbol}
+                    alert={a}
+                    expanded={expandedSymbol === `exit-${a.symbol}`}
+                    onToggle={() => setExpandedSymbol(expandedSymbol === `exit-${a.symbol}` ? null : `exit-${a.symbol}`)}
+                  />
                 ))}
               </div>
             </div>

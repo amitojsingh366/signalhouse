@@ -114,6 +114,11 @@ class ExitAlertOut(BaseModel):
     current_price: float
     entry_price: float
     pnl_pct: float
+    signal: str = "SELL"  # always SELL for exit alerts
+    strength: float = 0.0
+    score: float = 0.0
+    reasons: list[str] = []
+    sector: str | None = None
 
 
 class RecommendationOut(BaseModel):

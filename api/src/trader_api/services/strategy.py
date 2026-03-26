@@ -118,7 +118,7 @@ class Strategy:
                 )
                 result.symbol = symbol
 
-                if result.signal == Signal.BUY and result.strength >= 0.4:
+                if result.signal == Signal.BUY and result.strength >= 0.3:
                     result.reasons.extend(sent.reasons)
                     result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
                     results.append(result)

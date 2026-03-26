@@ -225,9 +225,10 @@ export default function DashboardPage() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[...signals.buys, ...signals.sells, ...(signals.watchlist_sells ?? [])].slice(0, 6).map((s) => (
-              <div
+              <Link
                 key={s.symbol}
-                className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-4 py-3"
+                href={`/signals?check=${encodeURIComponent(s.symbol)}`}
+                className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-4 py-3 transition-colors hover:bg-white/[0.08]"
               >
                 <div>
                   <p className="font-medium">{s.symbol}</p>
@@ -237,7 +238,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
                 <SignalBadge signal={s.signal} strength={s.strength} />
-              </div>
+              </Link>
             ))}
           </div>
         </div>

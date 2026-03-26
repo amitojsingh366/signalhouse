@@ -271,5 +271,5 @@ ssh -i your-ssh-key ubuntu@your-server \
 See `docs/NEXT_STEPS.md` for the full roadmap (Phase 1: Validate & Tune, Phase 2: Improve Strategy, Phase 3: Scale Up, Phase 4: Advanced Features).
 
 - [x] **Step 15:** Same-sector swap exemption + watchlist alerts — sell-to-fund pairs within the same sector no longer penalize buy signal strength; non-held sell signals now show as "Watchlist Alerts" on signals page and dashboard instead of being silently filtered
-- [x] **Step 16:** Signal badge tooltips — hover over BUY/SELL/HOLD badges shows explanation of the signal and what the percentage means
+- [x] **Step 16:** Signal badge tooltips, clickable dashboard signals, lower BUY threshold — hover tooltips explain signals, dashboard signal cards link to signals page with symbol preloaded, BUY scan threshold lowered from 40% to 30% to match SELL threshold
 - TBD

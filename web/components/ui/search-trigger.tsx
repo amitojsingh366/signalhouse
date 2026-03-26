@@ -18,7 +18,7 @@ export function SearchTrigger({ className }: { className?: string }) {
     >
       <Search className="h-4 w-4" />
       <span className="hidden sm:inline">Search symbol</span>
-      <kbd className="hidden text-[10px] text-slate-500 sm:inline-block">
+      <kbd className="hidden rounded border border-white/10 bg-white/5 px-1.5 py-px text-[10px] leading-none text-slate-500 sm:inline-block">
         ⌘K
       </kbd>
     </button>

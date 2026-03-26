@@ -61,4 +61,18 @@
   .skeleton {
     @apply animate-pulse rounded bg-white/[0.06];
   }
+
+  /* Signal badge tooltip */
+  .signal-tooltip {
+    @apply relative cursor-help;
+  }
+
+  .signal-tooltip::after {
+    content: attr(data-tooltip);
+    @apply invisible absolute bottom-full left-1/2 z-50 mb-2 w-56 -translate-x-1/2 rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-xs font-normal leading-relaxed text-slate-300 shadow-xl opacity-0 transition-all duration-150;
+  }
+
+  .signal-tooltip:hover::after {
+    @apply visible opacity-100;
+  }
 }

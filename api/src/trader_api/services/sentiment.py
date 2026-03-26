@@ -107,8 +107,14 @@ class SentimentAnalyzer:
         import fear_greed
 
         data = fear_greed.get()
-        value = int(data.value)
-        description = str(data.description)
+        # Library returns a dict with 'score' and 'rating' keys
+        if isinstance(data, dict):
+            value = int(data["score"])
+            description = str(data["rating"]).title()
+        else:
+            # Legacy format (object with .value/.description)
+            value = int(data.value)
+            description = str(data.description)
         return value, description
 
     async def get_analyst_sentiment(self, symbol: str) -> tuple[float, str]:

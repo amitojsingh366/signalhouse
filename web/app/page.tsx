@@ -133,21 +133,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Equity curve — renders from cache or shows skeleton */}
-      {snapshots.length > 0 ? (
-        <EquityChart snapshots={snapshots} />
-      ) : chartsLoading ? (
-        <ChartSkeleton />
-      ) : null}
-
-      {/* Sector exposure chart (moved from signals page) */}
-      {signals && Object.keys(signals.sector_exposure).length > 0 ? (
-        <SectorChart exposure={signals.sector_exposure} />
-      ) : chartsLoading ? (
-        <SectorChartSkeleton />
-      ) : null}
-
-      {/* CTAs */}
+      {/* Quick actions */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Link href="/trades" className="glass-card-hover flex items-center gap-3 p-4">
           <div className="rounded-lg bg-brand-500/20 p-2">
@@ -187,6 +173,32 @@ export default function DashboardPage() {
         </Link>
       </div>
 
+      {/* Equity curve — renders from cache, skeleton while loading, empty state if no data */}
+      {snapshots.length > 0 ? (
+        <EquityChart snapshots={snapshots} />
+      ) : chartsLoading ? (
+        <ChartSkeleton />
+      ) : (
+        <div className="glass-card flex flex-col items-center gap-2 py-12">
+          <TrendingUp className="h-8 w-8 text-slate-600" />
+          <p className="text-sm text-slate-500">No equity data yet</p>
+          <p className="text-xs text-slate-600">Your portfolio chart will appear after the first daily snapshot</p>
+        </div>
+      )}
+
+      {/* Sector exposure chart */}
+      {signals && Object.keys(signals.sector_exposure).length > 0 ? (
+        <SectorChart exposure={signals.sector_exposure} />
+      ) : chartsLoading ? (
+        <SectorChartSkeleton />
+      ) : (
+        <div className="glass-card flex flex-col items-center gap-2 py-12">
+          <Briefcase className="h-8 w-8 text-slate-600" />
+          <p className="text-sm text-slate-500">No sector data available</p>
+          <p className="text-xs text-slate-600">Sector exposure will show once you have holdings</p>
+        </div>
+      )}
+
       {/* Latest signals preview */}
       {signals && (signals.buys.length > 0 || signals.sells.length > 0) ? (
         <div className="glass-card p-5">
@@ -219,7 +231,13 @@ export default function DashboardPage() {
         </div>
       ) : chartsLoading ? (
         <SignalsSkeleton />
-      ) : null}
+      ) : (
+        <div className="glass-card flex flex-col items-center gap-2 py-12">
+          <Zap className="h-8 w-8 text-slate-600" />
+          <p className="text-sm text-slate-500">No active signals right now</p>
+          <p className="text-xs text-slate-600">Try checking a specific symbol on the signals page</p>
+        </div>
+      )}
     </div>
   );
 }

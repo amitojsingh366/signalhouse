@@ -105,6 +105,7 @@ export function SectorChart({ exposure, className }: SectorChartProps) {
             }}
             formatter={(value: number) => [`${value}%`, "Exposure"]}
             labelStyle={{ color: "#a78bfa", fontWeight: 500 }}
+            itemStyle={{ color: "#e4e4e7" }}
           />
           <Bar
             dataKey="exposure"

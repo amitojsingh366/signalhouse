@@ -130,4 +130,4 @@ Sector exposure chart uses a purple gradient (brightest → dimmest by weight).
 
 ## Next Steps
 
-- [ ] Step 11: _(to be defined)_
+- [x] **Step 11:** Dashboard polish — moved quick action CTAs under stat cards, added empty state cards for equity chart / sector exposure / signals when no data, fixed sector chart tooltip text color

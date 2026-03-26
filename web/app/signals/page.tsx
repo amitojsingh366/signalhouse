@@ -11,12 +11,33 @@ import { SearchBar } from "@/components/ui/search-bar";
 import { Skeleton, SignalCardsSkeleton, CardSkeleton } from "@/components/ui/loading";
 import { PriceChart } from "@/components/ui/price-chart";
 
+function ScoreTag({ text }: { text: string }) {
+  const match = text.match(/\[([+-][\d.]+)\]$/);
+  if (!match) return <span>{text}</span>;
+  const label = text.slice(0, text.lastIndexOf("[")).trim();
+  const value = parseFloat(match[1]);
+  const color = value > 0 ? "text-emerald-400" : value < 0 ? "text-red-400" : "text-slate-500";
+  return (
+    <span className="flex items-center justify-between gap-2">
+      <span>{label}</span>
+      <span className={cn("font-mono text-[10px] tabular-nums", color)}>{match[1]}</span>
+    </span>
+  );
+}
+
 function SignalCard({ signal, expanded, onToggle }: { signal: SignalOut; expanded: boolean; onToggle: () => void }) {
   return (
     <div className="glass-card p-4 cursor-pointer transition-colors hover:bg-white/[0.05]" onClick={onToggle}>
       <div className="mb-2 flex items-center justify-between">
         <span className="text-lg font-semibold">{signal.symbol}</span>
-        <SignalBadge signal={signal.signal} strength={signal.strength} />
+        <div className="flex items-center gap-2">
+          {signal.score !== undefined && signal.score !== 0 && (
+            <span className="text-xs font-mono text-slate-500">
+              {signal.score > 0 ? "+" : ""}{signal.score}/8
+            </span>
+          )}
+          <SignalBadge signal={signal.signal} strength={signal.strength} />
+        </div>
       </div>
       {signal.price && (
         <p className="mb-2 text-sm text-slate-400">
@@ -29,7 +50,7 @@ function SignalCard({ signal, expanded, onToggle }: { signal: SignalOut; expande
       <ul className="space-y-1">
         {signal.reasons.map((r, i) => (
           <li key={i} className="text-xs text-slate-400">
-            {r}
+            <ScoreTag text={r} />
           </li>
         ))}
       </ul>
@@ -159,6 +180,11 @@ function SignalsContent() {
               )}
             </div>
             <div className="flex items-center gap-3">
+              {checked.score !== undefined && checked.score !== 0 && (
+                <span className="text-sm font-mono text-slate-500">
+                  {checked.score > 0 ? "+" : ""}{checked.score}/8
+                </span>
+              )}
               {checked.price && (
                 <span className="text-lg font-semibold">
                   {formatCurrency(checked.price)}
@@ -170,7 +196,7 @@ function SignalsContent() {
           <ul className="space-y-1">
             {checked.reasons.map((r, i) => (
               <li key={i} className="text-sm text-slate-400">
-                {r}
+                <ScoreTag text={r} />
               </li>
             ))}
           </ul>

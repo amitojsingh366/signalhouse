@@ -37,6 +37,7 @@ async def check_signal(symbol: str, db: AsyncSession = Depends(get_db)):
         symbol=result.symbol,
         signal=result.signal.value,
         strength=result.strength,
+        score=result.score,
         reasons=result.reasons,
         price=price,
         sector=strategy.get_sector(result.symbol),
@@ -50,37 +51,19 @@ async def get_recommendations(n: int = 5, db: AsyncSession = Depends(get_db)):
 
     recs = await strategy.get_top_recommendations(n=n)
 
-    buys = [
-        SignalOut(
+    def _to_signal_out(s):
+        return SignalOut(
             symbol=s.symbol,
             signal=s.signal.value,
             strength=s.strength,
+            score=s.score,
             reasons=s.reasons,
             sector=strategy.get_sector(s.symbol),
         )
-        for s in recs["buys"]
-    ]
-    sells = [
-        SignalOut(
-            symbol=s.symbol,
-            signal=s.signal.value,
-            strength=s.strength,
-            reasons=s.reasons,
-            sector=strategy.get_sector(s.symbol),
-        )
-        for s in recs["sells"]
-    ]
 
-    watchlist_sells = [
-        SignalOut(
-            symbol=s.symbol,
-            signal=s.signal.value,
-            strength=s.strength,
-            reasons=s.reasons,
-            sector=strategy.get_sector(s.symbol),
-        )
-        for s in recs.get("watchlist_sells", [])
-    ]
+    buys = [_to_signal_out(s) for s in recs["buys"]]
+    sells = [_to_signal_out(s) for s in recs["sells"]]
+    watchlist_sells = [_to_signal_out(s) for s in recs.get("watchlist_sells", [])]
 
     return RecommendationOut(
         buys=buys,

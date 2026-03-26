@@ -132,6 +132,7 @@ export interface SignalOut {
   symbol: string;
   signal: string;
   strength: number;
+  score: number;
   reasons: string[];
   price: number | null;
   sector: string | null;

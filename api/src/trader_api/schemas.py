@@ -100,6 +100,7 @@ class SignalOut(BaseModel):
     symbol: str
     signal: str  # BUY / SELL / HOLD
     strength: float
+    score: float = 0.0  # raw score out of ±8
     reasons: list[str]
     price: float | None = None
     sector: str | None = None

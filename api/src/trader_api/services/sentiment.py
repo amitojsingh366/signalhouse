@@ -51,12 +51,12 @@ class SentimentResult:
     def reasons(self) -> list[str]:
         r: list[str] = []
         if self.analyst_summary:
-            r.append(f"Analyst: {self.analyst_summary}")
+            r.append(f"Analyst: {self.analyst_summary} [{self.analyst_score:+.1f}]")
         if self.fear_greed_label:
-            r.append(f"Fear & Greed: {self.fear_greed_value} ({self.fear_greed_label})")
+            r.append(f"Fear & Greed: {self.fear_greed_value} ({self.fear_greed_label}) [{self.fear_greed_score:+.1f}]")
         if abs(self.news_score) >= 0.1:
             direction = "positive" if self.news_score > 0 else "negative"
-            r.append(f"News sentiment: {direction}")
+            r.append(f"News sentiment: {direction} [{self.news_score:+.1f}]")
         return r
 
 

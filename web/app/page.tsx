@@ -10,6 +10,7 @@ import {
   ArrowLeftRight,
   Briefcase,
   Upload,
+  RefreshCw,
 } from "lucide-react";
 import { api, getCache, fetchWithCache } from "@/lib/api";
 import type {
@@ -24,6 +25,7 @@ import { EquityChart } from "@/components/ui/equity-chart";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { SectorChart } from "@/components/ui/sector-chart";
 import { CardSkeleton, ChartSkeleton, SectorChartSkeleton, SignalsSkeleton } from "@/components/ui/loading";
+import { SearchTrigger } from "@/components/ui/search-trigger";
 
 export default function DashboardPage() {
   // Phase 1: stat cards (instant from cache)
@@ -43,8 +45,9 @@ export default function DashboardPage() {
     () => getCache<RecommendationOut>("/api/signals/recommend?n=3")
   );
   const [chartsLoading, setChartsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     // Phase 1: fetch portfolio + pnl
     let statsResolved = 0;
     const markStatsDone = () => {
@@ -86,11 +89,46 @@ export default function DashboardPage() {
     );
   }, []);
 
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const [p, pnlData, snaps, recs] = await Promise.all([
+        api.getHoldings(),
+        api.getPnl(),
+        api.getSnapshots(),
+        api.getRecommendations(3),
+      ]);
+      setPortfolio(p);
+      setPnl(pnlData);
+      setSnapshots(snaps);
+      setSignals(recs);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
   const hasStats = portfolio || pnl;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <div className="flex items-center gap-2">
+          <SearchTrigger />
+          <button
+            onClick={refresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10 disabled:opacity-50"
+          >
+            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+            Refresh
+          </button>
+        </div>
+      </div>
 
       {/* Quick actions */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

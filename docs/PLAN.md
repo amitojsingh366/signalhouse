@@ -260,6 +260,7 @@ ssh -i your-ssh-key ubuntu@your-server \
 - [x] **Step 10:** Color consolidation (purple positive, red negative, amber warning), skeleton loading states, trade history chronological ordering, sector chart purple gradient with hover
 - [x] **Step 11:** Dashboard polish — CTAs under stat cards, empty state cards for charts/signals, sector tooltip fix, section order: CTAs → signals → equity → sector
 - [x] **Step 12:** Color scheme refinement — P&L green/red (standard financial), CTAs/buy badges stay purple, charts stay purple, success toasts and status indicators now emerald green
+- [x] **Step 13:** Page header UX — Cmd+K global symbol search modal (navigates to signals page), refresh buttons on all data pages (dashboard, portfolio, signals, trades, status), search trigger button in page headers (dashboard, portfolio, trades, status)
 
 ---
 

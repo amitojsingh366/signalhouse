@@ -14,6 +14,7 @@ import { api } from "@/lib/api";
 import type { StatusOut } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { CardSkeleton } from "@/components/ui/loading";
+import { SearchTrigger } from "@/components/ui/search-trigger";
 
 function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400);
@@ -120,13 +121,16 @@ export default function StatusPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Status</h1>
-        <button
-          onClick={load}
-          className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <SearchTrigger />
+          <button
+            onClick={load}
+            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { Zap, RefreshCw, Search } from "lucide-react";
 import { api, getCache, fetchWithCache } from "@/lib/api";
 import type { RecommendationOut, SignalOut, SymbolInfo } from "@/lib/api";
@@ -36,6 +37,16 @@ function SignalCard({ signal }: { signal: SignalOut }) {
 }
 
 export default function SignalsPage() {
+  return (
+    <Suspense>
+      <SignalsContent />
+    </Suspense>
+  );
+}
+
+function SignalsContent() {
+  const searchParams = useSearchParams();
+
   // Symbols load independently for the search bar (lightweight)
   const [symbols, setSymbols] = useState<SymbolInfo[]>(
     () => getCache<SymbolInfo[]>("/api/symbols") ?? []
@@ -70,6 +81,14 @@ export default function SignalsPage() {
       () => setRecsLoading(false),
     );
   }, []);
+
+  // Handle ?check= query parameter from command search
+  useEffect(() => {
+    const sym = searchParams.get("check");
+    if (sym) {
+      checkSymbol(sym);
+    }
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Force refresh (bypasses cache)
   const refresh = useCallback(async () => {

@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { ArrowLeftRight, Loader2 } from "lucide-react";
+import { ArrowLeftRight, Loader2, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import type { TradeOut, SymbolInfo } from "@/lib/api";
 import { formatCurrency, formatPercent, pnlColor, cn } from "@/lib/utils";
 import { DataTable } from "@/components/ui/data-table";
 import { TableSkeleton } from "@/components/ui/loading";
 import { useToast } from "@/components/ui/toast";
+import { SearchTrigger } from "@/components/ui/search-trigger";
 
 function TradeForm({
   symbols,
@@ -301,7 +302,20 @@ export default function TradesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Trades</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Trades</h1>
+        <div className="flex items-center gap-2">
+          <SearchTrigger />
+          <button
+            onClick={load}
+            disabled={loading}
+            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10 disabled:opacity-50"
+          >
+            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            Refresh
+          </button>
+        </div>
+      </div>
 
       {/* Trade form — full width on mobile, sidebar on desktop */}
       <div className="grid gap-6 lg:grid-cols-3">

@@ -1,7 +1,6 @@
 yourdomain.com {
-	# Caddy serves HTTPS with a self-signed cert (internal CA).
-	# Cloudflare (Full mode) terminates public SSL and connects here on 443.
-	tls internal
+	# Caddy auto-HTTPS (Let's Encrypt).
+	# Cloudflare proxied — Caddy likely has a cached cert from initial setup.
 
 	# API endpoints — proxy to FastAPI
 	handle /api/* {

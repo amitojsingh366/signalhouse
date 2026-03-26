@@ -13,10 +13,15 @@ echo "Ollama server is ready."
 if ! ollama list | grep -q "qwen2.5vl:3b"; then
   echo "Pulling qwen2.5vl:3b model..."
   ollama pull qwen2.5vl:3b
-  echo "Model ready."
+  echo "Model pulled."
 else
   echo "qwen2.5vl:3b model already present."
 fi
+
+# Pre-warm: load model into RAM so first real request is fast
+echo "Pre-warming model into memory..."
+ollama run qwen2.5vl:3b "hi" > /dev/null 2>&1
+echo "Model warmed and ready."
 
 # Keep the server running in foreground
 wait

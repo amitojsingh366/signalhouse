@@ -41,7 +41,7 @@ async def parse_holdings_screenshot(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
             resp = await client.post(f"{ollama_url}/api/generate", json=payload)
             resp.raise_for_status()
             result = resp.json()

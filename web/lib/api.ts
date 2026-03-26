@@ -227,6 +227,8 @@ export const api = {
   // Signals
   checkSignal: (symbol: string) =>
     fetchAPI<SignalOut>(`/api/signals/check/${encodeURIComponent(symbol)}`),
+  getPrice: (symbol: string) =>
+    fetchAPI<{ symbol: string; price: number | null }>(`/api/signals/price/${encodeURIComponent(symbol)}`),
   getRecommendations: (n = 5) =>
     fetchAPI<RecommendationOut>(`/api/signals/recommend?n=${n}`),
   getInsights: () => fetchAPI<InsightsOut>("/api/signals/insights"),

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trader_api.database import get_db
-from trader_api.deps import make_portfolio, make_strategy
+from trader_api.deps import get_market_data, make_portfolio, make_strategy
 from trader_api.schemas import InsightsOut, RecommendationOut, SignalOut
 
 router = APIRouter(prefix="/api/signals", tags=["signals"])
@@ -77,6 +77,19 @@ async def get_recommendations(n: int = 5, db: AsyncSession = Depends(get_db)):
         funding=recs.get("funding", []),
         sector_exposure=recs.get("sector_exposure", {}),
     )
+
+
+@router.get("/price/{symbol}")
+async def get_price(symbol: str):
+    """Get current market price for a symbol."""
+    symbol = symbol.upper().strip()
+    md = get_market_data()
+    if "." not in symbol:
+        resolved = await md.resolve_symbol(symbol)
+        if resolved:
+            symbol = resolved
+    price = await md.get_current_price(symbol)
+    return {"symbol": symbol, "price": price}
 
 
 @router.get("/insights", response_model=InsightsOut)

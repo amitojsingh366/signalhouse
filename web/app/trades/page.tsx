@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ArrowLeftRight } from "lucide-react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { ArrowLeftRight, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { TradeOut, SymbolInfo } from "@/lib/api";
 import { formatCurrency, formatPercent, pnlColor, cn } from "@/lib/utils";
@@ -21,7 +21,46 @@ function TradeForm({
   const [symbol, setSymbol] = useState("");
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
+  const [marketPrice, setMarketPrice] = useState<number | null>(null);
+  const [fetchingPrice, setFetchingPrice] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const priceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced price fetch when symbol changes
+  const fetchMarketPrice = useCallback(async (sym: string) => {
+    if (!sym.trim()) {
+      setMarketPrice(null);
+      return;
+    }
+    setFetchingPrice(true);
+    try {
+      const result = await api.getPrice(sym);
+      if (result.price != null) {
+        setMarketPrice(result.price);
+        // Only auto-fill if price field is empty or was previously auto-filled
+        setPrice((prev) => (!prev ? result.price!.toFixed(2) : prev));
+      }
+    } catch {
+      // silently ignore — user can enter manually
+    } finally {
+      setFetchingPrice(false);
+    }
+  }, []);
+
+  function handleSymbolChange(val: string) {
+    setSymbol(val);
+    setMarketPrice(null);
+    if (priceTimerRef.current) clearTimeout(priceTimerRef.current);
+    if (val.trim().length >= 2) {
+      priceTimerRef.current = setTimeout(() => fetchMarketPrice(val), 600);
+    }
+  }
+
+  function useMarketPrice() {
+    if (marketPrice != null) {
+      setPrice(marketPrice.toFixed(2));
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,6 +77,7 @@ function TradeForm({
       setSymbol("");
       setQuantity("");
       setPrice("");
+      setMarketPrice(null);
       onComplete();
     } catch (err) {
       toast(
@@ -84,14 +124,24 @@ function TradeForm({
       <div className="space-y-3">
         <div>
           <label className="mb-1 block text-xs text-slate-500">Symbol</label>
-          <input
-            type="text"
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-            placeholder="e.g. SHOP.TO"
-            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500 outline-none focus:border-brand-500/50"
-            required
-          />
+          <div className="relative">
+            <input
+              type="text"
+              value={symbol}
+              onChange={(e) => handleSymbolChange(e.target.value)}
+              placeholder="e.g. SHOP.TO"
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500 outline-none focus:border-brand-500/50"
+              required
+            />
+            {fetchingPrice && (
+              <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-500" />
+            )}
+          </div>
+          {marketPrice != null && (
+            <p className="mt-1 text-xs text-slate-500">
+              Market price: {formatCurrency(marketPrice)}
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -107,13 +157,24 @@ function TradeForm({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-slate-500">Price (CAD)</label>
+            <label className="mb-1 flex items-center justify-between text-xs text-slate-500">
+              <span>Price (CAD)</span>
+              {marketPrice != null && price !== marketPrice.toFixed(2) && (
+                <button
+                  type="button"
+                  onClick={useMarketPrice}
+                  className="text-brand-400 hover:underline"
+                >
+                  Use market
+                </button>
+              )}
+            </label>
             <input
               type="number"
               step="any"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              placeholder="0.00"
+              placeholder={marketPrice != null ? marketPrice.toFixed(2) : "0.00"}
               className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-500 outline-none focus:border-brand-500/50"
               required
             />

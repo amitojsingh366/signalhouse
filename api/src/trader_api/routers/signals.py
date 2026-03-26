@@ -71,9 +71,21 @@ async def get_recommendations(n: int = 5, db: AsyncSession = Depends(get_db)):
         for s in recs["sells"]
     ]
 
+    watchlist_sells = [
+        SignalOut(
+            symbol=s.symbol,
+            signal=s.signal.value,
+            strength=s.strength,
+            reasons=s.reasons,
+            sector=strategy.get_sector(s.symbol),
+        )
+        for s in recs.get("watchlist_sells", [])
+    ]
+
     return RecommendationOut(
         buys=buys,
         sells=sells,
+        watchlist_sells=watchlist_sells,
         funding=recs.get("funding", []),
         sector_exposure=recs.get("sector_exposure", {}),
     )

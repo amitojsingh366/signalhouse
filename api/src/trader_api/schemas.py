@@ -108,6 +108,7 @@ class SignalOut(BaseModel):
 class RecommendationOut(BaseModel):
     buys: list[SignalOut]
     sells: list[SignalOut]
+    watchlist_sells: list[SignalOut] = []
     funding: list[dict] = []
     sector_exposure: dict = {}
 

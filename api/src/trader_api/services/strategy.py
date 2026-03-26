@@ -266,15 +266,13 @@ class Strategy:
         holdings = await self.portfolio.get_holdings_dict()
         held_symbols = list(holdings.keys())
         sells = [s for s in all_sells if s.symbol in held_symbols]
+        # Non-held sell signals shown as watchlist alerts
+        watchlist_sells = [s for s in all_sells if s.symbol not in held_symbols]
 
         logger.info(
-            "Recommendations: %d signals → %d buys, %d sells (%d held), holdings=%s",
-            len(all_signals), len(buys), len(all_sells), len(sells), held_symbols,
+            "Recommendations: %d signals → %d buys, %d sells (%d held, %d watchlist)",
+            len(all_signals), len(buys), len(all_sells), len(sells), len(watchlist_sells),
         )
-        for s in all_signals:
-            logger.info(
-                "  Signal: %s %s strength=%.2f", s.symbol, s.signal.value, s.strength
-            )
 
         prices = (
             await self.market_data.get_batch_prices(held_symbols)
@@ -286,6 +284,9 @@ class Strategy:
             h = holdings.get(sig.symbol)
             if h:
                 sig.reasons.append(f"You hold {h['quantity']:.4f} shares — sell all")
+
+        for sig in watchlist_sells:
+            sig.reasons.append("Not held — sell signal for watchlist")
 
         # Track sector-capped buys but don't penalize yet — swaps within
         # the same sector shouldn't be penalized since they replace exposure
@@ -369,6 +370,7 @@ class Strategy:
         result = {
             "buys": top_buys,
             "sells": top_sells,
+            "watchlist_sells": watchlist_sells[:n],
             "funding": funding,
             "sector_exposure": exposure,
         }

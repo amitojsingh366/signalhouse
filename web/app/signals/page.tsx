@@ -270,8 +270,29 @@ function SignalsContent() {
             </div>
           )}
 
+          {/* Watchlist sell signals (not held) */}
+          {recs && recs.watchlist_sells && recs.watchlist_sells.length > 0 && (
+            <div>
+              <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+                <span className="h-2 w-2 rounded-full bg-amber-400" />
+                Watchlist Alerts
+              </h2>
+              <p className="mb-3 text-xs text-slate-500">Sell signals for symbols you don&apos;t hold — avoid buying these</p>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {recs.watchlist_sells.map((s) => (
+                  <SignalCard
+                    key={s.symbol}
+                    signal={s}
+                    expanded={expandedSymbol === s.symbol}
+                    onToggle={() => setExpandedSymbol(expandedSymbol === s.symbol ? null : s.symbol)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* No signals message */}
-          {recs && recs.buys.length === 0 && recs.sells.length === 0 && (
+          {recs && recs.buys.length === 0 && recs.sells.length === 0 && (!recs.watchlist_sells || recs.watchlist_sells.length === 0) && (
             <div className="glass-card flex flex-col items-center gap-2 py-12">
               <Zap className="h-8 w-8 text-slate-600" />
               <p className="text-sm text-slate-500">No active signals right now</p>

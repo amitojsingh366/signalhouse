@@ -212,7 +212,7 @@ export default function DashboardPage() {
       )}
 
       {/* Latest signals preview */}
-      {signals && (signals.buys.length > 0 || signals.sells.length > 0) ? (
+      {signals && (signals.buys.length > 0 || signals.sells.length > 0 || (signals.watchlist_sells && signals.watchlist_sells.length > 0)) ? (
         <div className="glass-card p-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-sm font-medium text-slate-400">Latest Signals</h3>
@@ -224,7 +224,7 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {[...signals.buys, ...signals.sells].slice(0, 6).map((s) => (
+            {[...signals.buys, ...signals.sells, ...(signals.watchlist_sells ?? [])].slice(0, 6).map((s) => (
               <div
                 key={s.symbol}
                 className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-4 py-3"

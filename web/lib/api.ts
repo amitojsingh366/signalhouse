@@ -140,6 +140,7 @@ export interface SignalOut {
 export interface RecommendationOut {
   buys: SignalOut[];
   sells: SignalOut[];
+  watchlist_sells: SignalOut[];
   funding: Record<string, unknown>[];
   sector_exposure: Record<string, number>;
 }

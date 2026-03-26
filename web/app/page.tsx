@@ -231,7 +231,7 @@ export default function DashboardPage() {
               {signals.exit_alerts.map((a) => (
                 <Link
                   key={`exit-${a.symbol}`}
-                  href="/signals"
+                  href={`/signals?check=${encodeURIComponent(a.symbol)}`}
                   className={cn(
                     "flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-white/[0.08]",
                     a.severity === "high"

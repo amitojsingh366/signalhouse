@@ -63,13 +63,16 @@ function SignalCard({ signal, expanded, onToggle }: { signal: SignalOut; expande
   );
 }
 
-function ExitAlertCard({ alert }: { alert: ExitAlert }) {
+function ExitAlertCard({ alert, onClick }: { alert: ExitAlert; onClick: () => void }) {
   const isHigh = alert.severity === "high";
   return (
-    <div className={cn(
-      "glass-card p-4 border",
-      isHigh ? "border-red-500/30 bg-red-500/[0.05]" : "border-amber-500/20 bg-amber-500/[0.03]"
-    )}>
+    <div
+      className={cn(
+        "glass-card p-4 border cursor-pointer transition-colors hover:bg-white/[0.05]",
+        isHigh ? "border-red-500/30 bg-red-500/[0.05]" : "border-amber-500/20 bg-amber-500/[0.03]"
+      )}
+      onClick={onClick}
+    >
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <AlertTriangle className={cn("h-4 w-4", isHigh ? "text-red-400" : "text-amber-400")} />
@@ -268,7 +271,7 @@ function SignalsContent() {
               <p className="mb-3 text-xs text-slate-500">Stop losses, time exits, and sell signals for your holdings — act on these first</p>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {recs.exit_alerts.map((a) => (
-                  <ExitAlertCard key={a.symbol} alert={a} />
+                  <ExitAlertCard key={a.symbol} alert={a} onClick={() => checkSymbol(a.symbol)} />
                 ))}
               </div>
             </div>

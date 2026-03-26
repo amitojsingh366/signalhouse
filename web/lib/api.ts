@@ -138,7 +138,18 @@ export interface SignalOut {
   sector: string | null;
 }
 
+export interface ExitAlert {
+  symbol: string;
+  reason: string;
+  detail: string;
+  severity: string;
+  current_price: number;
+  entry_price: number;
+  pnl_pct: number;
+}
+
 export interface RecommendationOut {
+  exit_alerts: ExitAlert[];
   buys: SignalOut[];
   sells: SignalOut[];
   watchlist_sells: SignalOut[];

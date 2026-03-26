@@ -201,10 +201,13 @@ class ConfirmUploadView(discord.ui.View):
     ) -> None:
         await interaction.response.defer()
         portfolio = await self._bot.get_fresh_portfolio()
-        await portfolio.sync_from_snapshot(self.parsed, self._bot.risk)
-        await interaction.followup.send(
-            f"Portfolio updated with {len(self.parsed)} holdings."
-        )
+        try:
+            await portfolio.sync_from_snapshot(self.parsed, self._bot.risk)
+            await interaction.followup.send(
+                f"Portfolio updated with {len(self.parsed)} holdings."
+            )
+        finally:
+            await portfolio.close()
         self.stop()
 
     @discord.ui.button(label="Edit", style=discord.ButtonStyle.primary, emoji="\u270F\uFE0F")

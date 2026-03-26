@@ -115,6 +115,12 @@ async def get_pnl(db: AsyncSession = Depends(get_db)):
 @router.get("/snapshots", response_model=list[SnapshotOut])
 async def get_snapshots(db: AsyncSession = Depends(get_db)):
     portfolio = make_portfolio(db)
+    # Ensure today's snapshot exists so the equity chart has current data
+    holdings = await portfolio.get_holdings_dict()
+    if holdings:
+        symbols = list(holdings.keys())
+        prices = await get_market_data().get_batch_prices(symbols)
+        await portfolio.record_daily_snapshot(prices)
     return await portfolio.get_all_snapshots()
 
 

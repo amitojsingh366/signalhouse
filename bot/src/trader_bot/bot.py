@@ -75,12 +75,19 @@ class TraderBot(commands.Bot):
             )
 
     async def get_fresh_portfolio(self) -> Portfolio:
-        """Get a portfolio with a fresh DB session (for use in cogs)."""
+        """Get a portfolio with a fresh DB session (for use in cogs).
+
+        Caller MUST call ``await portfolio.close()`` when done to avoid
+        connection pool exhaustion.
+        """
         session = self.db_session_factory()
         return Portfolio(session)
 
     async def get_fresh_strategy(self) -> Strategy:
-        """Get a strategy with a fresh DB session."""
+        """Get a strategy with a fresh DB session.
+
+        Caller MUST call ``await strategy.portfolio.close()`` when done.
+        """
         portfolio = await self.get_fresh_portfolio()
         return Strategy(
             market_data=self.market_data,

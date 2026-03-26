@@ -194,6 +194,8 @@ class TasksCog(commands.Cog):
         if not channel:
             return
 
+        strategy = None
+        portfolio = None
         try:
             strategy = await self.bot.get_fresh_strategy()
             portfolio = await self.bot.get_fresh_portfolio()
@@ -240,6 +242,11 @@ class TasksCog(commands.Cog):
 
         except Exception:
             logger.exception("Error during scheduled scan")
+        finally:
+            if portfolio:
+                await portfolio.close()
+            if strategy:
+                await strategy.portfolio.close()
 
     @scan_loop.before_loop
     async def before_scan(self) -> None:
@@ -257,6 +264,7 @@ class TasksCog(commands.Cog):
         if not channel:
             return
 
+        portfolio = None
         try:
             portfolio = await self.bot.get_fresh_portfolio()
             holdings = await portfolio.get_holdings_dict()
@@ -312,6 +320,9 @@ class TasksCog(commands.Cog):
 
         except Exception:
             logger.exception("Error sending daily status")
+        finally:
+            if portfolio:
+                await portfolio.close()
 
     @daily_status_loop.before_loop
     async def before_daily(self) -> None:
@@ -329,6 +340,7 @@ class TasksCog(commands.Cog):
         if not channel:
             return
 
+        strategy = None
         try:
             strategy = await self.bot.get_fresh_strategy()
             movers = await strategy.get_premarket_movers()
@@ -357,6 +369,9 @@ class TasksCog(commands.Cog):
 
         except Exception:
             logger.exception("Error sending premarket movers")
+        finally:
+            if strategy:
+                await strategy.portfolio.close()
 
     @premarket_loop.before_loop
     async def before_premarket(self) -> None:
@@ -374,12 +389,16 @@ class TasksCog(commands.Cog):
         if not channel:
             return
 
+        strategy = None
         try:
             strategy = await self.bot.get_fresh_strategy()
             insights = await strategy.get_daily_insights()
             await _send_insights_embeds(channel, insights, title="Morning Briefing")
         except Exception:
             logger.exception("Error sending morning briefing")
+        finally:
+            if strategy:
+                await strategy.portfolio.close()
 
     @morning_briefing_loop.before_loop
     async def before_morning(self) -> None:
@@ -397,12 +416,16 @@ class TasksCog(commands.Cog):
         if not channel:
             return
 
+        strategy = None
         try:
             strategy = await self.bot.get_fresh_strategy()
             insights = await strategy.get_daily_insights()
             await _send_insights_embeds(channel, insights, title="Evening Recap")
         except Exception:
             logger.exception("Error sending evening recap")
+        finally:
+            if strategy:
+                await strategy.portfolio.close()
 
     @evening_recap_loop.before_loop
     async def before_evening(self) -> None:

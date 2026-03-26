@@ -2,9 +2,9 @@
 
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Zap, RefreshCw, Search } from "lucide-react";
+import { Zap, RefreshCw, Search, AlertTriangle } from "lucide-react";
 import { api, getCache, fetchWithCache } from "@/lib/api";
-import type { RecommendationOut, SignalOut, SymbolInfo } from "@/lib/api";
+import type { ExitAlert, RecommendationOut, SignalOut, SymbolInfo } from "@/lib/api";
 import { formatCurrency, formatPercent, cn, pnlColor } from "@/lib/utils";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { SearchBar } from "@/components/ui/search-bar";
@@ -59,6 +59,37 @@ function SignalCard({ signal, expanded, onToggle }: { signal: SignalOut; expande
           <PriceChart symbol={signal.symbol} />
         </div>
       )}
+    </div>
+  );
+}
+
+function ExitAlertCard({ alert }: { alert: ExitAlert }) {
+  const isHigh = alert.severity === "high";
+  return (
+    <div className={cn(
+      "glass-card p-4 border",
+      isHigh ? "border-red-500/30 bg-red-500/[0.05]" : "border-amber-500/20 bg-amber-500/[0.03]"
+    )}>
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className={cn("h-4 w-4", isHigh ? "text-red-400" : "text-amber-400")} />
+          <span className="text-lg font-semibold">{alert.symbol}</span>
+        </div>
+        <span className={cn(
+          "rounded-full px-2 py-0.5 text-xs font-medium",
+          isHigh ? "bg-red-500/20 text-red-400" : "bg-amber-500/20 text-amber-400"
+        )}>
+          {alert.reason}
+        </span>
+      </div>
+      <p className="mb-2 text-sm text-slate-400">{alert.detail}</p>
+      <div className="flex items-center gap-4 text-xs text-slate-500">
+        <span>Entry: {formatCurrency(alert.entry_price)}</span>
+        <span>Current: {formatCurrency(alert.current_price)}</span>
+        <span className={cn("font-medium", alert.pnl_pct >= 0 ? "text-emerald-400" : "text-red-400")}>
+          {formatPercent(alert.pnl_pct)}
+        </span>
+      </div>
     </div>
   );
 }
@@ -227,6 +258,22 @@ function SignalsContent() {
         </div>
       ) : (
         <>
+          {/* Exit alerts — shown first (stop losses, max hold, sell signals for holdings) */}
+          {recs && recs.exit_alerts && recs.exit_alerts.length > 0 && (
+            <div>
+              <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+                <AlertTriangle className="h-4 w-4 text-red-400" />
+                Exit Alerts
+              </h2>
+              <p className="mb-3 text-xs text-slate-500">Stop losses, time exits, and sell signals for your holdings — act on these first</p>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {recs.exit_alerts.map((a) => (
+                  <ExitAlertCard key={a.symbol} alert={a} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Buy signals */}
           {recs && recs.buys.length > 0 && (
             <div>
@@ -318,7 +365,7 @@ function SignalsContent() {
           )}
 
           {/* No signals message */}
-          {recs && recs.buys.length === 0 && recs.sells.length === 0 && (!recs.watchlist_sells || recs.watchlist_sells.length === 0) && (
+          {recs && recs.buys.length === 0 && recs.sells.length === 0 && (!recs.exit_alerts || recs.exit_alerts.length === 0) && (!recs.watchlist_sells || recs.watchlist_sells.length === 0) && (
             <div className="glass-card flex flex-col items-center gap-2 py-12">
               <Zap className="h-8 w-8 text-slate-600" />
               <p className="text-sm text-slate-500">No active signals right now</p>

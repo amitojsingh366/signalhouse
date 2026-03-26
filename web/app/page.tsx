@@ -11,6 +11,7 @@ import {
   Briefcase,
   Upload,
   RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import { api, getCache, fetchWithCache } from "@/lib/api";
 import type {
@@ -212,7 +213,7 @@ export default function DashboardPage() {
       )}
 
       {/* Latest signals preview */}
-      {signals && (signals.buys.length > 0 || signals.sells.length > 0 || (signals.watchlist_sells && signals.watchlist_sells.length > 0)) ? (
+      {signals && (signals.buys.length > 0 || signals.sells.length > 0 || (signals.exit_alerts && signals.exit_alerts.length > 0) || (signals.watchlist_sells && signals.watchlist_sells.length > 0)) ? (
         <div className="glass-card p-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-sm font-medium text-slate-400">Latest Signals</h3>
@@ -223,6 +224,39 @@ export default function DashboardPage() {
               View all
             </Link>
           </div>
+
+          {/* Exit alerts shown first */}
+          {signals.exit_alerts && signals.exit_alerts.length > 0 && (
+            <div className="mb-4 space-y-2">
+              {signals.exit_alerts.map((a) => (
+                <Link
+                  key={`exit-${a.symbol}`}
+                  href="/signals"
+                  className={cn(
+                    "flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-white/[0.08]",
+                    a.severity === "high"
+                      ? "border-red-500/30 bg-red-500/[0.05]"
+                      : "border-amber-500/20 bg-amber-500/[0.03]"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className={cn("h-4 w-4", a.severity === "high" ? "text-red-400" : "text-amber-400")} />
+                    <div>
+                      <p className="font-medium">{a.symbol}</p>
+                      <p className="text-xs text-slate-500">{a.reason}</p>
+                    </div>
+                  </div>
+                  <span className={cn(
+                    "text-sm font-medium",
+                    a.pnl_pct >= 0 ? "text-emerald-400" : "text-red-400"
+                  )}>
+                    {a.pnl_pct >= 0 ? "+" : ""}{a.pnl_pct.toFixed(1)}%
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[...signals.buys, ...signals.sells, ...(signals.watchlist_sells ?? [])].slice(0, 6).map((s) => (
               <Link

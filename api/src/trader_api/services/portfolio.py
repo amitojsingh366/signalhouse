@@ -22,6 +22,10 @@ class Portfolio:
         self.db = db
         self._meta_cache: PortfolioMeta | None = None
 
+    async def close(self) -> None:
+        """Close the underlying DB session."""
+        await self.db.close()
+
     async def _get_meta(self) -> PortfolioMeta:
         if self._meta_cache is not None:
             return self._meta_cache
@@ -328,12 +332,17 @@ class Portfolio:
         invested = total_cost + realized_pnl  # approximate capital deployed
         initial = meta.initial_capital or current_value
 
-        # Find latest snapshot for daily P&L
+        # Find previous day's snapshot for daily P&L
+        # Skip today's snapshot (if it exists) so we compare against yesterday
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         result = await self.db.execute(
-            select(DailySnapshot).order_by(DailySnapshot.date.desc()).limit(1)
+            select(DailySnapshot)
+            .where(DailySnapshot.date < today)
+            .order_by(DailySnapshot.date.desc())
+            .limit(1)
         )
-        latest_snap = result.scalar_one_or_none()
-        yesterday_value = latest_snap.portfolio_value if latest_snap else current_value
+        prev_snap = result.scalar_one_or_none()
+        yesterday_value = prev_snap.portfolio_value if prev_snap else current_value
 
         return {
             "current_value": current_value,

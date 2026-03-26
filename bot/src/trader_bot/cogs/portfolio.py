@@ -144,10 +144,13 @@ class HoldingSelectView(discord.ui.View):
             for h in self.holdings_list
         ]
         portfolio = await self._bot.get_fresh_portfolio()
-        await portfolio.sync_from_snapshot(parsed, self._bot.risk)
-        await interaction.followup.send(
-            f"Portfolio updated with {len(parsed)} holdings."
-        )
+        try:
+            await portfolio.sync_from_snapshot(parsed, self._bot.risk)
+            await interaction.followup.send(
+                f"Portfolio updated with {len(parsed)} holdings."
+            )
+        finally:
+            await portfolio.close()
         self.stop()
 
 
@@ -165,26 +168,29 @@ class HoldingsView(discord.ui.View):
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
         portfolio = await self._bot.get_fresh_portfolio()
-        holdings = await portfolio.get_holdings_dict()
+        try:
+            holdings = await portfolio.get_holdings_dict()
 
-        if not holdings:
-            await interaction.response.send_message(
-                "No holdings to edit.", ephemeral=True
-            )
-            return
+            if not holdings:
+                await interaction.response.send_message(
+                    "No holdings to edit.", ephemeral=True
+                )
+                return
 
-        holdings_list = [
-            {
-                "symbol": sym,
-                "quantity": h["quantity"],
-                "avg_cost": h["avg_cost"],
-            }
-            for sym, h in holdings.items()
-        ]
+            holdings_list = [
+                {
+                    "symbol": sym,
+                    "quantity": h["quantity"],
+                    "avg_cost": h["avg_cost"],
+                }
+                for sym, h in holdings.items()
+            ]
 
-        embed = _build_holdings_edit_list(holdings_list)
-        view = HoldingSelectView(holdings_list, self._bot)
-        await interaction.response.edit_message(embed=embed, view=view)
+            embed = _build_holdings_edit_list(holdings_list)
+            view = HoldingSelectView(holdings_list, self._bot)
+            await interaction.response.edit_message(embed=embed, view=view)
+        finally:
+            await portfolio.close()
 
 
 # ---------------------------------------------------------------------------
@@ -200,139 +206,148 @@ class PortfolioCog(commands.Cog):
     @app_commands.command(name="holdings", description="View current portfolio holdings")
     async def holdings(self, interaction: discord.Interaction) -> None:
         portfolio = await self.bot.get_fresh_portfolio()
-        holdings = await portfolio.get_holdings_dict()
+        strategy = None
+        try:
+            holdings = await portfolio.get_holdings_dict()
 
-        if not holdings:
-            await interaction.response.send_message(
-                "No holdings tracked yet. Use `/buy` or `/upload` to add."
-            )
-            return
+            if not holdings:
+                await interaction.response.send_message(
+                    "No holdings tracked yet. Use `/buy` or `/upload` to add."
+                )
+                return
 
-        await interaction.response.defer(thinking=True)
+            await interaction.response.defer(thinking=True)
 
-        strategy = await self.bot.get_fresh_strategy()
-        symbols = list(holdings.keys())
-        prices = await self.bot.market_data.get_batch_prices(symbols)
+            strategy = await self.bot.get_fresh_strategy()
+            symbols = list(holdings.keys())
+            prices = await self.bot.market_data.get_batch_prices(symbols)
 
-        action_emojis = {
-            "HOLD": "\U0001f7e1", "HOLD+": "\U0001f7e2",
-            "SELL": "\U0001f534", "SWAP": "\U0001f504",
-        }
+            action_emojis = {
+                "HOLD": "\U0001f7e1", "HOLD+": "\U0001f7e2",
+                "SELL": "\U0001f534", "SWAP": "\U0001f504",
+            }
 
-        total_value = 0.0
-        total_cost = 0.0
+            total_value = 0.0
+            total_cost = 0.0
 
-        embed = discord.Embed(title="Current Holdings", color=0x3498DB)
+            embed = discord.Embed(title="Current Holdings", color=0x3498DB)
 
-        for sym in symbols:
-            h = holdings[sym]
-            price = prices.get(sym, h["avg_cost"])
-            value = h["quantity"] * price
-            cost = h["quantity"] * h["avg_cost"]
-            total_value += value
-            total_cost += cost
+            for sym in symbols:
+                h = holdings[sym]
+                price = prices.get(sym, h["avg_cost"])
+                value = h["quantity"] * price
+                cost = h["quantity"] * h["avg_cost"]
+                total_value += value
+                total_cost += cost
 
-            advice = await strategy.get_holding_advice(
-                sym, price, find_alternatives=False
-            )
+                advice = await strategy.get_holding_advice(
+                    sym, price, find_alternatives=False
+                )
 
-            action = advice["action"]
-            action_emoji = action_emojis.get(action, "\u26AA")
-            pnl_pct = advice["pnl_pct"]
-            pnl_emoji = "\U0001f7e2" if pnl_pct >= 0 else "\U0001f534"
+                action = advice["action"]
+                action_emoji = action_emojis.get(action, "\u26AA")
+                pnl_pct = advice["pnl_pct"]
+                pnl_emoji = "\U0001f7e2" if pnl_pct >= 0 else "\U0001f534"
 
-            top_reasons = [
-                r for r in advice["reasons"][:3]
-                if not r.startswith(("Price:", "ATR:", "Sector:"))
-            ]
-            reasons_str = " | ".join(top_reasons) if top_reasons else ""
-            detail = advice.get("action_detail", "")
+                top_reasons = [
+                    r for r in advice["reasons"][:3]
+                    if not r.startswith(("Price:", "ATR:", "Sector:"))
+                ]
+                reasons_str = " | ".join(top_reasons) if top_reasons else ""
+                detail = advice.get("action_detail", "")
 
-            value_lines = [
-                f"{h['quantity']:.4f} sh @ ${price:.2f} {pnl_emoji} {pnl_pct:+.1f}%",
-                f"Avg: ${h['avg_cost']:.2f} | Value: ${value:.2f}",
-            ]
-            if reasons_str:
-                value_lines.append(reasons_str)
-            if detail:
-                value_lines.append(f"**\u27A1 {detail}**")
+                value_lines = [
+                    f"{h['quantity']:.4f} sh @ ${price:.2f} {pnl_emoji} {pnl_pct:+.1f}%",
+                    f"Avg: ${h['avg_cost']:.2f} | Value: ${value:.2f}",
+                ]
+                if reasons_str:
+                    value_lines.append(reasons_str)
+                if detail:
+                    value_lines.append(f"**\u27A1 {detail}**")
 
+                embed.add_field(
+                    name=f"{action_emoji} {sym} \u2014 {action}",
+                    value="\n".join(value_lines),
+                    inline=False,
+                )
+
+            meta = await portfolio._get_meta()
+            total_pnl = total_value - total_cost
             embed.add_field(
-                name=f"{action_emoji} {sym} \u2014 {action}",
-                value="\n".join(value_lines),
-                inline=False,
+                name="Total",
+                value=f"${total_value:.2f} ({total_pnl:+.2f})",
+                inline=True,
             )
-
-        meta = await portfolio._get_meta()
-        total_pnl = total_value - total_cost
-        embed.add_field(
-            name="Total",
-            value=f"${total_value:.2f} ({total_pnl:+.2f})",
-            inline=True,
-        )
-        embed.add_field(name="Cash", value=f"${meta.cash:.2f}", inline=True)
-        embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
-        view = HoldingsView(self.bot)
-        await interaction.followup.send(embed=embed, view=view)
+            embed.add_field(name="Cash", value=f"${meta.cash:.2f}", inline=True)
+            embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
+            view = HoldingsView(self.bot)
+            await interaction.followup.send(embed=embed, view=view)
+        finally:
+            await portfolio.close()
+            if strategy:
+                await strategy.portfolio.close()
 
     @app_commands.command(name="pnl", description="View P&L breakdown")
     async def pnl(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
 
         portfolio = await self.bot.get_fresh_portfolio()
-        holdings = await portfolio.get_holdings_dict()
-        symbols = list(holdings.keys())
-        prices = await self.bot.market_data.get_batch_prices(symbols) if symbols else {}
-        pnl_data = await portfolio.get_daily_pnl(prices)
+        try:
+            holdings = await portfolio.get_holdings_dict()
+            symbols = list(holdings.keys())
+            prices = await self.bot.market_data.get_batch_prices(symbols) if symbols else {}
+            pnl_data = await portfolio.get_daily_pnl(prices)
 
-        embed = discord.Embed(
-            title="P&L Summary",
-            color=pnl_color(pnl_data["total_pnl"]),
-        )
-        embed.add_field(
-            name="Portfolio Value",
-            value=f"${pnl_data['current_value']:.2f}",
-            inline=True,
-        )
-        embed.add_field(
-            name="Initial Capital",
-            value=f"${pnl_data['initial_capital']:.2f}",
-            inline=True,
-        )
-        embed.add_field(
-            name="Cash",
-            value=f"${pnl_data['cash']:.2f}",
-            inline=True,
-        )
-        embed.add_field(
-            name="Daily P&L",
-            value=f"${pnl_data['daily_pnl']:+.2f} ({pnl_data['daily_pnl_pct']:+.1f}%)",
-            inline=True,
-        )
-        embed.add_field(
-            name="Total P&L",
-            value=f"${pnl_data['total_pnl']:+.2f} ({pnl_data['total_pnl_pct']:+.1f}%)",
-            inline=True,
-        )
-
-        recent = await portfolio.get_recent_trades(5)
-        if recent:
-            lines = []
-            for t in reversed(recent):
-                emoji = "\U0001f7e2" if t["action"] == "BUY" else "\U0001f534"
-                pnl_str = ""
-                if t.get("pnl"):
-                    pnl_str = f" (P&L: ${t['pnl']:+.2f})"
-                lines.append(
-                    f"{emoji} {t['action']} {t['quantity']:.4f} x {t['symbol']} "
-                    f"@ ${t['price']:.2f}{pnl_str}"
-                )
+            embed = discord.Embed(
+                title="P&L Summary",
+                color=pnl_color(pnl_data["total_pnl"]),
+            )
             embed.add_field(
-                name="Recent Trades", value="\n".join(lines), inline=False
+                name="Portfolio Value",
+                value=f"${pnl_data['current_value']:.2f}",
+                inline=True,
+            )
+            embed.add_field(
+                name="Initial Capital",
+                value=f"${pnl_data['initial_capital']:.2f}",
+                inline=True,
+            )
+            embed.add_field(
+                name="Cash",
+                value=f"${pnl_data['cash']:.2f}",
+                inline=True,
+            )
+            embed.add_field(
+                name="Daily P&L",
+                value=f"${pnl_data['daily_pnl']:+.2f} ({pnl_data['daily_pnl_pct']:+.1f}%)",
+                inline=True,
+            )
+            embed.add_field(
+                name="Total P&L",
+                value=f"${pnl_data['total_pnl']:+.2f} ({pnl_data['total_pnl_pct']:+.1f}%)",
+                inline=True,
             )
 
-        embed.set_footer(text=datetime.now(ET).strftime("%Y-%m-%d %H:%M ET"))
-        await interaction.followup.send(embed=embed)
+            recent = await portfolio.get_recent_trades(5)
+            if recent:
+                lines = []
+                for t in reversed(recent):
+                    emoji = "\U0001f7e2" if t["action"] == "BUY" else "\U0001f534"
+                    pnl_str = ""
+                    if t.get("pnl"):
+                        pnl_str = f" (P&L: ${t['pnl']:+.2f})"
+                    lines.append(
+                        f"{emoji} {t['action']} {t['quantity']:.4f} x {t['symbol']} "
+                        f"@ ${t['price']:.2f}{pnl_str}"
+                    )
+                embed.add_field(
+                    name="Recent Trades", value="\n".join(lines), inline=False
+                )
+
+            embed.set_footer(text=datetime.now(ET).strftime("%Y-%m-%d %H:%M ET"))
+            await interaction.followup.send(embed=embed)
+        finally:
+            await portfolio.close()
 
 
 def pnl_color(pnl: float) -> int:

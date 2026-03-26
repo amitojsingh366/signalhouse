@@ -121,24 +121,27 @@ class RecheckView(discord.ui.View):
 
         bot: TraderBot = interaction.client  # type: ignore[assignment]
         strategy = await bot.get_fresh_strategy()
-        result = await strategy.analyze_symbol(symbol)
+        try:
+            result = await strategy.analyze_symbol(symbol)
 
-        new_embed = discord.Embed(
-            title=f"{symbol} \u2014 {result.signal.value} Signal (Recheck)",
-            description="\n".join(f"\u2022 {r}" for r in result.reasons),
-            color=0x2ECC71 if result.signal == Signal.BUY else (
-                0xE74C3C if result.signal == Signal.SELL else 0x95A5A6
-            ),
-        )
-        new_embed.add_field(
-            name="Strength", value=f"{result.strength:.0%}", inline=True
-        )
-        new_embed.add_field(
-            name="Signal", value=f"{signal_emoji(result.signal)} {result.signal.value}", inline=True
-        )
-        new_embed.set_footer(text=f"Rechecked at {datetime.now(ET).strftime('%H:%M ET')}")
+            new_embed = discord.Embed(
+                title=f"{symbol} \u2014 {result.signal.value} Signal (Recheck)",
+                description="\n".join(f"\u2022 {r}" for r in result.reasons),
+                color=0x2ECC71 if result.signal == Signal.BUY else (
+                    0xE74C3C if result.signal == Signal.SELL else 0x95A5A6
+                ),
+            )
+            new_embed.add_field(
+                name="Strength", value=f"{result.strength:.0%}", inline=True
+            )
+            new_embed.add_field(
+                name="Signal", value=f"{signal_emoji(result.signal)} {result.signal.value}", inline=True
+            )
+            new_embed.set_footer(text=f"Rechecked at {datetime.now(ET).strftime('%H:%M ET')}")
 
-        await interaction.followup.send(embed=new_embed, view=RecheckView())
+            await interaction.followup.send(embed=new_embed, view=RecheckView())
+        finally:
+            await strategy.portfolio.close()
 
 
 # ---------------------------------------------------------------------------
@@ -172,85 +175,89 @@ class SignalsCog(commands.Cog):
                 return
 
         strategy = await self.bot.get_fresh_strategy()
-        result = await strategy.analyze_symbol(symbol)
-
-        color = (
-            0x2ECC71 if result.signal == Signal.BUY
-            else 0xE74C3C if result.signal == Signal.SELL
-            else 0x95A5A6
-        )
-        embed = discord.Embed(
-            title=f"{symbol} \u2014 {result.signal.value} Signal",
-            description="\n".join(f"\u2022 {r}" for r in result.reasons),
-            color=color,
-        )
-        embed.add_field(
-            name="Signal",
-            value=f"{signal_emoji(result.signal)} {result.signal.value}",
-            inline=True,
-        )
-        embed.add_field(name="Strength", value=f"{result.strength:.0%}", inline=True)
-
-        # Show holding info + actionable advice if user holds this symbol
         portfolio = await self.bot.get_fresh_portfolio()
-        holdings = await portfolio.get_holdings_dict()
-        h = holdings.get(symbol)
-        if h:
-            prices = await self.bot.market_data.get_batch_prices([symbol])
-            price = prices.get(symbol, h["avg_cost"])
-            pnl_pct = (price - h["avg_cost"]) / h["avg_cost"] * 100 if h["avg_cost"] > 0 else 0.0
-            pnl_emoji = "\U0001f7e2" if pnl_pct >= 0 else "\U0001f534"
+        try:
+            result = await strategy.analyze_symbol(symbol)
 
-            embed.add_field(
-                name="Your Position",
-                value=(
-                    f"{h['quantity']:.4f} shares @ ${h['avg_cost']:.2f}\n"
-                    f"Current: ${price:.2f} {pnl_emoji} {pnl_pct:+.1f}%"
-                ),
-                inline=False,
+            color = (
+                0x2ECC71 if result.signal == Signal.BUY
+                else 0xE74C3C if result.signal == Signal.SELL
+                else 0x95A5A6
             )
+            embed = discord.Embed(
+                title=f"{symbol} \u2014 {result.signal.value} Signal",
+                description="\n".join(f"\u2022 {r}" for r in result.reasons),
+                color=color,
+            )
+            embed.add_field(
+                name="Signal",
+                value=f"{signal_emoji(result.signal)} {result.signal.value}",
+                inline=True,
+            )
+            embed.add_field(name="Strength", value=f"{result.strength:.0%}", inline=True)
 
-            alternative = None
-            if result.signal != Signal.BUY:
-                alternative = await strategy._find_better_alternative(
-                    symbol, result, {symbol: price}
-                )
-            advice = strategy._holding_action(result, pnl_pct, alternative)
+            # Show holding info + actionable advice if user holds this symbol
+            holdings = await portfolio.get_holdings_dict()
+            h = holdings.get(symbol)
+            if h:
+                prices = await self.bot.market_data.get_batch_prices([symbol])
+                price = prices.get(symbol, h["avg_cost"])
+                pnl_pct = (price - h["avg_cost"]) / h["avg_cost"] * 100 if h["avg_cost"] > 0 else 0.0
+                pnl_emoji = "\U0001f7e2" if pnl_pct >= 0 else "\U0001f534"
 
-            action = advice["action"]
-            action_emojis = {
-                "HOLD": "\U0001f7e1", "HOLD+": "\U0001f7e2",
-                "SELL": "\U0001f534", "SWAP": "\U0001f504",
-            }
-            action_emoji = action_emojis.get(action, "\u26AA")
-            detail = advice.get("detail", "")
-            if detail:
                 embed.add_field(
-                    name=f"{action_emoji} Advice: {action}",
-                    value=detail,
+                    name="Your Position",
+                    value=(
+                        f"{h['quantity']:.4f} shares @ ${h['avg_cost']:.2f}\n"
+                        f"Current: ${price:.2f} {pnl_emoji} {pnl_pct:+.1f}%"
+                    ),
                     inline=False,
                 )
 
-            alt = advice.get("alternative")
-            if alt:
-                alt_reasons = " | ".join(
-                    r for r in alt.get("reasons", [])[:2]
-                    if not r.startswith(("Price:", "ATR:"))
-                )
-                alt_text = (
-                    f"**{alt['symbol']}** \u2014 BUY {alt['strength']:.0%} "
-                    f"@ ${alt['price']:.2f}"
-                )
-                if alt_reasons:
-                    alt_text += f"\n{alt_reasons}"
-                embed.add_field(
-                    name="\U0001f4a1 Consider Instead",
-                    value=alt_text,
-                    inline=False,
-                )
+                alternative = None
+                if result.signal != Signal.BUY:
+                    alternative = await strategy._find_better_alternative(
+                        symbol, result, {symbol: price}
+                    )
+                advice = strategy._holding_action(result, pnl_pct, alternative)
 
-        embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
-        await interaction.followup.send(embed=embed, view=RecheckView())
+                action = advice["action"]
+                action_emojis = {
+                    "HOLD": "\U0001f7e1", "HOLD+": "\U0001f7e2",
+                    "SELL": "\U0001f534", "SWAP": "\U0001f504",
+                }
+                action_emoji = action_emojis.get(action, "\u26AA")
+                detail = advice.get("detail", "")
+                if detail:
+                    embed.add_field(
+                        name=f"{action_emoji} Advice: {action}",
+                        value=detail,
+                        inline=False,
+                    )
+
+                alt = advice.get("alternative")
+                if alt:
+                    alt_reasons = " | ".join(
+                        r for r in alt.get("reasons", [])[:2]
+                        if not r.startswith(("Price:", "ATR:"))
+                    )
+                    alt_text = (
+                        f"**{alt['symbol']}** \u2014 BUY {alt['strength']:.0%} "
+                        f"@ ${alt['price']:.2f}"
+                    )
+                    if alt_reasons:
+                        alt_text += f"\n{alt_reasons}"
+                    embed.add_field(
+                        name="\U0001f4a1 Consider Instead",
+                        value=alt_text,
+                        inline=False,
+                    )
+
+            embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
+            await interaction.followup.send(embed=embed, view=RecheckView())
+        finally:
+            await portfolio.close()
+            await strategy.portfolio.close()
 
     @check.autocomplete("symbol")
     async def check_autocomplete(
@@ -261,18 +268,21 @@ class SignalsCog(commands.Cog):
 
         # Show held symbols first (use cached strategy symbols; autocomplete must be fast)
         portfolio = await self.bot.get_fresh_portfolio()
-        holdings = await portfolio.get_holdings_dict()
-        for sym in holdings:
-            if current_upper in sym:
-                choices.append(app_commands.Choice(name=f"\u2B50 {sym} (held)", value=sym))
+        try:
+            holdings = await portfolio.get_holdings_dict()
+            for sym in holdings:
+                if current_upper in sym:
+                    choices.append(app_commands.Choice(name=f"\u2B50 {sym} (held)", value=sym))
 
-        for sym in self.bot.strategy.symbols:
-            if sym in holdings:
-                continue
-            if current_upper in sym:
-                choices.append(app_commands.Choice(name=sym, value=sym))
-            if len(choices) >= 25:
-                break
+            for sym in self.bot.strategy.symbols:
+                if sym in holdings:
+                    continue
+                if current_upper in sym:
+                    choices.append(app_commands.Choice(name=sym, value=sym))
+                if len(choices) >= 25:
+                    break
+        finally:
+            await portfolio.close()
 
         return choices[:25]
 
@@ -281,43 +291,47 @@ class SignalsCog(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         strategy = await self.bot.get_fresh_strategy()
-        recs = await strategy.get_top_recommendations(n=5)
-
-        if not recs["buys"] and not recs["sells"]:
-            await interaction.followup.send("No actionable signals right now. Market may be quiet.")
-            return
-
         portfolio = await self.bot.get_fresh_portfolio()
-        meta = await portfolio._get_meta()
+        try:
+            recs = await strategy.get_top_recommendations(n=5)
 
-        exposure = recs.get("sector_exposure", {})
-        if exposure:
-            lines = []
-            for sector, data in sorted(
-                exposure.items(), key=lambda x: x[1]["pct"], reverse=True
-            ):
-                bar_len = int(data["pct"] * 20)
-                bar = "\u2588" * bar_len + "\u2591" * (20 - bar_len)
-                syms = ", ".join(data["symbols"])
-                lines.append(f"`{bar}` **{sector}** {data['pct']:.0%} ({syms})")
-            exp_embed = discord.Embed(
-                title="Portfolio Sector Exposure",
-                description="\n".join(lines),
-                color=0x3498DB,
-            )
-            exp_embed.add_field(
-                name="Cash", value=f"${meta.cash:.2f}", inline=True
-            )
-            await interaction.followup.send(embed=exp_embed)
+            if not recs["buys"] and not recs["sells"]:
+                await interaction.followup.send("No actionable signals right now. Market may be quiet.")
+                return
 
-        funding = recs.get("funding", [])
-        for sig in recs["buys"]:
-            embed = _build_buy_embed(sig, funding)
-            await interaction.followup.send(embed=embed, view=RecheckView())
+            meta = await portfolio._get_meta()
 
-        for sig in recs["sells"]:
-            embed = _build_sell_embed(sig)
-            await interaction.followup.send(embed=embed, view=RecheckView())
+            exposure = recs.get("sector_exposure", {})
+            if exposure:
+                lines = []
+                for sector, data in sorted(
+                    exposure.items(), key=lambda x: x[1]["pct"], reverse=True
+                ):
+                    bar_len = int(data["pct"] * 20)
+                    bar = "\u2588" * bar_len + "\u2591" * (20 - bar_len)
+                    syms = ", ".join(data["symbols"])
+                    lines.append(f"`{bar}` **{sector}** {data['pct']:.0%} ({syms})")
+                exp_embed = discord.Embed(
+                    title="Portfolio Sector Exposure",
+                    description="\n".join(lines),
+                    color=0x3498DB,
+                )
+                exp_embed.add_field(
+                    name="Cash", value=f"${meta.cash:.2f}", inline=True
+                )
+                await interaction.followup.send(embed=exp_embed)
+
+            funding = recs.get("funding", [])
+            for sig in recs["buys"]:
+                embed = _build_buy_embed(sig, funding)
+                await interaction.followup.send(embed=embed, view=RecheckView())
+
+            for sig in recs["sells"]:
+                embed = _build_sell_embed(sig)
+                await interaction.followup.send(embed=embed, view=RecheckView())
+        finally:
+            await portfolio.close()
+            await strategy.portfolio.close()
 
 
 async def setup(bot: TraderBot) -> None:

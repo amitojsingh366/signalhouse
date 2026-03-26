@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trader_api.database import get_db
-from trader_api.deps import get_market_data, make_portfolio, make_strategy
-from trader_api.schemas import InsightsOut, RecommendationOut, SignalOut
+from trader_api.deps import get_market_data, get_risk, make_portfolio, make_strategy
+from trader_api.schemas import ExitAlertOut, InsightsOut, RecommendationOut, SignalOut
 
 router = APIRouter(prefix="/api/signals", tags=["signals"])
 
@@ -51,6 +51,26 @@ async def get_recommendations(n: int = 5, db: AsyncSession = Depends(get_db)):
 
     recs = await strategy.get_top_recommendations(n=n)
 
+    # Fetch exit alerts (stop losses, max hold time, sell signals for holdings)
+    holdings = await portfolio.get_holdings_dict()
+    exit_alerts: list[ExitAlertOut] = []
+    if holdings:
+        held_symbols = list(holdings.keys())
+        prices = await strategy.market_data.get_batch_prices(held_symbols)
+        raw_alerts = await strategy.get_exit_alerts(prices)
+        exit_alerts = [
+            ExitAlertOut(
+                symbol=a["symbol"],
+                reason=a["reason"],
+                detail=a["detail"],
+                severity=a["severity"],
+                current_price=a["current_price"],
+                entry_price=a["entry_price"],
+                pnl_pct=a["pnl_pct"],
+            )
+            for a in raw_alerts
+        ]
+
     def _to_signal_out(s):
         return SignalOut(
             symbol=s.symbol,
@@ -66,6 +86,7 @@ async def get_recommendations(n: int = 5, db: AsyncSession = Depends(get_db)):
     watchlist_sells = [_to_signal_out(s) for s in recs.get("watchlist_sells", [])]
 
     return RecommendationOut(
+        exit_alerts=exit_alerts,
         buys=buys,
         sells=sells,
         watchlist_sells=watchlist_sells,

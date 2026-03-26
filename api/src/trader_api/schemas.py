@@ -106,7 +106,18 @@ class SignalOut(BaseModel):
     sector: str | None = None
 
 
+class ExitAlertOut(BaseModel):
+    symbol: str
+    reason: str  # "Stop loss hit", "Max hold time reached", "Sell signal"
+    detail: str
+    severity: str  # "high" or "medium"
+    current_price: float
+    entry_price: float
+    pnl_pct: float
+
+
 class RecommendationOut(BaseModel):
+    exit_alerts: list[ExitAlertOut] = []
     buys: list[SignalOut]
     sells: list[SignalOut]
     watchlist_sells: list[SignalOut] = []

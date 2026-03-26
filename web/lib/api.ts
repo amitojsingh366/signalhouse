@@ -1,5 +1,47 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
+// --- localStorage cache layer ---
+
+const CACHE_PREFIX = "trader_cache_";
+const CACHE_DURATIONS: Record<string, number> = {
+  "/api/portfolio/holdings": 2 * 60 * 1000,   // 2 min
+  "/api/portfolio/pnl": 2 * 60 * 1000,
+  "/api/portfolio/snapshots": 5 * 60 * 1000,  // 5 min
+  "/api/signals/recommend": 10 * 60 * 1000,   // 10 min
+  "/api/signals/insights": 10 * 60 * 1000,
+  "/api/status": 60 * 1000,                   // 1 min
+  "/api/symbols": 30 * 60 * 1000,             // 30 min
+  "/api/trades/history": 2 * 60 * 1000,
+};
+
+function getCacheKey(path: string): string {
+  return CACHE_PREFIX + path;
+}
+
+function getCache<T>(path: string): T | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(getCacheKey(path));
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    const maxAge = CACHE_DURATIONS[path.split("?")[0]];
+    if (!maxAge || Date.now() - ts > maxAge) return null;
+    return data as T;
+  } catch {
+    return null;
+  }
+}
+
+function setCache<T>(path: string, data: T): void {
+  if (typeof window === "undefined") return;
+  try {
+    const key = getCacheKey(path);
+    localStorage.setItem(key, JSON.stringify({ data, ts: Date.now() }));
+  } catch {
+    // quota exceeded — silently ignore
+  }
+}
+
 async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -12,7 +54,28 @@ async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
     const body = await res.text().catch(() => "");
     throw new Error(`API ${res.status}: ${body}`);
   }
-  return res.json();
+  const data: T = await res.json();
+  // Cache GET responses
+  if (!init?.method || init.method === "GET") {
+    setCache(path, data);
+  }
+  return data;
+}
+
+/** Fetch with cache-first strategy: returns cached data immediately via onCached, then fetches fresh data */
+function fetchWithCache<T>(
+  path: string,
+  onCached: (data: T) => void,
+  onFresh: (data: T) => void,
+  onError?: (err: Error) => void,
+): void {
+  const cached = getCache<T>(path);
+  if (cached) onCached(cached);
+  fetchAPI<T>(path)
+    .then(onFresh)
+    .catch((err) => {
+      if (!cached && onError) onError(err);
+    });
 }
 
 // --- Types (mirroring API schemas) ---
@@ -124,6 +187,8 @@ export interface SymbolInfo {
 }
 
 // --- API functions ---
+
+export { fetchWithCache, getCache };
 
 export const api = {
   // Portfolio

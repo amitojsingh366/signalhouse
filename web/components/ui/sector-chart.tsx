@@ -11,8 +11,14 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 
+interface SectorExposureValue {
+  value: number;
+  pct: number;
+  symbols: string[];
+}
+
 interface SectorChartProps {
-  exposure: Record<string, number>;
+  exposure: Record<string, number | SectorExposureValue>;
   className?: string;
 }
 
@@ -24,11 +30,14 @@ const COLORS = [
 
 export function SectorChart({ exposure, className }: SectorChartProps) {
   const data = Object.entries(exposure)
-    .map(([sector, pct], i) => ({
-      sector,
-      exposure: Math.round(pct * 100) / 100,
-      fill: COLORS[i % COLORS.length],
-    }))
+    .map(([sector, val], i) => {
+      const pct = typeof val === "object" && val !== null ? (val as SectorExposureValue).pct : (val as number);
+      return {
+        sector,
+        exposure: Math.round((pct ?? 0) * 10000) / 100,
+        fill: COLORS[i % COLORS.length],
+      };
+    })
     .sort((a, b) => b.exposure - a.exposure);
 
   if (data.length === 0) {

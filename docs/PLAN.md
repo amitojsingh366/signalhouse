@@ -22,20 +22,18 @@
   - [x] 5.3 Update `docs/NEXT_STEPS.md`
 - [x] Step 6: Testing & Validation
 - [x] Step 7: Caddy Reverse Proxy & Deployment
-  - [x] 7.1 Add Caddy service to `docker-compose.yml` (port 80, depends on web + api)
-  - [x] 7.2 Create `Caddyfile` — routes `/api/*` to FastAPI, everything else to Next.js
-  - [x] 7.3 Change postgres, api, web from `ports` to `expose` (internal-only, Caddy fronts everything)
-  - [x] 7.4 Configure Caddy for HTTP-only (Cloudflare terminates SSL at edge)
-  - [x] 7.5 Fix web Dockerfile — handle empty `public/` directory
-  - [x] 7.6 Add `caddy_data` and `caddy_config` volumes
-  - [x] 7.7 Deploy to `your-server` — all 5 services running
-  - [x] 7.8 Verify API (`/api/status`) and web dashboard serve correctly through Caddy
-  - [x] 7.9 DNS: `yourdomain.com` pointed to server via Cloudflare (proxied)
-- [ ] Step 8: Fix Connectivity Issues & Redeploy
-  - [x] 8.1 Re-add port 443 to Caddy (Cloudflare Full mode needs HTTPS on origin)
-  - [x] 8.2 Add Caddy `:443` block with `tls internal` (self-signed cert for CF Full mode)
-  - [x] 8.3 Fix `NEXT_PUBLIC_API_URL` — use empty string so browser uses relative URLs through Caddy
-  - [ ] 8.4 Deploy to server and verify website + API accessible via `yourdomain.com`
+  - [x] 7.1 Add Caddy service with auto-HTTPS, routes `/api/*` → FastAPI, `/*` → Next.js
+  - [x] 7.2 Internal-only ports for postgres/api/web, Caddy exposes 80+443
+  - [x] 7.3 Deploy all 5 services to `your-server`, DNS via Cloudflare
+  - [x] 7.4 Fix `NEXT_PUBLIC_API_URL` — empty string for relative URLs through Caddy
+  - [x] 7.5 Open port 443 in iptables, verify website + API at `yourdomain.com`
+- [ ] Step 8: Web Performance & UX Improvements
+  - [x] 8.1 Fix sector exposure NaN bug (API returns nested dict `{value, pct, symbols}`, chart treats value as number)
+  - [x] 8.2 Add localStorage caching layer to API client for instant page loads
+  - [x] 8.3 Dashboard: progressive loading — stat cards render from cache instantly, charts/signals load async
+  - [x] 8.4 Move sector exposure chart from Signals page to Dashboard
+  - [x] 8.5 Signals: always-visible search bar above async-loading signal cards
+  - [ ] 8.6 Deploy to server
 
 ---
 
@@ -286,18 +284,15 @@ web/
 
 ### Step 7: Caddy Reverse Proxy & Deployment
 
-**Goal:** Serve the web dashboard on `yourdomain.com` behind Caddy, with Cloudflare handling SSL.
-
 **Files created/modified:**
-- `Caddyfile` — Listens on `:80`, routes `/api/*` → `api:8000`, everything else → `web:3000`
-- `docker-compose.yml` — Added `caddy` service (caddy:2-alpine), changed postgres/api/web from `ports` to `expose` (internal-only), added `caddy_data` and `caddy_config` volumes
-- `web/Dockerfile` — Fixed `COPY --from=builder /app/public` failure when `public/` is empty (added `RUN mkdir -p ./public`)
-- `web/public/.gitkeep` — Ensures public directory exists in git
+- `Caddyfile` — `yourdomain.com` with auto-HTTPS, routes `/api/*` → `api:8000`, `/*` → `web:3000`
+- `docker-compose.yml` — Added `caddy` service (ports 80+443), postgres/api/web internal-only (`expose`)
+- `web/Dockerfile` — Fixed empty `public/` dir, `NEXT_PUBLIC_API_URL` uses relative URLs through Caddy
 
 **Architecture:**
 ```
-Internet → Cloudflare (SSL) → Caddy (:80) → web (:3000) for pages
-                                           → api (:8000) for /api/*
+Internet → Cloudflare (SSL) → Caddy (:443 auto-HTTPS) → web (:3000) for pages
+                                                       → api (:8000) for /api/*
 ```
 
-**Deployment:** `git push` → SSH → `git pull && docker compose up -d --build` on `your-server`. All 5 services (postgres, api, bot, web, caddy) confirmed running. DNS `yourdomain.com` points to server via Cloudflare proxied A record.
+**Deployment:** `git push` → SSH → `git pull && docker compose up -d --build` on `your-server`. All 5 services running. DNS `yourdomain.com` via Cloudflare proxied A record.

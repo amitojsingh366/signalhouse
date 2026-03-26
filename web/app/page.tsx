@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   DollarSign,
@@ -11,7 +11,7 @@ import {
   Briefcase,
   Upload,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getCache, fetchWithCache } from "@/lib/api";
 import type {
   PortfolioSummary,
   PnlSummary,
@@ -22,90 +22,130 @@ import { formatCurrency, formatPercent, pnlColor, cn } from "@/lib/utils";
 import { StatCard } from "@/components/ui/stat-card";
 import { EquityChart } from "@/components/ui/equity-chart";
 import { SignalBadge } from "@/components/ui/signal-badge";
-import { CardSkeleton, PageLoader } from "@/components/ui/loading";
+import { SectorChart } from "@/components/ui/sector-chart";
+import { CardSkeleton } from "@/components/ui/loading";
 
 export default function DashboardPage() {
-  const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
-  const [pnl, setPnl] = useState<PnlSummary | null>(null);
-  const [snapshots, setSnapshots] = useState<SnapshotOut[]>([]);
-  const [signals, setSignals] = useState<RecommendationOut | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Phase 1: stat cards (instant from cache)
+  const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(
+    () => getCache<PortfolioSummary>("/api/portfolio/holdings")
+  );
+  const [pnl, setPnl] = useState<PnlSummary | null>(
+    () => getCache<PnlSummary>("/api/portfolio/pnl")
+  );
+  const [statsLoading, setStatsLoading] = useState(!portfolio && !pnl);
+
+  // Phase 2: charts & signals (load async)
+  const [snapshots, setSnapshots] = useState<SnapshotOut[]>(
+    () => getCache<SnapshotOut[]>("/api/portfolio/snapshots") ?? []
+  );
+  const [signals, setSignals] = useState<RecommendationOut | null>(
+    () => getCache<RecommendationOut>("/api/signals/recommend?n=3")
+  );
+  const [chartsLoading, setChartsLoading] = useState(true);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const [p, pnlData, snaps, sigs] = await Promise.all([
-          api.getHoldings(),
-          api.getPnl(),
-          api.getSnapshots(),
-          api.getRecommendations(3),
-        ]);
-        setPortfolio(p);
-        setPnl(pnlData);
-        setSnapshots(snaps);
-        setSignals(sigs);
-      } catch (err) {
-        console.error("Failed to load dashboard:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
+    // Phase 1: fetch portfolio + pnl
+    let statsResolved = 0;
+    const markStatsDone = () => {
+      statsResolved++;
+      if (statsResolved >= 2) setStatsLoading(false);
+    };
+
+    fetchWithCache<PortfolioSummary>(
+      "/api/portfolio/holdings",
+      (cached) => { setPortfolio(cached); setStatsLoading(false); },
+      (fresh) => { setPortfolio(fresh); markStatsDone(); },
+      () => markStatsDone(),
+    );
+    fetchWithCache<PnlSummary>(
+      "/api/portfolio/pnl",
+      (cached) => { setPnl(cached); setStatsLoading(false); },
+      (fresh) => { setPnl(fresh); markStatsDone(); },
+      () => markStatsDone(),
+    );
+
+    // Phase 2: fetch charts + signals in parallel
+    let chartsResolved = 0;
+    const markChartsDone = () => {
+      chartsResolved++;
+      if (chartsResolved >= 2) setChartsLoading(false);
+    };
+
+    fetchWithCache<SnapshotOut[]>(
+      "/api/portfolio/snapshots",
+      (cached) => setSnapshots(cached),
+      (fresh) => { setSnapshots(fresh); markChartsDone(); },
+      () => markChartsDone(),
+    );
+    fetchWithCache<RecommendationOut>(
+      "/api/signals/recommend?n=3",
+      (cached) => setSignals(cached),
+      (fresh) => { setSignals(fresh); markChartsDone(); },
+      () => markChartsDone(),
+    );
   }, []);
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+  const hasStats = portfolio || pnl;
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Dashboard</h1>
+
+      {/* Stat cards — render immediately from cache or show skeleton */}
+      {statsLoading && !hasStats ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <CardSkeleton />
           <CardSkeleton />
           <CardSkeleton />
           <CardSkeleton />
         </div>
-        <PageLoader />
-      </div>
-    );
-  }
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Portfolio Value"
+            value={portfolio?.total_value ?? 0}
+            format="currency"
+            change={pnl?.total_pnl_pct}
+            changeLabel="total"
+            icon={DollarSign}
+          />
+          <StatCard
+            title="Daily P&L"
+            value={pnl?.daily_pnl ?? 0}
+            format="currency"
+            change={pnl?.daily_pnl_pct}
+            changeLabel="today"
+            icon={TrendingUp}
+          />
+          <StatCard
+            title="Cash Available"
+            value={portfolio?.cash ?? 0}
+            format="currency"
+            icon={Wallet}
+          />
+          <StatCard
+            title="Holdings"
+            value={portfolio?.holdings.length ?? 0}
+            format="number"
+            icon={Briefcase}
+          />
+        </div>
+      )}
 
-  return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+      {/* Equity curve — renders from cache or shows skeleton */}
+      {snapshots.length > 0 ? (
+        <EquityChart snapshots={snapshots} />
+      ) : chartsLoading ? (
+        <div className="glass-card flex h-[280px] items-center justify-center">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+        </div>
+      ) : null}
 
-      {/* Stat cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Portfolio Value"
-          value={portfolio?.total_value ?? 0}
-          format="currency"
-          change={pnl?.total_pnl_pct}
-          changeLabel="total"
-          icon={DollarSign}
-        />
-        <StatCard
-          title="Daily P&L"
-          value={pnl?.daily_pnl ?? 0}
-          format="currency"
-          change={pnl?.daily_pnl_pct}
-          changeLabel="today"
-          icon={TrendingUp}
-        />
-        <StatCard
-          title="Cash Available"
-          value={portfolio?.cash ?? 0}
-          format="currency"
-          icon={Wallet}
-        />
-        <StatCard
-          title="Holdings"
-          value={portfolio?.holdings.length ?? 0}
-          format="number"
-          icon={Briefcase}
-        />
-      </div>
-
-      {/* Equity curve */}
-      <EquityChart snapshots={snapshots} />
+      {/* Sector exposure chart (moved from signals page) */}
+      {signals && Object.keys(signals.sector_exposure).length > 0 && (
+        <SectorChart exposure={signals.sector_exposure} />
+      )}
 
       {/* CTAs */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -148,7 +188,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Latest signals preview */}
-      {signals && (signals.buys.length > 0 || signals.sells.length > 0) && (
+      {signals && (signals.buys.length > 0 || signals.sells.length > 0) ? (
         <div className="glass-card p-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-sm font-medium text-slate-400">Latest Signals</h3>
@@ -177,7 +217,11 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
-      )}
+      ) : chartsLoading ? (
+        <div className="glass-card flex h-32 items-center justify-center">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+        </div>
+      ) : null}
     </div>
   );
 }

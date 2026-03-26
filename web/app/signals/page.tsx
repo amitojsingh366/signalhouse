@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Zap, RefreshCw, Search } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getCache, fetchWithCache } from "@/lib/api";
 import type { RecommendationOut, SignalOut, SymbolInfo } from "@/lib/api";
 import { formatCurrency, formatPercent, cn, pnlColor } from "@/lib/utils";
 import { SignalBadge } from "@/components/ui/signal-badge";
-import { SectorChart } from "@/components/ui/sector-chart";
 import { SearchBar } from "@/components/ui/search-bar";
-import { PageLoader } from "@/components/ui/loading";
 
 function SignalCard({ signal }: { signal: SignalOut }) {
   return (
@@ -37,30 +35,52 @@ function SignalCard({ signal }: { signal: SignalOut }) {
 }
 
 export default function SignalsPage() {
-  const [recs, setRecs] = useState<RecommendationOut | null>(null);
-  const [symbols, setSymbols] = useState<SymbolInfo[]>([]);
+  // Symbols load independently for the search bar (lightweight)
+  const [symbols, setSymbols] = useState<SymbolInfo[]>(
+    () => getCache<SymbolInfo[]>("/api/symbols") ?? []
+  );
+
+  // Recommendations load async with cache
+  const [recs, setRecs] = useState<RecommendationOut | null>(
+    () => getCache<RecommendationOut>("/api/signals/recommend?n=5")
+  );
+  const [recsLoading, setRecsLoading] = useState(!recs);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Symbol check state
   const [checked, setChecked] = useState<SignalOut | null>(null);
   const [checkLoading, setCheckLoading] = useState(false);
-  const [loading, setLoading] = useState(true);
 
-  async function load() {
-    setLoading(true);
+  // Load symbols (for search bar) immediately
+  useEffect(() => {
+    fetchWithCache<SymbolInfo[]>(
+      "/api/symbols",
+      (cached) => setSymbols(cached),
+      (fresh) => setSymbols(fresh),
+    );
+  }, []);
+
+  // Load recommendations with cache-first
+  useEffect(() => {
+    fetchWithCache<RecommendationOut>(
+      "/api/signals/recommend?n=5",
+      (cached) => { setRecs(cached); setRecsLoading(false); },
+      (fresh) => { setRecs(fresh); setRecsLoading(false); },
+      () => setRecsLoading(false),
+    );
+  }, []);
+
+  // Force refresh (bypasses cache)
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
     try {
-      const [r, s] = await Promise.all([
-        api.getRecommendations(5),
-        api.getSymbols(),
-      ]);
+      const r = await api.getRecommendations(5);
       setRecs(r);
-      setSymbols(s);
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
-  }
-
-  useEffect(() => {
-    load();
   }, []);
 
   async function checkSymbol(symbol: string) {
@@ -75,23 +95,21 @@ export default function SignalsPage() {
     }
   }
 
-  if (loading) return <PageLoader />;
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Signals</h1>
         <button
-          onClick={load}
-          disabled={loading}
+          onClick={refresh}
+          disabled={refreshing}
           className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10"
         >
-          <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+          <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
           Refresh
         </button>
       </div>
 
-      {/* Symbol search */}
+      {/* Symbol search — always visible immediately */}
       <SearchBar
         symbols={symbols}
         onSelect={checkSymbol}
@@ -139,68 +157,82 @@ export default function SignalsPage() {
         </div>
       )}
 
-      {/* Buy signals */}
-      {recs && recs.buys.length > 0 && (
-        <div>
-          <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-            <span className="h-2 w-2 rounded-full bg-green-400" />
-            Buy Signals
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {recs.buys.map((s) => (
-              <SignalCard key={s.symbol} signal={s} />
-            ))}
-          </div>
+      {/* Signal cards — show cached data or loading state */}
+      {recsLoading ? (
+        <div className="flex flex-col items-center gap-3 py-12">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+          <p className="text-sm text-slate-500">Loading signals...</p>
         </div>
-      )}
-
-      {/* Sell signals */}
-      {recs && recs.sells.length > 0 && (
-        <div>
-          <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-            <span className="h-2 w-2 rounded-full bg-red-400" />
-            Sell Signals
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {recs.sells.map((s) => (
-              <SignalCard key={s.symbol} signal={s} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Funding suggestions */}
-      {recs && recs.funding.length > 0 && (
-        <div className="glass-card p-5">
-          <h3 className="mb-3 text-sm font-medium text-slate-400">
-            Sell-to-Fund Suggestions
-          </h3>
-          <div className="space-y-2">
-            {recs.funding.map((f, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-4 py-2 text-sm"
-              >
-                <span>
-                  Sell{" "}
-                  <span className="font-medium">{String(f.sell ?? "")}</span> to
-                  buy{" "}
-                  <span className="font-medium">{String(f.buy ?? "")}</span>
-                </span>
-                {f.reason ? (
-                  <span className="text-xs text-slate-500">
-                    {String(f.reason)}
-                  </span>
-                ) : null}
+      ) : (
+        <>
+          {/* Buy signals */}
+          {recs && recs.buys.length > 0 && (
+            <div>
+              <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+                <span className="h-2 w-2 rounded-full bg-green-400" />
+                Buy Signals
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {recs.buys.map((s) => (
+                  <SignalCard key={s.symbol} signal={s} />
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            </div>
+          )}
 
-      {/* Sector exposure */}
-      {recs && Object.keys(recs.sector_exposure).length > 0 && (
-        <SectorChart exposure={recs.sector_exposure} />
+          {/* Sell signals */}
+          {recs && recs.sells.length > 0 && (
+            <div>
+              <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+                <span className="h-2 w-2 rounded-full bg-red-400" />
+                Sell Signals
+              </h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {recs.sells.map((s) => (
+                  <SignalCard key={s.symbol} signal={s} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Funding suggestions */}
+          {recs && recs.funding.length > 0 && (
+            <div className="glass-card p-5">
+              <h3 className="mb-3 text-sm font-medium text-slate-400">
+                Sell-to-Fund Suggestions
+              </h3>
+              <div className="space-y-2">
+                {recs.funding.map((f, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-4 py-2 text-sm"
+                  >
+                    <span>
+                      Sell{" "}
+                      <span className="font-medium">{String(f.sell ?? "")}</span> to
+                      buy{" "}
+                      <span className="font-medium">{String(f.buy ?? "")}</span>
+                    </span>
+                    {f.reason ? (
+                      <span className="text-xs text-slate-500">
+                        {String(f.reason)}
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* No signals message */}
+          {recs && recs.buys.length === 0 && recs.sells.length === 0 && (
+            <div className="glass-card flex flex-col items-center gap-2 py-12">
+              <Zap className="h-8 w-8 text-slate-600" />
+              <p className="text-sm text-slate-500">No active signals right now</p>
+              <p className="text-xs text-slate-600">Try refreshing or check a specific symbol above</p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

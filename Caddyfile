@@ -1,7 +1,6 @@
-yourdomain.com {
-	# Cloudflare handles public SSL — no need for Caddy to fetch certs.
-	# If CF SSL mode is "Full (strict)", point CF origin cert via env/volumes.
-	# If CF SSL mode is "Flexible", this block still works (Caddy auto-HTTPS).
+:80 {
+	# Cloudflare terminates SSL — Caddy serves plain HTTP on port 80.
+	# CF connects to origin on port 80 (Flexible mode) or 443 (Full mode).
 
 	# API endpoints — proxy to FastAPI
 	handle /api/* {

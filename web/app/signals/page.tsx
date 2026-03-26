@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback } from "react";
+import { Suspense, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Zap, RefreshCw, Search, AlertTriangle } from "lucide-react";
-import { api, getCache, fetchWithCache } from "@/lib/api";
-import type { ExitAlert, RecommendationOut, SignalOut, SymbolInfo } from "@/lib/api";
+import { Zap, RefreshCw, AlertTriangle } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useRecommendations, useSymbols, useSignalCheck, queryKeys } from "@/lib/hooks";
+import type { ExitAlert, SignalOut } from "@/lib/api";
 import { formatCurrency, formatPercent, cn, pnlColor } from "@/lib/utils";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { SearchBar } from "@/components/ui/search-bar";
@@ -107,76 +108,26 @@ export default function SignalsPage() {
 
 function SignalsContent() {
   const searchParams = useSearchParams();
+  const qc = useQueryClient();
 
-  // Symbols load independently for the search bar (lightweight)
-  const [symbols, setSymbols] = useState<SymbolInfo[]>(
-    () => getCache<SymbolInfo[]>("/api/symbols") ?? []
+  // Checked symbol state — driven by search bar or ?check= param
+  const [checkedSymbol, setCheckedSymbol] = useState<string | null>(
+    () => searchParams.get("check")
   );
-
-  // Recommendations load async with cache
-  const [recs, setRecs] = useState<RecommendationOut | null>(
-    () => getCache<RecommendationOut>("/api/signals/recommend?n=5")
-  );
-  const [recsLoading, setRecsLoading] = useState(!recs);
-  const [refreshing, setRefreshing] = useState(false);
-
-  // Symbol check state
-  const [checked, setChecked] = useState<SignalOut | null>(null);
-  const [checkLoading, setCheckLoading] = useState(false);
-
-  // Expanded signal card (shows price chart)
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
 
-  // Load symbols (for search bar) immediately
-  useEffect(() => {
-    fetchWithCache<SymbolInfo[]>(
-      "/api/symbols",
-      (cached) => setSymbols(cached),
-      (fresh) => setSymbols(fresh),
-    );
-  }, []);
+  const { data: symbols = [] } = useSymbols();
+  const { data: recs, isLoading: recsLoading, isFetching: refreshing } = useRecommendations(5);
+  const { data: checked, isLoading: checkLoading } = useSignalCheck(checkedSymbol);
 
-  // Load recommendations with cache-first
-  useEffect(() => {
-    fetchWithCache<RecommendationOut>(
-      "/api/signals/recommend?n=5",
-      (cached) => { setRecs(cached); setRecsLoading(false); },
-      (fresh) => { setRecs(fresh); setRecsLoading(false); },
-      () => setRecsLoading(false),
-    );
-  }, []);
+  const refresh = useCallback(() => {
+    qc.invalidateQueries({ queryKey: queryKeys.recommendations(5) });
+  }, [qc]);
 
-  // Handle ?check= query parameter from command search
-  useEffect(() => {
-    const sym = searchParams.get("check");
-    if (sym) {
-      checkSymbol(sym);
-    }
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Force refresh (bypasses cache)
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const r = await api.getRecommendations(5);
-      setRecs(r);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
-
-  async function checkSymbol(symbol: string) {
-    setCheckLoading(true);
-    try {
-      const sig = await api.checkSignal(symbol);
-      setChecked(sig);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setCheckLoading(false);
-    }
+  function checkSymbol(symbol: string) {
+    setCheckedSymbol(symbol);
+    // Invalidate so it refetches even if we checked this symbol before
+    qc.invalidateQueries({ queryKey: queryKeys.signal(symbol) });
   }
 
   return (
@@ -201,7 +152,7 @@ function SignalsContent() {
       />
 
       {/* Checked symbol result */}
-      {checkLoading && (
+      {checkLoading && checkedSymbol && (
         <CardSkeleton />
       )}
       {checked && !checkLoading && (
@@ -235,7 +186,7 @@ function SignalsContent() {
             ))}
           </ul>
           <button
-            onClick={() => setChecked(null)}
+            onClick={() => setCheckedSymbol(null)}
             className="mt-3 text-xs text-slate-500 hover:text-white"
           >
             Dismiss

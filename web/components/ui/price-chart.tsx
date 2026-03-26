@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Area,
   AreaChart,
@@ -10,8 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { api } from "@/lib/api";
-import type { PriceBar } from "@/lib/api";
+import { usePriceHistory } from "@/lib/hooks";
 import { cn, formatCurrency } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/loading";
 
@@ -32,27 +31,9 @@ interface PriceChartProps {
 
 export function PriceChart({ symbol, className }: PriceChartProps) {
   const [rangeIdx, setRangeIdx] = useState(3); // default 2M
-  const [bars, setBars] = useState<PriceBar[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: priceData, isLoading: loading } = usePriceHistory(symbol, RANGES[rangeIdx].period);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    api
-      .getPriceHistory(symbol, RANGES[rangeIdx].period)
-      .then((res) => {
-        if (!cancelled) setBars(res.bars);
-      })
-      .catch(console.error)
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [symbol, rangeIdx]);
-
-  const data = bars.map((b) => ({
+  const data = (priceData?.bars ?? []).map((b) => ({
     date: b.date,
     close: b.close,
   }));

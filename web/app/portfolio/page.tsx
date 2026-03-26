@@ -1,10 +1,10 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Briefcase, RefreshCw, Pencil, Trash2, X, Check, DollarSign } from "lucide-react";
-import { api } from "@/lib/api";
-import type { PortfolioSummary, HoldingAdvice } from "@/lib/api";
+import { useHoldings, useUpdateHolding, useDeleteHolding, useUpdateCash, queryKeys } from "@/lib/hooks";
+import type { HoldingAdvice } from "@/lib/api";
 import {
   formatCurrency,
   formatPercent,
@@ -16,6 +16,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { CardSkeleton, TableSkeleton } from "@/components/ui/loading";
 import { SearchTrigger } from "@/components/ui/search-trigger";
+import { useQueryClient } from "@tanstack/react-query";
 
 function EditHoldingPanel({
   holding,
@@ -218,42 +219,31 @@ function EditCashPanel({
 
 export default function PortfolioPage() {
   const router = useRouter();
-  const [data, setData] = useState<PortfolioSummary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const { data, isLoading: loading, isFetching } = useHoldings();
+  const updateHolding = useUpdateHolding();
+  const deleteHolding = useDeleteHolding();
+  const updateCash = useUpdateCash();
   const [selected, setSelected] = useState<HoldingAdvice | null>(null);
   const [editingCash, setEditingCash] = useState(false);
 
-  async function load() {
-    setLoading(true);
-    try {
-      setData(await api.getHoldings());
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+  function refresh() {
+    qc.invalidateQueries({ queryKey: queryKeys.holdings });
   }
 
-  useEffect(() => {
-    load();
-  }, []);
-
   async function handleSaveHolding(symbol: string, quantity: number, avg_cost: number) {
-    await api.updateHolding(symbol, quantity, avg_cost);
+    await updateHolding.mutateAsync({ symbol, quantity, avg_cost });
     setSelected(null);
-    await load();
   }
 
   async function handleDeleteHolding(symbol: string) {
-    await api.deleteHolding(symbol);
+    await deleteHolding.mutateAsync(symbol);
     setSelected(null);
-    await load();
   }
 
   async function handleSaveCash(cash: number) {
-    await api.updateCash(cash);
+    await updateCash.mutateAsync(cash);
     setEditingCash(false);
-    await load();
   }
 
   const columns = [
@@ -316,7 +306,7 @@ export default function PortfolioPage() {
     {
       key: "action",
       header: "",
-      render: (h: HoldingAdvice) => (
+      render: () => (
         <Pencil className="h-3.5 w-3.5 text-slate-600 transition-colors group-hover:text-accent" />
       ),
     },
@@ -329,11 +319,11 @@ export default function PortfolioPage() {
         <div className="flex items-center gap-2">
           <SearchTrigger />
           <button
-            onClick={load}
-            disabled={loading}
+            onClick={refresh}
+            disabled={isFetching}
             className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10 disabled:opacity-50"
           >
-            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
             Refresh
           </button>
         </div>

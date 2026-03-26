@@ -102,7 +102,8 @@ trader/
 │   │   ├── stat-card.tsx             # Summary stat card with change percentage
 │   │   └── toast.tsx                 # Toast notification provider
 │   └── lib/
-│       ├── api.ts                    # API client, TypeScript types, localStorage cache with TTLs
+│       ├── api.ts                    # API client, TypeScript types
+│       ├── hooks.ts                  # TanStack Query hooks (useHoldings, usePnl, useRecommendations, etc.)
 │       └── utils.ts                  # formatCurrency, formatPercent, pnlColor, cn, signalBadgeClass
 │
 ├── config/
@@ -276,4 +277,5 @@ See `docs/NEXT_STEPS.md` for the full roadmap (Phase 1: Validate & Tune, Phase 2
 - [x] **Step 18:** Fix Fear & Greed — `fear-greed` library API changed (returns dict with `score`/`rating` instead of object with `.value`/`.description`), causing silent fallback to 50/Neutral. Fixed with dict detection. Actual F&G is 18 (Extreme Fear) = +0.5 contrarian buy boost now applied.
 - [x] **Step 19:** Exit alerts on web + critical bug fixes — stop-loss/max-hold/sell-signal alerts now shown on signals page and dashboard (prioritized first above buy signals, red/amber severity styling); daily P&L fixed (was comparing against today's snapshot instead of previous day); equity chart fixed (snapshots now recorded on page load, not just by bot at 3:50 PM); bot DB connection pool exhaustion fixed (all 6 cogs + 5 scheduled tasks now close sessions via `portfolio.close()`)
 - [x] **Step 20:** Clickable exit alerts — clicking an exit alert on signals page or dashboard opens the full signal check (score breakdown, reasons, price chart) for that symbol, same as a manual search
+- [x] **Step 21:** TanStack Query migration — replaced homebrew localStorage cache layer with `@tanstack/react-query` across all pages (dashboard, portfolio, signals, trades, status, upload) and the PriceChart component. Added `QueryClientProvider`, created `lib/hooks.ts` with typed query/mutation hooks, automatic cache invalidation on mutations, and per-endpoint stale times matching the old TTLs.
 - TBD

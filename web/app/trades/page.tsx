@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { ArrowLeftRight, Loader2, RefreshCw } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { TradeOut, SymbolInfo } from "@/lib/api";
+import { useTradeHistory, useSymbols, useRecordBuy, useRecordSell, queryKeys } from "@/lib/hooks";
 import { formatCurrency, formatPercent, pnlColor, cn } from "@/lib/utils";
 import { DataTable } from "@/components/ui/data-table";
 import { TableSkeleton } from "@/components/ui/loading";
@@ -18,16 +20,16 @@ function TradeForm({
   onComplete: () => void;
 }) {
   const { toast } = useToast();
+  const recordBuy = useRecordBuy();
+  const recordSell = useRecordSell();
   const [action, setAction] = useState<"buy" | "sell">("buy");
   const [symbol, setSymbol] = useState("");
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [fetchingPrice, setFetchingPrice] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const priceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounced price fetch when symbol changes
   const fetchMarketPrice = useCallback(async (sym: string) => {
     if (!sym.trim()) {
       setMarketPrice(null);
@@ -38,7 +40,6 @@ function TradeForm({
       const result = await api.getPrice(sym);
       if (result.price != null) {
         setMarketPrice(result.price);
-        // Only auto-fill if price field is empty or was previously auto-filled
         setPrice((prev) => (!prev ? result.price!.toFixed(2) : prev));
       }
     } catch {
@@ -67,10 +68,13 @@ function TradeForm({
     e.preventDefault();
     if (!symbol || !quantity || !price) return;
 
-    setSubmitting(true);
+    const mutation = action === "buy" ? recordBuy : recordSell;
     try {
-      const fn = action === "buy" ? api.recordBuy : api.recordSell;
-      await fn(symbol.toUpperCase(), parseFloat(quantity), parseFloat(price));
+      await mutation.mutateAsync({
+        symbol: symbol.toUpperCase(),
+        quantity: parseFloat(quantity),
+        price: parseFloat(price),
+      });
       toast(
         `${action === "buy" ? "Bought" : "Sold"} ${quantity} ${symbol.toUpperCase()} @ ${formatCurrency(parseFloat(price))}`,
         "success"
@@ -85,10 +89,10 @@ function TradeForm({
         err instanceof Error ? err.message : "Trade failed",
         "error"
       );
-    } finally {
-      setSubmitting(false);
     }
   }
+
+  const submitting = recordBuy.isPending || recordSell.isPending;
 
   return (
     <form onSubmit={handleSubmit} className="glass-card p-4 sm:p-5">
@@ -208,34 +212,20 @@ function TradeForm({
 }
 
 export default function TradesPage() {
-  const [trades, setTrades] = useState<TradeOut[]>([]);
-  const [symbols, setSymbols] = useState<SymbolInfo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const { data: trades = [], isLoading: loading, isFetching } = useTradeHistory(50);
+  const { data: symbols = [] } = useSymbols();
 
-  async function load() {
-    setLoading(true);
-    try {
-      // most recent should be first. time decending order
-      const [t, s] = await Promise.all([
-        api.getTradeHistory(50),
-        api.getSymbols(),
-      ]);
-      setTrades(t.sort((a, b) => {
-        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-        return timeB - timeA;
-      }));
-      setSymbols(s);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+  const sorted = [...trades].sort((a, b) => {
+    const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return timeB - timeA;
+  });
+
+  function refresh() {
+    qc.invalidateQueries({ queryKey: queryKeys.tradeHistory(50) });
+    qc.invalidateQueries({ queryKey: queryKeys.symbols });
   }
-
-  useEffect(() => {
-    load();
-  }, []);
 
   const columns = [
     {
@@ -307,11 +297,11 @@ export default function TradesPage() {
         <div className="flex items-center gap-2">
           <SearchTrigger />
           <button
-            onClick={load}
-            disabled={loading}
+            onClick={refresh}
+            disabled={isFetching}
             className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10 disabled:opacity-50"
           >
-            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+            <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
             Refresh
           </button>
         </div>
@@ -320,7 +310,7 @@ export default function TradesPage() {
       {/* Trade form — full width on mobile, sidebar on desktop */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1 min-w-0">
-          <TradeForm symbols={symbols} onComplete={load} />
+          <TradeForm symbols={symbols} onComplete={refresh} />
         </div>
 
         {/* Trade history — scrollable table */}
@@ -333,7 +323,7 @@ export default function TradesPage() {
           ) : (
             <DataTable
               columns={columns}
-              data={trades}
+              data={sorted}
               keyFn={(t) => `${t.id ?? t.timestamp}`}
               emptyMessage="No trades recorded yet"
             />

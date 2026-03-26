@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { Upload, FileImage, Check, X, Edit3 } from "lucide-react";
-import { api } from "@/lib/api";
+import { useParseScreenshot, useConfirmUpload } from "@/lib/hooks";
 import type { UploadHolding } from "@/lib/api";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
@@ -11,10 +11,9 @@ import { UploadingSpinner } from "@/components/ui/loading";
 
 export default function UploadPage() {
   const { toast } = useToast();
-  const [parsed, setParsed] = useState<UploadHolding[] | null>(null);
+  const parseScreenshot = useParseScreenshot();
+  const confirmUpload = useConfirmUpload();
   const [editing, setEditing] = useState<UploadHolding[] | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
 
   const onDrop = useCallback(async (files: File[]) => {
@@ -22,13 +21,10 @@ export default function UploadPage() {
     if (!file) return;
 
     setPreview(URL.createObjectURL(file));
-    setUploading(true);
-    setParsed(null);
     setEditing(null);
 
     try {
-      const holdings = await api.parseScreenshot(file);
-      setParsed(holdings);
+      const holdings = await parseScreenshot.mutateAsync(file);
       setEditing(holdings.map((h) => ({ ...h })));
       toast(`Parsed ${holdings.length} holdings from screenshot`, "success");
     } catch (err) {
@@ -36,25 +32,21 @@ export default function UploadPage() {
         err instanceof Error ? err.message : "Failed to parse screenshot",
         "error"
       );
-    } finally {
-      setUploading(false);
     }
-  }, [toast]);
+  }, [parseScreenshot, toast]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "image/*": [".png", ".jpg", ".jpeg", ".webp"] },
     maxFiles: 1,
-    disabled: uploading,
+    disabled: parseScreenshot.isPending,
   });
 
   async function handleConfirm() {
     if (!editing) return;
-    setConfirming(true);
     try {
-      await api.confirmUpload(editing);
+      await confirmUpload.mutateAsync(editing);
       toast(`Synced ${editing.length} holdings to portfolio`, "success");
-      setParsed(null);
       setEditing(null);
       setPreview(null);
     } catch (err) {
@@ -62,13 +54,10 @@ export default function UploadPage() {
         err instanceof Error ? err.message : "Confirm failed",
         "error"
       );
-    } finally {
-      setConfirming(false);
     }
   }
 
   function handleCancel() {
-    setParsed(null);
     setEditing(null);
     setPreview(null);
   }
@@ -105,11 +94,11 @@ export default function UploadPage() {
           isDragActive
             ? "border-brand-500 bg-brand-500/10"
             : "border-white/20 hover:border-white/40 hover:bg-white/5",
-          uploading && "pointer-events-none opacity-50"
+          parseScreenshot.isPending && "pointer-events-none opacity-50"
         )}
       >
         <input {...getInputProps()} />
-        {uploading ? (
+        {parseScreenshot.isPending ? (
           <UploadingSpinner />
         ) : (
           <>
@@ -193,11 +182,11 @@ export default function UploadPage() {
               <div className="flex gap-3 border-t border-white/10 p-4">
                 <button
                   onClick={handleConfirm}
-                  disabled={confirming || editing.length === 0}
+                  disabled={confirmUpload.isPending || editing.length === 0}
                   className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-600 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500 disabled:opacity-50"
                 >
                   <Check className="h-4 w-4" />
-                  {confirming ? "Confirming..." : "Confirm"}
+                  {confirmUpload.isPending ? "Confirming..." : "Confirm"}
                 </button>
                 <button
                   onClick={handleCancel}

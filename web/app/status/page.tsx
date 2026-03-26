@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   Activity,
   Clock,
@@ -10,8 +9,8 @@ import {
   CheckCircle,
   RefreshCw,
 } from "lucide-react";
-import { api } from "@/lib/api";
-import type { StatusOut } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { useStatus, queryKeys } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import { CardSkeleton } from "@/components/ui/loading";
 import { SearchTrigger } from "@/components/ui/search-trigger";
@@ -29,7 +28,7 @@ function StatusItem({
   icon: Icon,
   label,
   value,
-  status,
+  status: itemStatus,
 }: {
   icon: typeof Activity;
   label: string;
@@ -47,11 +46,11 @@ function StatusItem({
       <div
         className={cn(
           "rounded-lg p-3",
-          status === "ok"
+          itemStatus === "ok"
             ? "bg-emerald-500/20"
-            : status === "error"
+            : itemStatus === "error"
               ? "bg-red-500/20"
-              : status === "warning"
+              : itemStatus === "warning"
                 ? "bg-yellow-500/20"
                 : "bg-white/10"
         )}
@@ -59,7 +58,7 @@ function StatusItem({
         <Icon
           className={cn(
             "h-5 w-5",
-            status ? statusColors[status] : "text-slate-400"
+            itemStatus ? statusColors[itemStatus] : "text-slate-400"
           )}
         />
       </div>
@@ -72,23 +71,12 @@ function StatusItem({
 }
 
 export default function StatusPage() {
-  const [status, setStatus] = useState<StatusOut | null>(null);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
+  const { data: status, isLoading: loading, isFetching } = useStatus();
 
-  async function load() {
-    setLoading(true);
-    try {
-      setStatus(await api.getStatus());
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+  function refresh() {
+    qc.invalidateQueries({ queryKey: queryKeys.status });
   }
-
-  useEffect(() => {
-    load();
-  }, []);
 
   if (loading) {
     return (
@@ -124,10 +112,11 @@ export default function StatusPage() {
         <div className="flex items-center gap-2">
           <SearchTrigger />
           <button
-            onClick={load}
+            onClick={refresh}
+            disabled={isFetching}
             className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10"
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
             Refresh
           </button>
         </div>

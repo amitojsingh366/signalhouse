@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   DollarSign,
@@ -13,14 +12,9 @@ import {
   RefreshCw,
   AlertTriangle,
 } from "lucide-react";
-import { api, getCache, fetchWithCache } from "@/lib/api";
-import type {
-  PortfolioSummary,
-  PnlSummary,
-  SnapshotOut,
-  RecommendationOut,
-} from "@/lib/api";
-import { formatCurrency, formatPercent, pnlColor, cn } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
+import { useHoldings, usePnl, useSnapshots, useRecommendations, queryKeys } from "@/lib/hooks";
+import { formatCurrency, cn } from "@/lib/utils";
 import { StatCard } from "@/components/ui/stat-card";
 import { EquityChart } from "@/components/ui/equity-chart";
 import { SignalBadge } from "@/components/ui/signal-badge";
@@ -29,90 +23,22 @@ import { CardSkeleton, ChartSkeleton, SectorChartSkeleton, SignalsSkeleton } fro
 import { SearchTrigger } from "@/components/ui/search-trigger";
 
 export default function DashboardPage() {
-  // Phase 1: stat cards (instant from cache)
-  const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(
-    () => getCache<PortfolioSummary>("/api/portfolio/holdings")
-  );
-  const [pnl, setPnl] = useState<PnlSummary | null>(
-    () => getCache<PnlSummary>("/api/portfolio/pnl")
-  );
-  const [statsLoading, setStatsLoading] = useState(!portfolio && !pnl);
+  const qc = useQueryClient();
+  const { data: portfolio, isLoading: portfolioLoading } = useHoldings();
+  const { data: pnl, isLoading: pnlLoading } = usePnl();
+  const { data: snapshots, isLoading: snapshotsLoading } = useSnapshots();
+  const { data: signals, isLoading: signalsLoading, isFetching: refreshing } = useRecommendations(3);
 
-  // Phase 2: charts & signals (load async)
-  const [snapshots, setSnapshots] = useState<SnapshotOut[]>(
-    () => getCache<SnapshotOut[]>("/api/portfolio/snapshots") ?? []
-  );
-  const [signals, setSignals] = useState<RecommendationOut | null>(
-    () => getCache<RecommendationOut>("/api/signals/recommend?n=3")
-  );
-  const [chartsLoading, setChartsLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const loadData = useCallback(() => {
-    // Phase 1: fetch portfolio + pnl
-    let statsResolved = 0;
-    const markStatsDone = () => {
-      statsResolved++;
-      if (statsResolved >= 2) setStatsLoading(false);
-    };
-
-    fetchWithCache<PortfolioSummary>(
-      "/api/portfolio/holdings",
-      (cached) => { setPortfolio(cached); setStatsLoading(false); },
-      (fresh) => { setPortfolio(fresh); markStatsDone(); },
-      () => markStatsDone(),
-    );
-    fetchWithCache<PnlSummary>(
-      "/api/portfolio/pnl",
-      (cached) => { setPnl(cached); setStatsLoading(false); },
-      (fresh) => { setPnl(fresh); markStatsDone(); },
-      () => markStatsDone(),
-    );
-
-    // Phase 2: fetch charts + signals in parallel
-    let chartsResolved = 0;
-    const markChartsDone = () => {
-      chartsResolved++;
-      if (chartsResolved >= 2) setChartsLoading(false);
-    };
-
-    fetchWithCache<SnapshotOut[]>(
-      "/api/portfolio/snapshots",
-      (cached) => setSnapshots(cached),
-      (fresh) => { setSnapshots(fresh); markChartsDone(); },
-      () => markChartsDone(),
-    );
-    fetchWithCache<RecommendationOut>(
-      "/api/signals/recommend?n=3",
-      (cached) => setSignals(cached),
-      (fresh) => { setSignals(fresh); markChartsDone(); },
-      () => markChartsDone(),
-    );
-  }, []);
-
-  useEffect(() => { loadData(); }, [loadData]);
-
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const [p, pnlData, snaps, recs] = await Promise.all([
-        api.getHoldings(),
-        api.getPnl(),
-        api.getSnapshots(),
-        api.getRecommendations(3),
-      ]);
-      setPortfolio(p);
-      setPnl(pnlData);
-      setSnapshots(snaps);
-      setSignals(recs);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
-
+  const statsLoading = portfolioLoading && pnlLoading;
+  const chartsLoading = snapshotsLoading || signalsLoading;
   const hasStats = portfolio || pnl;
+
+  function refresh() {
+    qc.invalidateQueries({ queryKey: queryKeys.holdings });
+    qc.invalidateQueries({ queryKey: queryKeys.pnl });
+    qc.invalidateQueries({ queryKey: queryKeys.snapshots });
+    qc.invalidateQueries({ queryKey: queryKeys.recommendations(3) });
+  }
 
   return (
     <div className="space-y-6">
@@ -171,7 +97,7 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-       {/* Stat cards — render immediately from cache or show skeleton */}
+       {/* Stat cards */}
       {statsLoading && !hasStats ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <CardSkeleton />
@@ -283,7 +209,7 @@ export default function DashboardPage() {
       )}
 
       {/* Equity curve */}
-      {snapshots.length > 0 ? (
+      {snapshots && snapshots.length > 0 ? (
         <EquityChart snapshots={snapshots} />
       ) : chartsLoading ? (
         <ChartSkeleton />

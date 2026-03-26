@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Briefcase, RefreshCw, Pencil, Trash2, X, Check, DollarSign } from "lucide-react";
 import { api } from "@/lib/api";
 import type { PortfolioSummary, HoldingAdvice } from "@/lib/api";
@@ -216,6 +217,7 @@ function EditCashPanel({
 }
 
 export default function PortfolioPage() {
+  const router = useRouter();
   const [data, setData] = useState<PortfolioSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<HoldingAdvice | null>(null);
@@ -259,7 +261,15 @@ export default function PortfolioPage() {
       key: "symbol",
       header: "Symbol",
       render: (h: HoldingAdvice) => (
-        <span className="font-medium">{h.symbol}</span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            router.push(`/signals?check=${encodeURIComponent(h.symbol)}`);
+          }}
+          className="font-medium text-brand-400 hover:text-brand-300 hover:underline"
+        >
+          {h.symbol}
+        </button>
       ),
     },
     {

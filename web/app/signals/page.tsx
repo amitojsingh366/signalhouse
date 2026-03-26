@@ -9,10 +9,11 @@ import { formatCurrency, formatPercent, cn, pnlColor } from "@/lib/utils";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { SearchBar } from "@/components/ui/search-bar";
 import { Skeleton, SignalCardsSkeleton, CardSkeleton } from "@/components/ui/loading";
+import { PriceChart } from "@/components/ui/price-chart";
 
-function SignalCard({ signal }: { signal: SignalOut }) {
+function SignalCard({ signal, expanded, onToggle }: { signal: SignalOut; expanded: boolean; onToggle: () => void }) {
   return (
-    <div className="glass-card p-4">
+    <div className="glass-card p-4 cursor-pointer transition-colors hover:bg-white/[0.05]" onClick={onToggle}>
       <div className="mb-2 flex items-center justify-between">
         <span className="text-lg font-semibold">{signal.symbol}</span>
         <SignalBadge signal={signal.signal} strength={signal.strength} />
@@ -32,6 +33,11 @@ function SignalCard({ signal }: { signal: SignalOut }) {
           </li>
         ))}
       </ul>
+      {expanded && (
+        <div className="mt-4" onClick={(e) => e.stopPropagation()}>
+          <PriceChart symbol={signal.symbol} />
+        </div>
+      )}
     </div>
   );
 }
@@ -62,6 +68,9 @@ function SignalsContent() {
   // Symbol check state
   const [checked, setChecked] = useState<SignalOut | null>(null);
   const [checkLoading, setCheckLoading] = useState(false);
+
+  // Expanded signal card (shows price chart)
+  const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
 
   // Load symbols (for search bar) immediately
   useEffect(() => {
@@ -174,6 +183,11 @@ function SignalsContent() {
         </div>
       )}
 
+      {/* Price chart for checked symbol */}
+      {checked && !checkLoading && (
+        <PriceChart symbol={checked.symbol} />
+      )}
+
       {/* Signal cards — show cached data or loading state */}
       {recsLoading ? (
         <div className="space-y-6">
@@ -196,7 +210,12 @@ function SignalsContent() {
               </h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {recs.buys.map((s) => (
-                  <SignalCard key={s.symbol} signal={s} />
+                  <SignalCard
+                    key={s.symbol}
+                    signal={s}
+                    expanded={expandedSymbol === s.symbol}
+                    onToggle={() => setExpandedSymbol(expandedSymbol === s.symbol ? null : s.symbol)}
+                  />
                 ))}
               </div>
             </div>
@@ -211,7 +230,12 @@ function SignalsContent() {
               </h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {recs.sells.map((s) => (
-                  <SignalCard key={s.symbol} signal={s} />
+                  <SignalCard
+                    key={s.symbol}
+                    signal={s}
+                    expanded={expandedSymbol === s.symbol}
+                    onToggle={() => setExpandedSymbol(expandedSymbol === s.symbol ? null : s.symbol)}
+                  />
                 ))}
               </div>
             </div>

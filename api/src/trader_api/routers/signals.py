@@ -92,6 +92,31 @@ async def get_price(symbol: str):
     return {"symbol": symbol, "price": price}
 
 
+@router.get("/history/{symbol}")
+async def get_price_history(symbol: str, period: str = "60d"):
+    """Get OHLCV price history for a symbol."""
+    symbol = symbol.upper().strip()
+    md = get_market_data()
+    if "." not in symbol:
+        resolved = await md.resolve_symbol(symbol)
+        if resolved:
+            symbol = resolved
+    df = await md.get_historical_data(symbol, period=period)
+    if df is None or df.empty:
+        return {"symbol": symbol, "bars": []}
+    bars = []
+    for date, row in df.iterrows():
+        bars.append({
+            "date": date.strftime("%Y-%m-%d"),
+            "open": round(float(row.get("open", 0)), 2),
+            "high": round(float(row.get("high", 0)), 2),
+            "low": round(float(row.get("low", 0)), 2),
+            "close": round(float(row.get("close", 0)), 2),
+            "volume": int(row.get("volume", 0)),
+        })
+    return {"symbol": symbol, "bars": bars}
+
+
 @router.get("/insights", response_model=InsightsOut)
 async def get_insights(db: AsyncSession = Depends(get_db)):
     portfolio = make_portfolio(db)

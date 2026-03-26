@@ -180,6 +180,20 @@ export interface InsightsOut {
   cash: number;
 }
 
+export interface PriceBar {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface PriceHistory {
+  symbol: string;
+  bars: PriceBar[];
+}
+
 export interface SymbolInfo {
   symbol: string;
   name: string;
@@ -231,6 +245,8 @@ export const api = {
     fetchAPI<{ symbol: string; price: number | null }>(`/api/signals/price/${encodeURIComponent(symbol)}`),
   getRecommendations: (n = 5) =>
     fetchAPI<RecommendationOut>(`/api/signals/recommend?n=${n}`),
+  getPriceHistory: (symbol: string, period = "60d") =>
+    fetchAPI<PriceHistory>(`/api/signals/history/${encodeURIComponent(symbol)}?period=${period}`),
   getInsights: () => fetchAPI<InsightsOut>("/api/signals/insights"),
 
   // Status

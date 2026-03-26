@@ -152,7 +152,7 @@ ORM models in `api/src/trader_api/models.py`:
 |------|-------|-------------|
 | Dashboard | `/` | Portfolio value, equity curve chart, daily P&L, latest signals, CTAs |
 | Portfolio | `/portfolio` | Holdings table with live prices, P&L, signal/advice per holding |
-| Signals | `/signals` | Buy/sell recommendations, sector exposure chart, symbol search |
+| Signals | `/signals` | Buy/sell recommendations, watchlist alerts, score breakdowns, symbol search |
 | Trades | `/trades` | Buy/sell forms, trade history table |
 | Upload | `/upload` | Screenshot dropzone, parsed holdings editor, confirm/cancel |
 | Status | `/status` | Uptime, market status, symbols tracked, risk status |
@@ -198,7 +198,15 @@ All fail silently to 0 — sentiment never blocks signal generation.
 
 ### Strength & Filtering
 
-`strength = min(|score| / 8.0, 1.0)` — 0% to 100%. BUY signals need ≥ 40% strength to surface in scans. SELL signals need ≥ 30%.
+`strength = min(|score| / 8.0, 1.0)` — 0% to 100%. BUY signals need ≥ 35% strength to surface in scans. SELL signals need ≥ 30%. Non-held sell signals show as "Watchlist Alerts" instead of being hidden.
+
+### Score Display
+
+Every signal displays its total score (e.g. `-2.5/8`) next to the badge. Each factor shows its contribution (e.g. `[+1.5]`, `[-0.5]`) color-coded green/red in the web UI. Sentiment reasons also include score tags.
+
+### Sector Cap Swap Exemption
+
+Same-sector sell-to-fund swaps are exempt from the 40% sector cap penalty. Swapping within a sector doesn't increase exposure, so the buy signal keeps full strength.
 
 ### Recommendation Caching
 

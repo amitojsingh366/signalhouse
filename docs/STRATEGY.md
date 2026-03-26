@@ -115,14 +115,18 @@ strength = min(|total_score| / 8.0, 1.0)
 
 **Strength** is a 0–100% value representing how far the score is from the maximum possible ±8. A +4.0 score yields 50% strength; +8.0 yields 100%.
 
+### Score Display
+
+Every signal displays its total score (e.g. `-2.5/8`) alongside the strength percentage. Each contributing factor shows its individual score contribution (e.g. `[+1.5]`, `[-0.5]`) color-coded green/red in the web UI.
+
 ### Filtering Thresholds
 
 Not all signals are surfaced to the user:
 
 | Signal Type | Minimum Strength | Context |
 |-------------|-----------------|---------|
-| BUY (universe scan) | 40% (score ≥ ~3.2) | `/recommend` and scheduled scans |
-| SELL (universe scan) | 30% (score ≤ ~-2.4) | Only shown for held positions |
+| BUY (universe scan) | 35% (score ≥ ~2.8) | `/recommend` and scheduled scans |
+| SELL (universe scan) | 30% (score ≤ ~-2.4) | Held positions shown as sell signals, non-held shown as watchlist alerts |
 | BUY (recheck/check) | None — always shown | `/check` and recheck button |
 
 ---
@@ -138,15 +142,15 @@ Runs every 15 minutes during market hours (9:30 AM – 4:00 PM ET, weekdays) and
 1. Iterates all ~92 symbols in the configured universe
 2. Fetches 60 days of daily bars via yfinance
 3. Computes indicators and generates a signal + sentiment for each
-4. Filters to BUY signals ≥ 40% strength and SELL signals ≥ 30% strength
+4. Filters to BUY signals ≥ 35% strength and SELL signals ≥ 30% strength
 5. Sorts by strength descending
 
 ### Top Recommendations (`get_top_recommendations()`)
 
 Builds on `scan_universe()` to produce portfolio-aware recommendations:
 
-1. **Buy signals**: Penalizes symbols in over-concentrated sectors (>40% of portfolio) by halving their strength
-2. **Sell signals**: Only includes sell signals for stocks the user actually holds
+1. **Buy signals**: Penalizes symbols in over-concentrated sectors (>40% of portfolio) by halving their strength — **except** when paired with a same-sector sell-to-fund (swaps don't increase sector exposure)
+2. **Sell signals**: Sell signals for held stocks shown as actionable sells; sell signals for non-held stocks shown as "Watchlist Alerts" (avoid buying these)
 3. **Sell-to-fund suggestions**: When cash < $50, ranks held positions by "sell desirability" and suggests which to sell to fund each buy opportunity
 
 #### Sell-to-Fund Ranking
@@ -275,7 +279,7 @@ The universe of ~92 symbols is organized into 12 sectors:
 | Crypto | 3 | IBIT.NE, BTCX-B.TO, ETHX-B.TO |
 | ETFs | 5 | XSP.TO, ZQQ.TO, XQQ.TO |
 
-The 40% sector cap prevents over-concentration. Buy signals in an already-concentrated sector are demoted (strength halved) but still shown.
+The 40% sector cap prevents over-concentration. Buy signals in an already-concentrated sector are demoted (strength halved) but still shown — unless they are paired with a same-sector sell-to-fund (swaps don't change net sector exposure).
 
 ---
 
@@ -367,8 +371,9 @@ Works with any brokerage screenshot (Wealthsimple, Questrade, IBKR, etc.) — Cl
 | Screenshot Parsing | `anthropic` SDK + Claude Sonnet | Vision API for brokerage screenshot extraction |
 | Data Processing | `pandas`, `numpy` | Price data manipulation and indicator DataFrames |
 | Configuration | `PyYAML` | Layered config (settings.yaml + settings.local.yaml) |
-| Persistence | JSON file (`data/portfolio.json`) | Holdings, trade history, daily snapshots |
-| Containerization | Docker + Docker Compose | Single-container deployment |
+| Persistence | PostgreSQL 16 | Holdings, trades, snapshots, portfolio meta, signal history |
+| Web Dashboard | Next.js 14, Bun, Tailwind CSS, Recharts | App Router, standalone Docker output |
+| Containerization | Docker Compose (5 services) | postgres, api, bot, web, caddy |
 | Testing | `pytest` + `pytest-asyncio` | Unit tests for signals and risk management |
 | Linting | `ruff` | Fast Python linter and formatter |
 | Type Checking | `mypy` (strict mode) | Static type analysis |
@@ -419,8 +424,8 @@ Works with any brokerage screenshot (Wealthsimple, Questrade, IBKR, etc.) — Cl
 ## Deployment
 
 - **Server**: `your-server` (Ubuntu ARM, your server)
-- **Container**: Single Docker container via `docker-compose.yml`
-- **Persistence**: `data/portfolio.json` mounted as a volume
+- **Containers**: Docker Compose with 5 services (postgres, api, bot, web, caddy)
+- **Persistence**: PostgreSQL 16 with persistent volume
 - **Secrets**: `.env` file on server (DISCORD_BOT_TOKEN, DISCORD_CHANNEL_ID, DISCORD_GUILD_ID, ANTHROPIC_API_KEY)
 - **Deploy workflow**: `git push` → SSH → `git pull && docker compose up -d --build`
 

@@ -63,6 +63,8 @@ services:
     image: ollama/ollama:latest
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    environment:
+      - OLLAMA_KEEP_ALIVE=-1
     volumes:
       - ollama_data:/root/.ollama
       - ./ollama-entrypoint.sh:/entrypoint.sh:ro

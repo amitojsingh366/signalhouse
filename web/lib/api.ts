@@ -244,7 +244,10 @@ export const api = {
       method: "POST",
       body: form,
     });
-    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.detail || `Upload failed: ${res.status}`);
+    }
     return res.json();
   },
   confirmUpload: (holdings: UploadHolding[]) =>

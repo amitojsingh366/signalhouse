@@ -57,9 +57,15 @@ async def parse_upload(file: UploadFile = File(...)):
     image_data = await file.read()
     media_type = file.content_type or "image/png"
 
+    # Try up to 2 times — first attempt may fail if model is loading
     parsed = await parse_holdings_screenshot(image_data, ollama_url, media_type)
     if not parsed:
-        raise HTTPException(status_code=422, detail="Could not parse holdings from image")
+        parsed = await parse_holdings_screenshot(image_data, ollama_url, media_type)
+    if not parsed:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not parse holdings from image. The vision model may still be loading — try again in a moment.",
+        )
 
     # Resolve symbols
     market_data = get_market_data()

@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import type { UploadHolding } from "@/lib/api";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
-import { UploadingSkeleton } from "@/components/ui/loading";
+import { UploadingSpinner } from "@/components/ui/loading";
 
 export default function UploadPage() {
   const { toast } = useToast();
@@ -94,7 +94,7 @@ export default function UploadPage() {
       <h1 className="text-2xl font-bold">Upload Screenshot</h1>
       <p className="text-sm text-slate-400">
         Upload a screenshot of your brokerage holdings to sync them with the bot.
-        Claude Vision will parse the positions automatically.
+        The vision model will parse the positions automatically.
       </p>
 
       {/* Dropzone */}
@@ -110,7 +110,7 @@ export default function UploadPage() {
       >
         <input {...getInputProps()} />
         {uploading ? (
-          <UploadingSkeleton />
+          <UploadingSpinner />
         ) : (
           <>
             <Upload className="mb-3 h-10 w-10 text-slate-500" />

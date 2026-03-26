@@ -150,11 +150,14 @@ export function SignalCardsSkeleton({ count = 3 }: { count?: number }) {
   );
 }
 
-export function UploadingSkeleton() {
+export function UploadingSpinner() {
   return (
-    <div className="flex flex-col items-center gap-3">
-      <Skeleton className="h-10 w-10 rounded-full" />
-      <Skeleton className="h-4 w-36" />
+    <div className="flex flex-col items-center gap-4 py-4">
+      <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-brand-500/30 border-t-brand-500" />
+      <div className="text-center">
+        <p className="text-sm font-medium text-slate-200">Analyzing screenshot&hellip;</p>
+        <p className="mt-1 text-xs text-slate-500">This may take up to a minute</p>
+      </div>
     </div>
   );
 }

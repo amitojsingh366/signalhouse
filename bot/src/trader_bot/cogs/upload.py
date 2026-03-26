@@ -54,12 +54,12 @@ def _build_upload_edit_list(parsed: list[dict[str, Any]]) -> discord.Embed:
 
 async def _parse_screenshot(
     image_data: bytes,
-    api_key: str,
+    ollama_url: str,
     media_type: str,
     market_data: MarketData,
 ) -> list[dict[str, Any]]:
     """Parse screenshot and resolve symbols."""
-    parsed = await parse_holdings_screenshot(image_data, api_key, media_type)
+    parsed = await parse_holdings_screenshot(image_data, ollama_url, media_type)
 
     resolved = []
     for h in parsed:
@@ -241,11 +241,11 @@ class UploadCog(commands.Cog):
     async def upload(
         self, interaction: discord.Interaction, image: discord.Attachment
     ) -> None:
-        api_key = self.bot.config.get("anthropic", {}).get("api_key", "")
+        ollama_url = self.bot.config.get("ollama", {}).get("url", "http://ollama:11434")
 
-        if not api_key:
+        if not ollama_url:
             await interaction.response.send_message(
-                "Anthropic API key not configured. Set ANTHROPIC_API_KEY.", ephemeral=True
+                "Ollama URL not configured. Set OLLAMA_URL.", ephemeral=True
             )
             return
 
@@ -260,7 +260,7 @@ class UploadCog(commands.Cog):
         image_data = await image.read()
         media_type = image.content_type or "image/png"
         parsed = await _parse_screenshot(
-            image_data, api_key, media_type, self.bot.market_data
+            image_data, ollama_url, media_type, self.bot.market_data
         )
 
         if not parsed:

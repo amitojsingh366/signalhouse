@@ -50,14 +50,14 @@ async def get_status(db: AsyncSession = Depends(get_db)):
 @router.post("/upload/parse", response_model=list[UploadHolding])
 async def parse_upload(file: UploadFile = File(...)):
     config = get_config()
-    api_key = config.get("anthropic", {}).get("api_key", "")
-    if not api_key:
-        raise HTTPException(status_code=400, detail="Anthropic API key not configured")
+    ollama_url = config.get("ollama", {}).get("url", "http://ollama:11434")
+    if not ollama_url:
+        raise HTTPException(status_code=400, detail="Ollama URL not configured")
 
     image_data = await file.read()
     media_type = file.content_type or "image/png"
 
-    parsed = await parse_holdings_screenshot(image_data, api_key, media_type)
+    parsed = await parse_holdings_screenshot(image_data, ollama_url, media_type)
     if not parsed:
         raise HTTPException(status_code=422, detail="Could not parse holdings from image")
 

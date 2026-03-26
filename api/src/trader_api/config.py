@@ -25,7 +25,7 @@ def load_config(config_dir: Path | None = None) -> dict[str, Any]:
       DISCORD_BOT_TOKEN → discord.bot_token
       DISCORD_CHANNEL_ID → discord.channel_id
       DISCORD_GUILD_ID → discord.guild_id
-      ANTHROPIC_API_KEY → anthropic.api_key
+      OLLAMA_URL → ollama.url
       DATABASE_URL → database.url
     """
     if config_dir is None:
@@ -53,8 +53,8 @@ def load_config(config_dir: Path | None = None) -> dict[str, Any]:
         config.setdefault("discord", {})["channel_id"] = channel
     if guild := os.environ.get("DISCORD_GUILD_ID"):
         config.setdefault("discord", {})["guild_id"] = guild
-    if api_key := os.environ.get("ANTHROPIC_API_KEY"):
-        config.setdefault("anthropic", {})["api_key"] = api_key
+    if ollama_url := os.environ.get("OLLAMA_URL"):
+        config.setdefault("ollama", {})["url"] = ollama_url
     if db_url := os.environ.get("DATABASE_URL"):
         config.setdefault("database", {})["url"] = db_url
 

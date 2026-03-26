@@ -6,8 +6,8 @@ discord:
   channel_id: ""     # Channel ID where bot posts (override via DISCORD_CHANNEL_ID)
   guild_id: ""       # Server ID for slash command sync (override via DISCORD_GUILD_ID)
 
-anthropic:
-  api_key: ""        # For Claude vision screenshot parsing (override via ANTHROPIC_API_KEY)
+ollama:
+  url: "http://ollama:11434"  # Ollama server URL for vision model (override via OLLAMA_URL)
 
 strategy:
   # Universe grouped by sector — used for diversification tracking

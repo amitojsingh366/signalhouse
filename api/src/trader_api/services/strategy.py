@@ -278,15 +278,16 @@ class Strategy:
             if h:
                 sig.reasons.append(f"You hold {h['quantity']:.4f} shares — sell all")
 
+        # Track sector-capped buys but don't penalize yet — swaps within
+        # the same sector shouldn't be penalized since they replace exposure
+        # rather than adding to it.
+        sector_capped: set[str] = set()
         filtered_buys: list[SignalResult] = []
         for sig in buys:
             sector = self.get_sector(sig.symbol)
             sector_pct = exposure.get(sector, {}).get("pct", 0.0)
             if sector_pct >= self.max_sector_pct:
-                sig.reasons.append(
-                    f"Sector '{sector}' already at {sector_pct:.0%} of portfolio"
-                )
-                sig.strength *= 0.5
+                sector_capped.add(sig.symbol)
             if sector != "unknown":
                 sig.reasons.append(f"Sector: {sector}")
             filtered_buys.append(sig)
@@ -296,6 +297,8 @@ class Strategy:
         top_sells = sells[:n]
 
         funding: list[dict[str, Any]] = []
+        # Track which sector-capped buys got paired with a same-sector sell
+        swap_exempted: set[str] = set()
         meta = await self.portfolio._get_meta()
         cash = meta.cash
         if top_buys and held_symbols and cash < 50.0:
@@ -317,6 +320,13 @@ class Strategy:
                             best = candidate
                     if best:
                         sell_info = dict(best)
+                        # If selling from the same sector, this is a swap —
+                        # no net sector exposure increase
+                        if (
+                            buy_sig.symbol in sector_capped
+                            and sell_info["sector"] == buy_sector
+                        ):
+                            swap_exempted.add(buy_sig.symbol)
                         if buy_price and buy_price > 0:
                             needed = buy_price
                             if sell_info["value"] <= needed * 1.5:
@@ -332,6 +342,20 @@ class Strategy:
                             sell_info["sell_qty"] = sell_info["quantity"]
                             sell_info["sell_action"] = "Sell all"
                         funding.append({"buy": buy_sig.symbol, "sell": sell_info})
+
+        # Now apply sector cap penalty only to buys that aren't paired
+        # with a same-sector sell (i.e. not a swap)
+        for sig in top_buys:
+            if sig.symbol in sector_capped and sig.symbol not in swap_exempted:
+                sector = self.get_sector(sig.symbol)
+                sector_pct = exposure.get(sector, {}).get("pct", 0.0)
+                sig.reasons.append(
+                    f"Sector '{sector}' already at {sector_pct:.0%} of portfolio"
+                )
+                sig.strength *= 0.5
+
+        # Re-sort after applying penalties
+        top_buys.sort(key=lambda r: r.strength, reverse=True)
 
         result = {
             "buys": top_buys,

@@ -50,22 +50,16 @@ async def get_status(db: AsyncSession = Depends(get_db)):
 @router.post("/upload/parse", response_model=list[UploadHolding])
 async def parse_upload(file: UploadFile = File(...)):
     config = get_config()
-    ollama_url = config.get("ollama", {}).get("url", "http://ollama:11434")
-    if not ollama_url:
-        raise HTTPException(status_code=400, detail="Ollama URL not configured")
+    api_key = config.get("anthropic", {}).get("api_key", "")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Anthropic API key not configured")
 
     image_data = await file.read()
     media_type = file.content_type or "image/png"
 
-    # Try up to 2 times — first attempt may fail if model is loading
-    parsed = await parse_holdings_screenshot(image_data, ollama_url, media_type)
+    parsed = await parse_holdings_screenshot(image_data, api_key, media_type)
     if not parsed:
-        parsed = await parse_holdings_screenshot(image_data, ollama_url, media_type)
-    if not parsed:
-        raise HTTPException(
-            status_code=422,
-            detail="Could not parse holdings from image. The vision model may still be loading — try again in a moment.",
-        )
+        raise HTTPException(status_code=422, detail="Could not parse holdings from image")
 
     # Resolve symbols
     market_data = get_market_data()

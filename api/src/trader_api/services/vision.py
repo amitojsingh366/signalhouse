@@ -1,15 +1,29 @@
-"""Screenshot parsing via Ollama vision (qwen2.5vl:3b) — extracts holdings from brokerage screenshots."""
+"""Screenshot parsing via Claude API vision — extracts holdings from brokerage screenshots."""
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
 from typing import Any
 
-import httpx
+import anthropic
 
 logger = logging.getLogger(__name__)
+
+
+def _detect_media_type(data: bytes) -> str:
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data[:3] == b"GIF":
+        return "image/gif"
+    return "image/png"
+
 
 PARSE_PROMPT = """Extract all stock/ETF holdings from this brokerage screenshot.
 
@@ -28,28 +42,50 @@ Rules:
 - If you cannot identify the holdings, return an empty array: []"""
 
 
-async def parse_holdings_screenshot(
-    image_data: bytes, ollama_url: str, media_type: str = "image/png"
-) -> list[dict[str, Any]]:
+def _call_claude_vision(
+    image_data: bytes, api_key: str, media_type: str
+) -> str:
+    client = anthropic.Anthropic(api_key=api_key)
     b64_image = base64.b64encode(image_data).decode("utf-8")
 
-    payload = {
-        "model": "qwen2.5vl:3b",
-        "prompt": PARSE_PROMPT,
-        "images": [b64_image],
-        "stream": False,
-    }
+    message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1024,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": b64_image,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": PARSE_PROMPT,
+                    },
+                ],
+            }
+        ],
+    )
+    return message.content[0].text.strip()
+
+
+async def parse_holdings_screenshot(
+    image_data: bytes, api_key: str, media_type: str = "image/png"
+) -> list[dict[str, Any]]:
+    media_type = _detect_media_type(image_data)
 
     try:
-        async with httpx.AsyncClient(timeout=300.0) as client:
-            resp = await client.post(f"{ollama_url}/api/generate", json=payload)
-            resp.raise_for_status()
-            result = resp.json()
-    except httpx.HTTPError:
-        logger.exception("Ollama API error during screenshot parsing")
+        response_text = await asyncio.to_thread(
+            _call_claude_vision, image_data, api_key, media_type
+        )
+    except anthropic.APIError:
+        logger.exception("Claude API error during screenshot parsing")
         return []
-
-    response_text = result.get("response", "").strip()
 
     if response_text.startswith("```"):
         lines = response_text.split("\n")
@@ -58,11 +94,11 @@ async def parse_holdings_screenshot(
     try:
         holdings = json.loads(response_text)
     except json.JSONDecodeError:
-        logger.error("Failed to parse Ollama response as JSON: %s", response_text)
+        logger.error("Failed to parse Claude response as JSON: %s", response_text)
         return []
 
     if not isinstance(holdings, list):
-        logger.error("Expected list from Ollama, got: %s", type(holdings))
+        logger.error("Expected list from Claude, got: %s", type(holdings))
         return []
 
     valid = []

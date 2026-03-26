@@ -25,7 +25,7 @@ services:
         condition: service_healthy
     environment:
       - DATABASE_URL=postgresql+asyncpg://trader:${POSTGRES_PASSWORD:-trader}@postgres:5432/trader
-      - OLLAMA_URL=http://ollama:11434
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
       - ./config:/app/config:ro
     expose:
@@ -44,7 +44,7 @@ services:
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
       - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
-      - OLLAMA_URL=http://ollama:11434
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
       - ./config:/app/config:ro
 
@@ -58,24 +58,6 @@ services:
       - NEXT_PUBLIC_API_URL=
     expose:
       - "3000"
-
-  ollama:
-    image: ollama/ollama:latest
-    restart: unless-stopped
-    entrypoint: ["/bin/sh", "/entrypoint.sh"]
-    environment:
-      - OLLAMA_KEEP_ALIVE=-1
-    volumes:
-      - ollama_data:/root/.ollama
-      - ./ollama-entrypoint.sh:/entrypoint.sh:ro
-    expose:
-      - "11434"
-    healthcheck:
-      test: ["CMD-SHELL", "ollama list > /dev/null 2>&1 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
 
   caddy:
     image: caddy:2-alpine
@@ -93,6 +75,5 @@ services:
 
 volumes:
   pgdata:
-  ollama_data:
   caddy_data:
   caddy_config:

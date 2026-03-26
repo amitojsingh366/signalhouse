@@ -26,9 +26,9 @@ This file is the primary context document for new Claude Code conversations. Rea
 | **Market data** | yfinance | ~15 min delay, daily bars |
 | **TA** | TA-Lib (C library + Python) | EMA, RSI, MACD, BB, ATR |
 | **Sentiment** | yfinance + fear-greed lib | Analyst consensus, F&G, news |
-| **Vision** | Ollama + qwen2.5vl:3b | Brokerage screenshot parsing (self-hosted) |
+| **Vision** | Anthropic Claude Sonnet | Brokerage screenshot parsing |
 | **Proxy** | Caddy | SSL via Cloudflare, routes /api/* and /* |
-| **Infra** | Docker Compose (6 services) | postgres, ollama, api, bot, web, caddy |
+| **Infra** | Docker Compose (5 services) | postgres, api, bot, web, caddy |
 
 ---
 
@@ -59,7 +59,7 @@ trader/
 │           ├── portfolio.py          # DB-backed portfolio (async SQLAlchemy CRUD)
 │           ├── risk.py               # Position sizing (ATR), stop losses, drawdown circuit breakers
 │           ├── sentiment.py          # Analyst consensus (4h cache), Fear & Greed (1h), news (30m)
-│           ├── vision.py             # Ollama qwen2.5vl vision (screenshot parsing)
+│           ├── vision.py             # Claude Sonnet vision (screenshot parsing)
 │           └── backtest.py           # Historical replay
 │
 ├── bot/                              # Discord bot (imports trader_api as Python dependency)
@@ -173,7 +173,7 @@ Both share the same PostgreSQL database.
 | `signals.py` | `compute_indicators()`, `generate_signal()` | TA-Lib scoring → BUY/SELL/HOLD |
 | `risk.py` | `RiskManager(config)` | Position sizing (ATR), stops, drawdown halts |
 | `sentiment.py` | `SentimentAnalyzer(cdr_to_us)` | Analyst + F&G + news → ±2.0 score adjustment |
-| `vision.py` | `parse_holdings_screenshot()` | Ollama qwen2.5vl:3b vision for screenshot extraction |
+| `vision.py` | `parse_holdings_screenshot()` | Claude Sonnet vision for screenshot extraction |
 
 ### Signal Pipeline
 
@@ -261,7 +261,6 @@ ssh -i your-ssh-key ubuntu@your-server \
 - [x] **Step 11:** Dashboard polish — CTAs under stat cards, empty state cards for charts/signals, sector tooltip fix, section order: CTAs → signals → equity → sector
 - [x] **Step 12:** Color scheme refinement — P&L green/red (standard financial), CTAs/buy badges stay purple, charts stay purple, success toasts and status indicators now emerald green
 - [x] **Step 13:** Page header UX — Cmd+K global symbol search modal (navigates to signals page), refresh buttons on all data pages (dashboard, portfolio, signals, trades, status), search trigger button in page headers (dashboard, portfolio, trades, status)
-- [x] **Step 14:** Vision self-hosting — replaced Anthropic Claude Sonnet API with self-hosted Ollama + qwen2.5vl:3b for screenshot parsing. Added ollama Docker service with auto-pull entrypoint. Removed anthropic dependency, uses httpx for Ollama REST API.
 
 ---
 

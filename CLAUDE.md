@@ -68,7 +68,7 @@ api/src/trader_api/           # Shared business logic + REST API
     ├── portfolio.py          # DB-backed portfolio (async, replaces JSON)
     ├── risk.py               # Position sizing, stop losses, drawdown
     ├── sentiment.py          # Analyst consensus, Fear & Greed, news
-    ├── vision.py             # Ollama qwen2.5vl vision (screenshot parsing)
+    ├── vision.py             # Claude Sonnet vision (screenshot parsing)
     └── backtest.py           # Historical replay
 
 bot/src/trader_bot/           # Discord bot (imports trader_api)
@@ -110,18 +110,17 @@ web/                          # Next.js dashboard (Bun, App Router, Tailwind, Re
 
 `config/settings.yaml` has defaults (symbol universe, risk params, schedule). Create `config/settings.local.yaml` (gitignored) for secrets. Environment variables override config:
 - `DISCORD_BOT_TOKEN`, `DISCORD_CHANNEL_ID`, `DISCORD_GUILD_ID` — Discord credentials
-- `OLLAMA_URL` — Ollama server URL for vision model (default works with docker-compose)
+- `ANTHROPIC_API_KEY` — for Claude vision screenshot parsing
 - `DATABASE_URL` — PostgreSQL connection string
 - `POSTGRES_PASSWORD` — used by docker-compose
 - `NEXT_PUBLIC_API_URL` — API URL for web dashboard
 
 ### Docker
 
-`docker-compose.yml` orchestrates 6 services:
+`docker-compose.yml` orchestrates 5 services:
 - `postgres` — PostgreSQL 16 Alpine with healthcheck, persistent `pgdata` volume
-- `ollama` — Ollama with qwen2.5vl:3b vision model, auto-pulls on first start, persistent `ollama_data` volume
-- `api` — FastAPI on port 8000 (internal only), depends on postgres + ollama
-- `bot` — Discord bot, depends on postgres + ollama
+- `api` — FastAPI on port 8000 (internal only), depends on postgres
+- `bot` — Discord bot, depends on postgres
 - `web` — Next.js on port 3000 (internal only), depends on api (uses Bun for builds)
 - `caddy` — Reverse proxy serving `yourdomain.com` on ports 80/443, routes `/api/*` to api and everything else to web. SSL terminated by Cloudflare.
 
@@ -140,7 +139,7 @@ ORM models in `api/src/trader_api/models.py`:
 |---------|-------------|
 | `/buy <symbol> <quantity> <price>` | Record a buy trade |
 | `/sell <symbol> <quantity> <price>` | Record a sell trade |
-| `/upload <image>` | Parse screenshot of holdings via Ollama vision |
+| `/upload <image>` | Parse screenshot of holdings via Claude vision |
 | `/holdings` | View portfolio with live prices, per-holding advice, and edit dropdown |
 | `/pnl` | Daily + total P&L breakdown with recent trades |
 | `/recommend` | Universe scan → top buy/sell signals with sell-to-fund suggestions |
@@ -172,7 +171,7 @@ ORM models in `api/src/trader_api/models.py`:
 | GET | `/api/signals/recommend` | Top buy/sell signals |
 | GET | `/api/signals/insights` | Daily insights |
 | GET | `/api/status` | System status |
-| POST | `/api/upload/parse` | Parse screenshot via Ollama vision |
+| POST | `/api/upload/parse` | Parse screenshot via Claude vision |
 | POST | `/api/upload/confirm` | Confirm parsed holdings |
 | GET | `/api/symbols` | Full symbol universe |
 
@@ -208,7 +207,7 @@ All fail silently to 0 — sentiment never blocks signal generation.
 ## Portfolio Tracking
 
 - User reports trades via Discord `/buy`/`/sell` or web dashboard trade form
-- `/upload` (Discord) or web upload page parses brokerage screenshots using Ollama qwen2.5vl:3b vision model
+- `/upload` (Discord) or web upload page parses brokerage screenshots using Claude Sonnet vision API
 - Discord `/holdings` Edit button opens a dropdown select to pick which holding to edit
 - Web portfolio page shows holdings table with click-to-expand advice detail
 - Symbol resolution for bare tickers: `.TO` → `.NE` → US
@@ -268,5 +267,5 @@ All fail silently to 0 — sentiment never blocks signal generation.
 - **Sentiment limitations:** Analyst data updates infrequently, news scoring is keyword-based, Fear & Greed is market-wide. These are directional nudges.
 - **CDR data gaps:** Some `.NE` symbols have spotty yfinance data. US fallback mitigates this.
 - **Risk hard limits:** 8% daily drawdown or 20% total drawdown halts all recommendations.
-- **Ollama vision:** Uses qwen2.5vl:3b model running in a local Docker container for `/upload` screenshot parsing. No external API key needed.
+- **Anthropic API:** Required for `/upload` screenshot parsing. Uses Claude Sonnet for vision.
 - **Web uses Bun:** The web dashboard uses Bun (not npm/yarn) for package management and builds.

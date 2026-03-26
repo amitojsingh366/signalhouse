@@ -1,0 +1,26 @@
+[project]
+name = "trader-bot"
+version = "1.0.0"
+description = "Discord trading recommendation bot"
+requires-python = ">=3.11"
+dependencies = [
+    "discord.py>=2.3",
+    "trader-api",
+]
+
+[project.scripts]
+trader-bot = "trader_bot.main:main"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=69.0"]
+build-backend = "setuptools.build_meta"

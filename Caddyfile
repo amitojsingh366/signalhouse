@@ -1,0 +1,15 @@
+yourdomain.com {
+	# Cloudflare handles public SSL — no need for Caddy to fetch certs.
+	# If CF SSL mode is "Full (strict)", point CF origin cert via env/volumes.
+	# If CF SSL mode is "Flexible", this block still works (Caddy auto-HTTPS).
+
+	# API endpoints — proxy to FastAPI
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	# Everything else — proxy to Next.js
+	handle {
+		reverse_proxy web:3000
+	}
+}

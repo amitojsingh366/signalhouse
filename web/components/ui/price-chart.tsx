@@ -22,6 +22,7 @@ const RANGES = [
   { label: "2M", period: "60d" },
   { label: "6M", period: "6mo" },
   { label: "1Y", period: "1y" },
+  { label: "5Y", period: "5y" },
 ] as const;
 
 interface PriceChartProps {

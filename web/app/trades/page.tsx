@@ -50,7 +50,7 @@ function TradeForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="glass-card p-5">
+    <form onSubmit={handleSubmit} className="glass-card p-4 sm:p-5">
       <h3 className="mb-4 text-sm font-medium text-slate-400">Record Trade</h3>
 
       {/* Action toggle */}
@@ -61,7 +61,7 @@ function TradeForm({
           className={cn(
             "flex-1 rounded-lg py-2 text-sm font-medium transition-colors",
             action === "buy"
-              ? "bg-green-500/20 text-green-400 border border-green-500/30"
+              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
               : "bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10"
           )}
         >
@@ -132,7 +132,7 @@ function TradeForm({
           className={cn(
             "w-full rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-50",
             action === "buy"
-              ? "bg-green-600 text-white hover:bg-green-500"
+              ? "bg-emerald-600 text-white hover:bg-emerald-500"
               : "bg-red-600 text-white hover:bg-red-500"
           )}
         >
@@ -237,14 +237,14 @@ export default function TradesPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Trades</h1>
 
+      {/* Trade form — full width on mobile, sidebar on desktop */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Trade form */}
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 min-w-0">
           <TradeForm symbols={symbols} onComplete={load} />
         </div>
 
-        {/* Trade history */}
-        <div className="lg:col-span-2">
+        {/* Trade history — scrollable table */}
+        <div className="lg:col-span-2 min-w-0">
           <h2 className="mb-3 text-sm font-medium text-slate-400">
             Trade History
           </h2>

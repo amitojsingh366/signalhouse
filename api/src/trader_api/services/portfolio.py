@@ -300,20 +300,29 @@ class Portfolio:
     async def get_daily_pnl(self, live_prices: dict[str, float]) -> dict[str, Any]:
         current_value = await self.get_portfolio_value(live_prices)
         meta = await self._get_meta()
-        initial = meta.initial_capital or current_value
 
-        # Find latest snapshot for daily P&L
+        # Positions-only P&L: market value of holdings - cost basis
+        holdings = await self.get_holdings_dict()
+        positions_value = 0.0
+        total_cost = 0.0
+        for symbol, h in holdings.items():
+            price = live_prices.get(symbol, h["avg_cost"])
+            positions_value += h["quantity"] * price
+            total_cost += h["quantity"] * h["avg_cost"]
+        positions_pnl = positions_value - total_cost
+
+        # Find latest snapshot for daily P&L (compares full portfolio values for daily change)
         result = await self.db.execute(
             select(DailySnapshot).order_by(DailySnapshot.date.desc()).limit(1)
         )
         latest_snap = result.scalar_one_or_none()
-        yesterday_value = latest_snap.portfolio_value if latest_snap else initial
+        yesterday_value = latest_snap.portfolio_value if latest_snap else current_value
 
         return {
             "current_value": current_value,
-            "initial_capital": initial,
-            "total_pnl": current_value - initial,
-            "total_pnl_pct": (current_value - initial) / initial * 100 if initial > 0 else 0.0,
+            "initial_capital": meta.initial_capital or current_value,
+            "total_pnl": positions_pnl,
+            "total_pnl_pct": (positions_pnl / total_cost * 100) if total_cost > 0 else 0.0,
             "daily_pnl": current_value - yesterday_value,
             "daily_pnl_pct": (
                 (current_value - yesterday_value) / yesterday_value * 100

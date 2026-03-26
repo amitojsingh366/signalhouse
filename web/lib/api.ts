@@ -146,11 +146,6 @@ export interface ExitAlert {
   current_price: number;
   entry_price: number;
   pnl_pct: number;
-  signal: string;
-  strength: number;
-  score: number;
-  reasons: string[];
-  sector: string | null;
 }
 
 export interface RecommendationOut {

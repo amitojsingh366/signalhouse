@@ -146,9 +146,6 @@ class Strategy:
             if current_price is None:
                 continue
 
-            pnl_pct = (current_price - h["avg_cost"]) / h["avg_cost"] * 100
-            sector = self.get_sector(symbol)
-
             stop_hit = self.risk.update_stops(symbol, current_price)
             if stop_hit is not None:
                 alerts.append({
@@ -158,12 +155,7 @@ class Strategy:
                     "severity": "high",
                     "current_price": current_price,
                     "entry_price": h["avg_cost"],
-                    "pnl_pct": pnl_pct,
-                    "signal": "SELL",
-                    "strength": 1.0,
-                    "score": -8.0,
-                    "reasons": [f"Stop loss triggered at ${stop_hit:.2f} [−8.0]"],
-                    "sector": sector,
+                    "pnl_pct": (current_price - h["avg_cost"]) / h["avg_cost"] * 100,
                 })
                 continue
 
@@ -175,12 +167,7 @@ class Strategy:
                     "severity": "medium",
                     "current_price": current_price,
                     "entry_price": h["avg_cost"],
-                    "pnl_pct": pnl_pct,
-                    "signal": "SELL",
-                    "strength": 0.5,
-                    "score": -4.0,
-                    "reasons": [f"Held {self.config['strategy']['max_hold_days']}+ days — consider exiting [-4.0]"],
-                    "sector": sector,
+                    "pnl_pct": (current_price - h["avg_cost"]) / h["avg_cost"] * 100,
                 })
                 continue
 
@@ -201,12 +188,9 @@ class Strategy:
                             "severity": "medium",
                             "current_price": current_price,
                             "entry_price": h["avg_cost"],
-                            "pnl_pct": pnl_pct,
-                            "signal": "SELL",
-                            "strength": result.strength,
-                            "score": result.score,
-                            "reasons": all_reasons,
-                            "sector": sector,
+                            "pnl_pct": (
+                                (current_price - h["avg_cost"]) / h["avg_cost"] * 100
+                            ),
                         })
             except Exception:
                 logger.exception("Error checking sell signal for %s", symbol)

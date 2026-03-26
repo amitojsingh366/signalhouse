@@ -67,11 +67,6 @@ async def get_recommendations(n: int = 5, db: AsyncSession = Depends(get_db)):
                 current_price=a["current_price"],
                 entry_price=a["entry_price"],
                 pnl_pct=a["pnl_pct"],
-                signal=a.get("signal", "SELL"),
-                strength=a.get("strength", 0.0),
-                score=a.get("score", 0.0),
-                reasons=a.get("reasons", []),
-                sector=a.get("sector"),
             )
             for a in raw_alerts
         ]

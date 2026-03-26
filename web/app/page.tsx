@@ -225,42 +225,39 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Exit alerts first, then buy/sell/watchlist signals */}
-            {signals.exit_alerts && signals.exit_alerts.map((a) => (
-              <Link
-                key={`exit-${a.symbol}`}
-                href="/signals"
-                className={cn(
-                  "flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-white/[0.08]",
-                  a.severity === "high"
-                    ? "border-red-500/30 bg-red-500/[0.06]"
-                    : "border-amber-500/20 bg-amber-500/[0.04]"
-                )}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <AlertTriangle className={cn("h-4 w-4 shrink-0", a.severity === "high" ? "text-red-400" : "text-amber-400")} />
-                  <div className="min-w-0">
-                    <p className="font-medium">{a.symbol}</p>
-                    <div className="flex items-center gap-1.5">
-                      <span className={cn(
-                        "text-[10px] font-semibold uppercase",
-                        a.severity === "high" ? "text-red-400" : "text-amber-400"
-                      )}>
-                        {a.reason}
-                      </span>
-                      <span className={cn(
-                        "text-xs font-medium",
-                        a.pnl_pct >= 0 ? "text-emerald-400" : "text-red-400"
-                      )}>
-                        {a.pnl_pct >= 0 ? "+" : ""}{a.pnl_pct.toFixed(1)}%
-                      </span>
+          {/* Exit alerts shown first */}
+          {signals.exit_alerts && signals.exit_alerts.length > 0 && (
+            <div className="mb-4 space-y-2">
+              {signals.exit_alerts.map((a) => (
+                <Link
+                  key={`exit-${a.symbol}`}
+                  href="/signals"
+                  className={cn(
+                    "flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-white/[0.08]",
+                    a.severity === "high"
+                      ? "border-red-500/30 bg-red-500/[0.05]"
+                      : "border-amber-500/20 bg-amber-500/[0.03]"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className={cn("h-4 w-4", a.severity === "high" ? "text-red-400" : "text-amber-400")} />
+                    <div>
+                      <p className="font-medium">{a.symbol}</p>
+                      <p className="text-xs text-slate-500">{a.reason}</p>
                     </div>
                   </div>
-                </div>
-                <SignalBadge signal={a.signal} strength={a.strength} />
-              </Link>
-            ))}
+                  <span className={cn(
+                    "text-sm font-medium",
+                    a.pnl_pct >= 0 ? "text-emerald-400" : "text-red-400"
+                  )}>
+                    {a.pnl_pct >= 0 ? "+" : ""}{a.pnl_pct.toFixed(1)}%
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {[...signals.buys, ...signals.sells, ...(signals.watchlist_sells ?? [])].slice(0, 6).map((s) => (
               <Link
                 key={s.symbol}

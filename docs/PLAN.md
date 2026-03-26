@@ -27,21 +27,21 @@
   - [x] 7.3 Deploy all 5 services to `your-server`, DNS via Cloudflare
   - [x] 7.4 Fix `NEXT_PUBLIC_API_URL` — empty string for relative URLs through Caddy
   - [x] 7.5 Open port 443 in iptables, verify website + API at `yourdomain.com`
-- [ ] Step 8: Web Performance & UX Improvements
-  - [x] 8.1 Fix sector exposure NaN bug (API returns nested dict `{value, pct, symbols}`, chart treats value as number)
-  - [x] 8.2 Add localStorage caching layer to API client for instant page loads
-  - [x] 8.3 Dashboard: progressive loading — stat cards render from cache instantly, charts/signals load async
-  - [x] 8.4 Move sector exposure chart from Signals page to Dashboard
-  - [x] 8.5 Signals: always-visible search bar above async-loading signal cards
-  - [x] 8.6 Deploy to server
-- [ ] Step 9: Portfolio Editing & Theme Overhaul
-  - [x] 9.1 Add `update_holding`, `delete_holding`, `update_cash` methods to Portfolio service
-  - [x] 9.2 Fix cash tracking: `record_buy` deducts cash, `record_sell` adds proceeds
-  - [x] 9.3 Add API endpoints: `PUT /api/portfolio/holding`, `DELETE /api/portfolio/holding/{symbol}`, `PUT /api/portfolio/cash`
-  - [x] 9.4 Portfolio page: click holding row to open edit panel (qty, avg cost, delete)
-  - [x] 9.5 Portfolio page: click Cash stat card to edit cash balance
-  - [x] 9.6 Theme: dark black background (#09090b), purple accent (#a78bfa), zinc-based surfaces
-  - [ ] 9.7 Deploy to server
+- [x] Step 8: Web Performance & UX Improvements
+  - [x] 8.1 Fix sector exposure NaN (chart now handles nested `{value, pct, symbols}` from API)
+  - [x] 8.2 localStorage cache layer on API client (configurable TTLs per endpoint)
+  - [x] 8.3 Dashboard: progressive loading with cache-first strategy, stat cards instant
+  - [x] 8.4 Sector exposure chart moved from Signals → Dashboard
+  - [x] 8.5 Signals: always-visible search bar, signals load async below
+- [x] Step 9: Portfolio Editing, Theme & P&L Fixes
+  - [x] 9.1 Portfolio editing: `update_holding`, `delete_holding`, `update_cash` service methods + REST endpoints (`PUT /holding`, `DELETE /holding/{sym}`, `PUT /cash`)
+  - [x] 9.2 Cash tracking: `record_buy` deducts cash, `record_sell` adds proceeds
+  - [x] 9.3 Portfolio page: click-to-edit holdings (qty, avg cost), click Cash card to edit, delete with confirm
+  - [x] 9.4 Theme overhaul: dark black bg (#09090b), purple accent (#a78bfa), zinc surfaces, emerald/red/amber badges
+  - [x] 9.5 P&L fix: exclude cash from P&L calculation, positions-only unrealized P&L
+  - [x] 9.6 Trades page: mobile overflow fix (`min-w-0`, `overflow-x-hidden` on layout)
+  - [x] 9.7 Trades page: auto-fetch market price on symbol input (debounced 600ms), editable for historic trades, `GET /api/signals/price/{symbol}` endpoint
+  - [x] 9.8 P&L fix: include realized P&L from completed sell trades (unrealized + realized = total P&L)
 
 ---
 

@@ -73,16 +73,20 @@ async def get_holdings(db: AsyncSession = Depends(get_db)):
     meta = await portfolio._get_meta()
     positions_value = total_value  # sum of market values (before adding cash)
     total_value += meta.cash
-    # P&L on positions only: market value of holdings minus cost basis
-    positions_pnl = positions_value - total_cost
+
+    # Total P&L = unrealized (current positions) + realized (completed trades)
+    unrealized_pnl = positions_value - total_cost
+    realized_pnl = await portfolio.get_realized_pnl()
+    total_pnl = unrealized_pnl + realized_pnl
+    initial = meta.initial_capital or total_value
 
     return PortfolioSummary(
         holdings=items,
         total_value=total_value,
         cash=meta.cash,
         total_cost=total_cost,
-        total_pnl=positions_pnl,
-        total_pnl_pct=(positions_pnl / total_cost * 100) if total_cost > 0 else 0.0,
+        total_pnl=total_pnl,
+        total_pnl_pct=(total_pnl / initial * 100) if initial > 0 else 0.0,
     )
 
 

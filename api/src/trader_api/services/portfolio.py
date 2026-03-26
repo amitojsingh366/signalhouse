@@ -6,7 +6,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trader_api.models import DailySnapshot, Holding, PortfolioMeta, Trade
@@ -262,6 +262,15 @@ class Portfolio:
         logger.info("Updated cash to $%.2f", cash)
         return cash
 
+    async def get_realized_pnl(self) -> float:
+        """Sum of P&L from all completed sell trades."""
+        result = await self.db.execute(
+            select(func.coalesce(func.sum(Trade.pnl), 0.0)).where(
+                Trade.action == "SELL", Trade.pnl.isnot(None)
+            )
+        )
+        return float(result.scalar_one())
+
     async def get_portfolio_value(self, live_prices: dict[str, float]) -> float:
         meta = await self._get_meta()
         value = meta.cash
@@ -301,7 +310,7 @@ class Portfolio:
         current_value = await self.get_portfolio_value(live_prices)
         meta = await self._get_meta()
 
-        # Positions-only P&L: market value of holdings - cost basis
+        # Unrealized P&L: market value of current holdings - cost basis
         holdings = await self.get_holdings_dict()
         positions_value = 0.0
         total_cost = 0.0
@@ -309,9 +318,17 @@ class Portfolio:
             price = live_prices.get(symbol, h["avg_cost"])
             positions_value += h["quantity"] * price
             total_cost += h["quantity"] * h["avg_cost"]
-        positions_pnl = positions_value - total_cost
+        unrealized_pnl = positions_value - total_cost
 
-        # Find latest snapshot for daily P&L (compares full portfolio values for daily change)
+        # Realized P&L: sum of profit/loss from all completed sell trades
+        realized_pnl = await self.get_realized_pnl()
+        total_pnl = unrealized_pnl + realized_pnl
+
+        # Use total cost + realized gains as denominator for % (money that was invested)
+        invested = total_cost + realized_pnl  # approximate capital deployed
+        initial = meta.initial_capital or current_value
+
+        # Find latest snapshot for daily P&L
         result = await self.db.execute(
             select(DailySnapshot).order_by(DailySnapshot.date.desc()).limit(1)
         )
@@ -320,9 +337,9 @@ class Portfolio:
 
         return {
             "current_value": current_value,
-            "initial_capital": meta.initial_capital or current_value,
-            "total_pnl": positions_pnl,
-            "total_pnl_pct": (positions_pnl / total_cost * 100) if total_cost > 0 else 0.0,
+            "initial_capital": initial,
+            "total_pnl": total_pnl,
+            "total_pnl_pct": (total_pnl / initial * 100) if initial > 0 else 0.0,
             "daily_pnl": current_value - yesterday_value,
             "daily_pnl_pct": (
                 (current_value - yesterday_value) / yesterday_value * 100

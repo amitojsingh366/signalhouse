@@ -214,11 +214,16 @@ export default function TradesPage() {
   async function load() {
     setLoading(true);
     try {
+      // most recent should be first. time decending order
       const [t, s] = await Promise.all([
         api.getTradeHistory(50),
         api.getSymbols(),
       ]);
-      setTrades(t);
+      setTrades(t.sort((a, b) => {
+        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return timeB - timeA;
+      }));
       setSymbols(s);
     } catch (err) {
       console.error(err);

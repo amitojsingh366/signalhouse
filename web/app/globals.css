@@ -13,7 +13,7 @@
     --muted-foreground: #a1a1aa;
     --accent: #a78bfa;
     --accent-foreground: #ffffff;
-    --success: #a78bfa;
+    --success: #34d399;
     --danger: #f87171;
     --warning: #fbbf24;
   }
@@ -35,7 +35,7 @@
   }
 
   .stat-positive {
-    @apply text-brand-400;
+    @apply text-emerald-400;
   }
 
   .stat-negative {

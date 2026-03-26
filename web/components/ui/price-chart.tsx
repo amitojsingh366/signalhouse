@@ -16,6 +16,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/loading";
 
 const RANGES = [
+  { label: "5D", period: "5d" },
   { label: "1W", period: "7d" },
   { label: "1M", period: "30d" },
   { label: "2M", period: "60d" },
@@ -29,7 +30,7 @@ interface PriceChartProps {
 }
 
 export function PriceChart({ symbol, className }: PriceChartProps) {
-  const [rangeIdx, setRangeIdx] = useState(2); // default 2M
+  const [rangeIdx, setRangeIdx] = useState(3); // default 2M
   const [bars, setBars] = useState<PriceBar[]>([]);
   const [loading, setLoading] = useState(true);
 

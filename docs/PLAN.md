@@ -97,6 +97,7 @@ trader/
 │   │   ├── search-bar.tsx            # Symbol search dropdown with autocomplete
 │   │   ├── sector-chart.tsx          # Horizontal bar chart, purple gradient, hover highlight
 │   │   ├── sidebar.tsx               # Navigation sidebar with active state
+│   │   ├── price-chart.tsx            # Symbol price area chart with range selector (1W–1Y)
 │   │   ├── signal-badge.tsx          # BUY/SELL/HOLD badge component
 │   │   ├── stat-card.tsx             # Summary stat card with change percentage
 │   │   └── toast.tsx                 # Toast notification provider
@@ -261,6 +262,7 @@ ssh -i your-ssh-key ubuntu@your-server \
 - [x] **Step 11:** Dashboard polish — CTAs under stat cards, empty state cards for charts/signals, sector tooltip fix, section order: CTAs → signals → equity → sector
 - [x] **Step 12:** Color scheme refinement — P&L green/red (standard financial), CTAs/buy badges stay purple, charts stay purple, success toasts and status indicators now emerald green
 - [x] **Step 13:** Page header UX — Cmd+K global symbol search modal (navigates to signals page), refresh buttons on all data pages (dashboard, portfolio, signals, trades, status), search trigger button in page headers (dashboard, portfolio, trades, status)
+- [x] **Step 14:** Price charts — API endpoint for OHLCV history, PriceChart component with range selector (1W–1Y), chart shown on signal check and expandable signal cards, portfolio symbol names link to signals page
 
 ---
 

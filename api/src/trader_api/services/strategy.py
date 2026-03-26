@@ -267,6 +267,15 @@ class Strategy:
         held_symbols = list(holdings.keys())
         sells = [s for s in all_sells if s.symbol in held_symbols]
 
+        logger.info(
+            "Recommendations: %d signals → %d buys, %d sells (%d held), holdings=%s",
+            len(all_signals), len(buys), len(all_sells), len(sells), held_symbols,
+        )
+        for s in all_signals:
+            logger.info(
+                "  Signal: %s %s strength=%.2f", s.symbol, s.signal.value, s.strength
+            )
+
         prices = (
             await self.market_data.get_batch_prices(held_symbols)
             if held_symbols else {}

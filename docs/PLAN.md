@@ -5,7 +5,7 @@
 - [x] Step 1: API Package (`api/`)
 - [x] Step 2: Bot Package (`bot/`)
 - [x] Step 3: Docker Compose & Dockerfiles
-- [ ] Step 4: Next.js Web Dashboard (`web/`)
+- [x] Step 4: Next.js Web Dashboard (`web/`)
   - [x] 4.1 Scaffold Next.js project (package.json, tsconfig, tailwind, next.config, globals.css)
   - [x] 4.2 API client library (`lib/api.ts`)
   - [x] 4.3 Shared UI components (stat cards, charts, data tables, nav sidebar, loading skeletons, toasts)
@@ -21,6 +21,21 @@
   - [x] 5.2 Update `CLAUDE.md`
   - [x] 5.3 Update `docs/NEXT_STEPS.md`
 - [x] Step 6: Testing & Validation
+- [x] Step 7: Caddy Reverse Proxy & Deployment
+  - [x] 7.1 Add Caddy service to `docker-compose.yml` (port 80, depends on web + api)
+  - [x] 7.2 Create `Caddyfile` — routes `/api/*` to FastAPI, everything else to Next.js
+  - [x] 7.3 Change postgres, api, web from `ports` to `expose` (internal-only, Caddy fronts everything)
+  - [x] 7.4 Configure Caddy for HTTP-only (Cloudflare terminates SSL at edge)
+  - [x] 7.5 Fix web Dockerfile — handle empty `public/` directory
+  - [x] 7.6 Add `caddy_data` and `caddy_config` volumes
+  - [x] 7.7 Deploy to `your-server` — all 5 services running
+  - [x] 7.8 Verify API (`/api/status`) and web dashboard serve correctly through Caddy
+  - [x] 7.9 DNS: `yourdomain.com` pointed to server via Cloudflare (proxied)
+- [ ] Step 8: Fix Connectivity Issues & Redeploy
+  - [x] 8.1 Re-add port 443 to Caddy (Cloudflare Full mode needs HTTPS on origin)
+  - [x] 8.2 Add Caddy `:443` block with `tls internal` (self-signed cert for CF Full mode)
+  - [x] 8.3 Fix `NEXT_PUBLIC_API_URL` — use empty string so browser uses relative URLs through Caddy
+  - [ ] 8.4 Deploy to server and verify website + API accessible via `yourdomain.com`
 
 ---
 
@@ -268,3 +283,21 @@ web/
 - Test web dashboard pages load and display data
 - Test trade recording flows end-to-end (web → API → DB, bot → DB)
 - Verify data consistency between bot and web (both see same holdings/trades)
+
+### Step 7: Caddy Reverse Proxy & Deployment
+
+**Goal:** Serve the web dashboard on `yourdomain.com` behind Caddy, with Cloudflare handling SSL.
+
+**Files created/modified:**
+- `Caddyfile` — Listens on `:80`, routes `/api/*` → `api:8000`, everything else → `web:3000`
+- `docker-compose.yml` — Added `caddy` service (caddy:2-alpine), changed postgres/api/web from `ports` to `expose` (internal-only), added `caddy_data` and `caddy_config` volumes
+- `web/Dockerfile` — Fixed `COPY --from=builder /app/public` failure when `public/` is empty (added `RUN mkdir -p ./public`)
+- `web/public/.gitkeep` — Ensures public directory exists in git
+
+**Architecture:**
+```
+Internet → Cloudflare (SSL) → Caddy (:80) → web (:3000) for pages
+                                           → api (:8000) for /api/*
+```
+
+**Deployment:** `git push` → SSH → `git pull && docker compose up -d --build` on `your-server`. All 5 services (postgres, api, bot, web, caddy) confirmed running. DNS `yourdomain.com` points to server via Cloudflare proxied A record.

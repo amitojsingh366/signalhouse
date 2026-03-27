@@ -19,7 +19,7 @@ export const queryKeys = {
   holdings: ["holdings"] as const,
   pnl: ["pnl"] as const,
   snapshots: ["snapshots"] as const,
-  recommendations: (n: number) => ["recommendations", n] as const,
+  recommendations: ["recommendations"] as const,
   status: ["status"] as const,
   tradeHistory: (limit: number) => ["tradeHistory", limit] as const,
   symbols: ["symbols"] as const,
@@ -55,10 +55,10 @@ export function useSnapshots() {
   });
 }
 
-export function useRecommendations(n = 5) {
+export function useRecommendations() {
   return useQuery<RecommendationOut>({
-    queryKey: queryKeys.recommendations(n),
-    queryFn: () => api.getRecommendations(n),
+    queryKey: queryKeys.recommendations,
+    queryFn: () => api.getRecommendations(5),
     staleTime: 10 * 60 * 1000,
   });
 }

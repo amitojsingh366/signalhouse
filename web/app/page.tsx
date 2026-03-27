@@ -27,7 +27,7 @@ export default function DashboardPage() {
   const { data: portfolio, isLoading: portfolioLoading } = useHoldings();
   const { data: pnl, isLoading: pnlLoading } = usePnl();
   const { data: snapshots, isLoading: snapshotsLoading } = useSnapshots();
-  const { data: signals, isLoading: signalsLoading, isFetching: refreshing } = useRecommendations(3);
+  const { data: signals, isLoading: signalsLoading, isFetching: refreshing } = useRecommendations();
 
   const statsLoading = portfolioLoading && pnlLoading;
   const chartsLoading = snapshotsLoading || signalsLoading;
@@ -37,7 +37,7 @@ export default function DashboardPage() {
     qc.invalidateQueries({ queryKey: queryKeys.holdings });
     qc.invalidateQueries({ queryKey: queryKeys.pnl });
     qc.invalidateQueries({ queryKey: queryKeys.snapshots });
-    qc.invalidateQueries({ queryKey: queryKeys.recommendations(3) });
+    qc.invalidateQueries({ queryKey: queryKeys.recommendations });
   }
 
   return (

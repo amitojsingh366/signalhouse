@@ -117,11 +117,11 @@ function SignalsContent() {
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
 
   const { data: symbols = [] } = useSymbols();
-  const { data: recs, isLoading: recsLoading, isFetching: refreshing } = useRecommendations(5);
+  const { data: recs, isLoading: recsLoading, isFetching: refreshing } = useRecommendations();
   const { data: checked, isLoading: checkLoading } = useSignalCheck(checkedSymbol);
 
   const refresh = useCallback(() => {
-    qc.invalidateQueries({ queryKey: queryKeys.recommendations(5) });
+    qc.invalidateQueries({ queryKey: queryKeys.recommendations });
   }, [qc]);
 
   function checkSymbol(symbol: string) {

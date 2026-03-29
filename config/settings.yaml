@@ -33,7 +33,7 @@ strategy:
       - {symbol: "ADBE.NE",   name: "Adobe (CDR)"}
       - {symbol: "INTC.NE",   name: "Intel (CDR)"}
       - {symbol: "ORCL.NE",   name: "Oracle (CDR)"}
-      - {symbol: "MU.NE",     name: "Micron Technology (CDR)"}
+      - {symbol: "MU.TO",     name: "Micron Technology (CDR)"}
       - {symbol: "PLTR.NE",   name: "Palantir Technologies (CDR)"}
       - {symbol: "UBER.NE",   name: "Uber Technologies (CDR)"}
       - {symbol: "SPOT.NE",   name: "Spotify (CDR)"}

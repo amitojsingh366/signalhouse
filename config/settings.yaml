@@ -11,137 +11,460 @@ anthropic:
 
 strategy:
   # Universe grouped by sector — used for diversification tracking
+  # ~333 symbols across TSX (.TO), CBOE Canada CDRs (.NE)
+  # Updated: 2026-03-29
   sectors:
-    # --- Technology: Semiconductors, Software, Cloud ---
+
+    # --- Technology: Semiconductors, Software, Cloud, IT Services ---
     technology:
-      - {symbol: "NVDA.NE",  name: "NVIDIA (CDR)"}
-      - {symbol: "AMD.NE",   name: "AMD (CDR)"}
-      - {symbol: "AAPL.NE",  name: "Apple (CDR)"}
-      - {symbol: "MSFT.NE",  name: "Microsoft (CDR)"}
-      - {symbol: "GOOG.NE",  name: "Alphabet (CDR)"}
-      - {symbol: "META.NE",  name: "Meta (CDR)"}
-      - {symbol: "AMZN.NE",  name: "Amazon (CDR)"}
-      - {symbol: "NFLX.NE",  name: "Netflix (CDR)"}
-      - {symbol: "TSLA.NE",  name: "Tesla (CDR)"}
-      - {symbol: "ASML.NE",  name: "ASML (CDR)"}
-      - {symbol: "CRM.NE",   name: "Salesforce (CDR)"}
-      - {symbol: "AVGO.NE",  name: "Broadcom (CDR)"}
-      - {symbol: "ADBE.NE",  name: "Adobe (CDR)"}
-      - {symbol: "INTC.NE",  name: "Intel (CDR)"}
-      - {symbol: "ORCL.NE",  name: "Oracle (CDR)"}
-      - {symbol: "AMD.TO",   name: "AMD (TSX-listed)"}
-      - {symbol: "SHOP.TO",  name: "Shopify"}
-      - {symbol: "CSU.TO",   name: "Constellation Software"}
-      - {symbol: "OTEX.TO",  name: "Open Text"}
-      - {symbol: "TEC.TO",   name: "TD Global Tech Leaders ETF"}
-      - {symbol: "MU.NE",    name: "Micron (CDR)"}
+      # CDRs (CIBC, on Cboe Canada / .NE)
+      - {symbol: "NVDA.NE",   name: "NVIDIA (CDR)"}
+      - {symbol: "AMD.NE",    name: "AMD (CDR)"}
+      - {symbol: "AAPL.NE",   name: "Apple (CDR)"}
+      - {symbol: "MSFT.NE",   name: "Microsoft (CDR)"}
+      - {symbol: "GOOG.NE",   name: "Alphabet (CDR)"}
+      - {symbol: "META.NE",   name: "Meta Platforms (CDR)"}
+      - {symbol: "AMZN.NE",   name: "Amazon (CDR)"}
+      - {symbol: "NFLX.NE",   name: "Netflix (CDR)"}
+      - {symbol: "TSLA.NE",   name: "Tesla (CDR)"}
+      - {symbol: "ASML.NE",   name: "ASML Holdings (CDR)"}
+      - {symbol: "CRM.NE",    name: "Salesforce (CDR)"}
+      - {symbol: "AVGO.NE",   name: "Broadcom (CDR)"}
+      - {symbol: "ADBE.NE",   name: "Adobe (CDR)"}
+      - {symbol: "INTC.NE",   name: "Intel (CDR)"}
+      - {symbol: "ORCL.NE",   name: "Oracle (CDR)"}
+      - {symbol: "MU.NE",     name: "Micron Technology (CDR)"}
+      - {symbol: "PLTR.NE",   name: "Palantir Technologies (CDR)"}
+      - {symbol: "UBER.NE",   name: "Uber Technologies (CDR)"}
+      - {symbol: "SPOT.NE",   name: "Spotify (CDR)"}
+      - {symbol: "ABNB.NE",   name: "Airbnb (CDR)"}
+      - {symbol: "SQ.NE",     name: "Block / Square (CDR)"}
+      - {symbol: "AMAT.NE",   name: "Applied Materials (CDR)"}
+      - {symbol: "ANET.NE",   name: "Arista Networks (CDR)"}
+      - {symbol: "WDAY.NE",   name: "Workday (CDR)"}
+      - {symbol: "COIN.NE",   name: "Coinbase (CDR)"}
+      - {symbol: "MELI.NE",   name: "MercadoLibre (CDR)"}
+      - {symbol: "DE.NE",     name: "Deere & Company (CDR)"}
+      # TSX-listed Canadian tech
+      - {symbol: "SHOP.TO",   name: "Shopify"}
+      - {symbol: "CSU.TO",    name: "Constellation Software"}
+      - {symbol: "OTEX.TO",   name: "Open Text"}
+      - {symbol: "LSPD.TO",   name: "Lightspeed Commerce"}
+      - {symbol: "KXS.TO",    name: "Kinaxis"}
+      - {symbol: "DCBO.TO",   name: "Docebo"}
+      - {symbol: "NVEI.TO",   name: "Nuvei Corporation"}
+      - {symbol: "DSG.TO",    name: "Descartes Group"}
+      - {symbol: "BB.TO",     name: "BlackBerry"}
+      - {symbol: "TIXT.TO",   name: "TELUS International"}
+      - {symbol: "REAL.TO",   name: "Real Matters"}
+      - {symbol: "GIB-A.TO",  name: "CGI Group"}
+      # Tech ETFs
+      - {symbol: "TEC.TO",    name: "TD Global Tech Leaders ETF"}
+      - {symbol: "XIT.TO",    name: "iShares S&P/TSX Capped IT ETF"}
 
-    # --- Financials: Banks, Insurance, Fintech ---
+    # --- Financials: Banks, Insurance, Fintech, Asset Managers ---
     financials:
-      - {symbol: "RY.TO",    name: "Royal Bank"}
-      - {symbol: "TD.TO",    name: "TD Bank"}
-      - {symbol: "BMO.TO",   name: "BMO"}
-      - {symbol: "BN.TO",    name: "Brookfield Corp"}
-      - {symbol: "MFC.TO",   name: "Manulife"}
-      - {symbol: "IFC.TO",   name: "Intact Financial"}
-      - {symbol: "V.NE",     name: "Visa (CDR)"}
-      - {symbol: "MA.NE",    name: "Mastercard (CDR)"}
-      - {symbol: "JPM.NE",   name: "JPMorgan (CDR)"}
-      - {symbol: "GS.NE",    name: "Goldman Sachs (CDR)"}
+      # Canadian banks
+      - {symbol: "RY.TO",     name: "Royal Bank of Canada"}
+      - {symbol: "TD.TO",     name: "TD Bank"}
+      - {symbol: "BMO.TO",    name: "Bank of Montreal"}
+      - {symbol: "BNS.TO",    name: "Bank of Nova Scotia"}
+      - {symbol: "CM.TO",     name: "CIBC"}
+      - {symbol: "NA.TO",     name: "National Bank of Canada"}
+      - {symbol: "CWB.TO",    name: "Canadian Western Bank"}
+      - {symbol: "LB.TO",     name: "Laurentian Bank"}
+      # Insurance
+      - {symbol: "MFC.TO",    name: "Manulife Financial"}
+      - {symbol: "SLF.TO",    name: "Sun Life Financial"}
+      - {symbol: "GWO.TO",    name: "Great-West Lifeco"}
+      - {symbol: "IFC.TO",    name: "Intact Financial"}
+      - {symbol: "IAG.TO",    name: "iA Financial Group"}
+      - {symbol: "FFH.TO",    name: "Fairfax Financial"}
+      # Asset managers
+      - {symbol: "BN.TO",     name: "Brookfield Corporation"}
+      - {symbol: "X.TO",      name: "TMX Group"}
+      - {symbol: "IGM.TO",    name: "IGM Financial"}
+      - {symbol: "CIX.TO",    name: "CI Financial"}
+      # CDRs
+      - {symbol: "V.NE",      name: "Visa (CDR)"}
+      - {symbol: "MA.NE",     name: "Mastercard (CDR)"}
+      - {symbol: "JPM.NE",    name: "JPMorgan Chase (CDR)"}
+      - {symbol: "GS.NE",     name: "Goldman Sachs (CDR)"}
+      - {symbol: "BRK.NE",    name: "Berkshire Hathaway (CDR)"}
+      - {symbol: "AXP.NE",    name: "American Express (CDR)"}
+      - {symbol: "BLK.NE",    name: "BlackRock (CDR)"}
+      - {symbol: "SCHW.NE",   name: "Charles Schwab (CDR)"}
+      - {symbol: "MS.NE",     name: "Morgan Stanley (CDR)"}
+      # Financials ETF
+      - {symbol: "XFN.TO",    name: "iShares S&P/TSX Capped Financials ETF"}
 
-    # --- Energy: Oil/Gas, Pipelines, Renewables ---
+    # --- Energy: Oil & Gas, Pipelines ---
     energy:
-      - {symbol: "SU.TO",    name: "Suncor"}
-      - {symbol: "ENB.TO",   name: "Enbridge"}
-      - {symbol: "CNQ.TO",   name: "Canadian Natural Resources"}
-      - {symbol: "TRP.TO",   name: "TC Energy"}
-      - {symbol: "CVE.TO",   name: "Cenovus Energy"}
-      - {symbol: "XOM.NE",   name: "ExxonMobil (CDR)"}
-      - {symbol: "CVX.NE",   name: "Chevron (CDR)"}
+      # Major producers
+      - {symbol: "SU.TO",     name: "Suncor Energy"}
+      - {symbol: "CNQ.TO",    name: "Canadian Natural Resources"}
+      - {symbol: "CVE.TO",    name: "Cenovus Energy"}
+      - {symbol: "IMO.TO",    name: "Imperial Oil"}
+      - {symbol: "MEG.TO",    name: "MEG Energy"}
+      - {symbol: "BTE.TO",    name: "Baytex Energy"}
+      - {symbol: "VET.TO",    name: "Vermilion Energy"}
+      # Mid-cap producers
+      - {symbol: "ARX.TO",    name: "ARC Resources"}
+      - {symbol: "TOU.TO",    name: "Tourmaline Oil"}
+      - {symbol: "WCP.TO",    name: "Whitecap Resources"}
+      - {symbol: "ERF.TO",    name: "Enerplus"}
+      - {symbol: "PEY.TO",    name: "Peyto Exploration"}
+      - {symbol: "FRU.TO",    name: "Freehold Royalties"}
+      - {symbol: "TVE.TO",    name: "Tamarack Valley Energy"}
+      - {symbol: "CR.TO",     name: "Crew Energy"}
+      - {symbol: "BIR.TO",    name: "Birchcliff Energy"}
+      # Pipelines
+      - {symbol: "ENB.TO",    name: "Enbridge"}
+      - {symbol: "TRP.TO",    name: "TC Energy"}
+      - {symbol: "PPL.TO",    name: "Pembina Pipeline"}
+      - {symbol: "KEY.TO",    name: "Keyera Corp"}
+      # CDRs
+      - {symbol: "XOM.NE",    name: "ExxonMobil (CDR)"}
+      - {symbol: "CVX.NE",    name: "Chevron (CDR)"}
+      - {symbol: "COP.NE",    name: "ConocoPhillips (CDR)"}
+      # Energy ETF
+      - {symbol: "XEG.TO",    name: "iShares S&P/TSX Capped Energy ETF"}
 
     # --- Healthcare & Pharma ---
     healthcare:
-      - {symbol: "JNJ.NE",   name: "Johnson & Johnson (CDR)"}
-      - {symbol: "UNH.NE",   name: "UnitedHealth (CDR)"}
-      - {symbol: "PFE.NE",   name: "Pfizer (CDR)"}
-      - {symbol: "LLY.NE",   name: "Eli Lilly (CDR)"}
-      - {symbol: "ABBV.NE",  name: "AbbVie (CDR)"}
+      # CDRs
+      - {symbol: "JNJ.NE",    name: "Johnson & Johnson (CDR)"}
+      - {symbol: "UNH.NE",    name: "UnitedHealth Group (CDR)"}
+      - {symbol: "PFE.NE",    name: "Pfizer (CDR)"}
+      - {symbol: "LLY.NE",    name: "Eli Lilly (CDR)"}
+      - {symbol: "ABBV.NE",   name: "AbbVie (CDR)"}
+      - {symbol: "AMGN.NE",   name: "Amgen (CDR)"}
+      - {symbol: "GILD.NE",   name: "Gilead Sciences (CDR)"}
+      - {symbol: "ABT.NE",    name: "Abbott Laboratories (CDR)"}
+      - {symbol: "TMO.NE",    name: "Thermo Fisher Scientific (CDR)"}
+      - {symbol: "ISRG.NE",   name: "Intuitive Surgical (CDR)"}
+      - {symbol: "MRNA.NE",   name: "Moderna (CDR)"}
+      # TSX-listed
+      - {symbol: "WELL.TO",   name: "WELL Health Technologies"}
+      # Healthcare ETFs
+      - {symbol: "XHC.TO",    name: "iShares S&P/TSX Capped Healthcare ETF"}
+      - {symbol: "HHL.TO",    name: "Harvest Healthcare Leaders Income ETF"}
 
     # --- Aerospace & Defense ---
     aerospace_defense:
-      - {symbol: "LMT.NE",   name: "Lockheed Martin (CDR)"}
-      - {symbol: "BA.NE",    name: "Boeing (CDR)"}
-      - {symbol: "RTX.NE",   name: "RTX / Raytheon (CDR)"}
-      - {symbol: "CAE.TO",   name: "CAE Inc"}
+      - {symbol: "LMT.NE",    name: "Lockheed Martin (CDR)"}
+      - {symbol: "BA.NE",     name: "Boeing (CDR)"}
+      - {symbol: "RTX.NE",    name: "RTX / Raytheon (CDR)"}
+      - {symbol: "CAE.TO",    name: "CAE Inc"}
 
-    # --- Industrials: Manufacturing, Logistics, Rail ---
+    # --- Industrials: Manufacturing, Logistics, Rail, Engineering ---
     industrials:
-      - {symbol: "CNR.TO",   name: "CN Rail"}
-      - {symbol: "CP.TO",    name: "CP Rail"}
-      - {symbol: "WCN.TO",   name: "Waste Connections"}
-      - {symbol: "MG.TO",    name: "Magna International"}
-      - {symbol: "TRI.TO",   name: "Thomson Reuters"}
-      - {symbol: "CAT.NE",   name: "Caterpillar (CDR)"}
-      - {symbol: "HON.NE",   name: "Honeywell (CDR)"}
-      - {symbol: "UPS.NE",   name: "UPS (CDR)"}
+      # TSX blue chips
+      - {symbol: "CNR.TO",    name: "CN Rail"}
+      - {symbol: "CP.TO",     name: "Canadian Pacific Kansas City"}
+      - {symbol: "WCN.TO",    name: "Waste Connections"}
+      - {symbol: "MG.TO",     name: "Magna International"}
+      - {symbol: "TRI.TO",    name: "Thomson Reuters"}
+      - {symbol: "WSP.TO",    name: "WSP Global"}
+      - {symbol: "TFII.TO",   name: "TFI International"}
+      - {symbol: "GFL.TO",    name: "GFL Environmental"}
+      - {symbol: "STN.TO",    name: "Stantec"}
+      - {symbol: "RBA.TO",    name: "RB Global (Ritchie Bros)"}
+      - {symbol: "ARE.TO",    name: "Aecon Group"}
+      - {symbol: "AND.TO",    name: "Andlauer Healthcare Group"}
+      - {symbol: "SNC.TO",    name: "SNC-Lavalin (AtkinsRealis)"}
+      # CDRs
+      - {symbol: "CAT.NE",    name: "Caterpillar (CDR)"}
+      - {symbol: "HON.NE",    name: "Honeywell (CDR)"}
+      - {symbol: "UPS.NE",    name: "UPS (CDR)"}
+      - {symbol: "GE.NE",     name: "GE Aerospace (CDR)"}
+      - {symbol: "FDX.NE",    name: "FedEx (CDR)"}
 
-    # --- Consumer: Retail, Food, Luxury ---
+    # --- Consumer: Retail, Food & Beverage, Consumer Goods ---
     consumer:
-      - {symbol: "ATD.TO",   name: "Alimentation Couche-Tard"}
-      - {symbol: "DOL.TO",   name: "Dollarama"}
-      - {symbol: "L.TO",     name: "Loblaw"}
-      - {symbol: "QSR.TO",   name: "Restaurant Brands"}
-      - {symbol: "SAP.TO",   name: "Saputo"}
-      - {symbol: "COST.NE",  name: "Costco (CDR)"}
-      - {symbol: "WMT.NE",   name: "Walmart (CDR)"}
-      - {symbol: "MCD.NE",   name: "McDonald's (CDR)"}
-      - {symbol: "KO.NE",    name: "Coca-Cola (CDR)"}
-      - {symbol: "PEP.NE",   name: "PepsiCo (CDR)"}
-      - {symbol: "PG.NE",    name: "Procter & Gamble (CDR)"}
+      # TSX-listed
+      - {symbol: "ATD.TO",    name: "Alimentation Couche-Tard"}
+      - {symbol: "DOL.TO",    name: "Dollarama"}
+      - {symbol: "L.TO",      name: "Loblaw Companies"}
+      - {symbol: "QSR.TO",    name: "Restaurant Brands International"}
+      - {symbol: "SAP.TO",    name: "Saputo"}
+      - {symbol: "GIL.TO",    name: "Gildan Activewear"}
+      - {symbol: "MRU.TO",    name: "Metro Inc"}
+      - {symbol: "EMP-A.TO",  name: "Empire Company (Sobeys)"}
+      - {symbol: "NWC.TO",    name: "North West Company"}
+      - {symbol: "PBH.TO",    name: "Premium Brands Holdings"}
+      - {symbol: "CTC-A.TO",  name: "Canadian Tire"}
+      - {symbol: "BYD.TO",    name: "Boyd Group Services"}
+      # CDRs
+      - {symbol: "COST.NE",   name: "Costco (CDR)"}
+      - {symbol: "WMT.NE",    name: "Walmart (CDR)"}
+      - {symbol: "MCD.NE",    name: "McDonald's (CDR)"}
+      - {symbol: "KO.NE",     name: "Coca-Cola (CDR)"}
+      - {symbol: "PEP.NE",    name: "PepsiCo (CDR)"}
+      - {symbol: "PG.NE",     name: "Procter & Gamble (CDR)"}
+      - {symbol: "NKE.NE",    name: "Nike (CDR)"}
+      - {symbol: "SBUX.NE",   name: "Starbucks (CDR)"}
+      - {symbol: "DIS.NE",    name: "Walt Disney (CDR)"}
+      - {symbol: "HD.NE",     name: "Home Depot (CDR)"}
+      - {symbol: "LULU.NE",   name: "Lululemon (CDR)"}
+      - {symbol: "TJX.NE",    name: "TJX Companies (CDR)"}
+      # Consumer ETF
+      - {symbol: "XST.TO",    name: "iShares S&P/TSX Capped Consumer Staples ETF"}
 
     # --- Materials: Mining, Metals, Forestry ---
     materials:
-      - {symbol: "AEM.TO",   name: "Agnico Eagle Mines"}
-      - {symbol: "ABX.TO",   name: "Barrick Gold"}
-      - {symbol: "NTR.TO",   name: "Nutrien"}
-      - {symbol: "WFG.TO",   name: "West Fraser Timber"}
-      - {symbol: "MNT.TO",   name: "Mint Corp"}
+      # Gold miners
+      - {symbol: "AEM.TO",    name: "Agnico Eagle Mines"}
+      - {symbol: "ABX.TO",    name: "Barrick Gold"}
+      - {symbol: "FNV.TO",    name: "Franco-Nevada"}
+      - {symbol: "WPM.TO",    name: "Wheaton Precious Metals"}
+      - {symbol: "PAAS.TO",   name: "Pan American Silver"}
+      - {symbol: "K.TO",      name: "Kinross Gold"}
+      - {symbol: "SSL.TO",    name: "Sandstorm Gold"}
+      - {symbol: "SII.TO",    name: "Sprott Inc"}
+      # Base metals / diversified miners
+      - {symbol: "FM.TO",     name: "First Quantum Minerals"}
+      - {symbol: "LUN.TO",    name: "Lundin Mining"}
       - {symbol: "TECK-B.TO", name: "Teck Resources"}
-      - {symbol: "FNV.TO",   name: "Franco-Nevada"}
+      - {symbol: "IVN.TO",    name: "Ivanhoe Mines"}
+      - {symbol: "CS.TO",     name: "Capstone Copper"}
+      - {symbol: "HBM.TO",    name: "Hudbay Minerals"}
+      - {symbol: "ERO.TO",    name: "Ero Copper"}
+      - {symbol: "CCO.TO",    name: "Cameco (Uranium)"}
+      - {symbol: "LIF.TO",    name: "Labrador Iron Ore Royalty"}
+      # Fertilizer / forestry
+      - {symbol: "NTR.TO",    name: "Nutrien"}
+      - {symbol: "WFG.TO",    name: "West Fraser Timber"}
+      # Materials ETFs
+      - {symbol: "XMA.TO",    name: "iShares S&P/TSX Capped Materials ETF"}
+      - {symbol: "XGD.TO",    name: "iShares S&P/TSX Global Gold ETF"}
 
     # --- Telecom ---
     telecom:
-      - {symbol: "T.TO",     name: "Telus"}
-      - {symbol: "BCE.TO",   name: "BCE Inc"}
-      - {symbol: "RCI-B.TO", name: "Rogers Communications"}
+      - {symbol: "T.TO",      name: "TELUS Corp"}
+      - {symbol: "BCE.TO",    name: "BCE Inc"}
+      - {symbol: "RCI-B.TO",  name: "Rogers Communications"}
+      - {symbol: "QBR-B.TO",  name: "Quebecor"}
 
     # --- Utilities ---
     utilities:
-      - {symbol: "FTS.TO",   name: "Fortis"}
-      - {symbol: "H.TO",     name: "Hydro One"}
-      - {symbol: "AQN.TO",   name: "Algonquin Power"}
-      - {symbol: "NEE.NE",   name: "NextEra Energy (CDR)"}
+      - {symbol: "FTS.TO",    name: "Fortis Inc"}
+      - {symbol: "H.TO",      name: "Hydro One"}
+      - {symbol: "AQN.TO",    name: "Algonquin Power & Utilities"}
+      - {symbol: "EMA.TO",    name: "Emera Inc"}
+      - {symbol: "CU.TO",     name: "Canadian Utilities"}
+      - {symbol: "CPX.TO",    name: "Capital Power"}
+      - {symbol: "NPI.TO",    name: "Northland Power"}
+      - {symbol: "ALA.TO",    name: "AltaGas"}
+      - {symbol: "BEP-UN.TO", name: "Brookfield Renewable Partners"}
+      - {symbol: "INE.TO",    name: "Innergex Renewable Energy"}
+      - {symbol: "TA.TO",     name: "TransAlta"}
+      - {symbol: "ACO-X.TO",  name: "ATCO Ltd"}
+      - {symbol: "NEE.NE",    name: "NextEra Energy (CDR)"}
+      # Utilities ETF
+      - {symbol: "XUT.TO",    name: "iShares S&P/TSX Capped Utilities ETF"}
 
     # --- Real Estate / REITs ---
     real_estate:
-      - {symbol: "BAM.TO",   name: "Brookfield Asset Mgmt"}
+      - {symbol: "BAM.TO",    name: "Brookfield Asset Management"}
       - {symbol: "REI-UN.TO", name: "RioCan REIT"}
-      - {symbol: "HR-UN.TO", name: "H&R REIT"}
-      - {symbol: "CAR-UN.TO", name: "Canadian Apartment REIT"}
+      - {symbol: "HR-UN.TO",  name: "H&R REIT"}
+      - {symbol: "CAR-UN.TO", name: "Canadian Apartment Properties REIT"}
+      - {symbol: "AP-UN.TO",  name: "Allied Properties REIT"}
+      - {symbol: "GRT-UN.TO", name: "Granite REIT"}
+      - {symbol: "SRU-UN.TO", name: "SmartCentres REIT"}
+      - {symbol: "BEI-UN.TO", name: "Boardwalk REIT"}
+      - {symbol: "DIR-UN.TO", name: "Dream Industrial REIT"}
+      - {symbol: "D-UN.TO",   name: "Dream Office REIT"}
+      - {symbol: "NXR-UN.TO", name: "Nexus REIT"}
+      - {symbol: "SMU-UN.TO", name: "Summit Industrial Income REIT"}
+      - {symbol: "KMP-UN.TO", name: "Killam Apartment REIT"}
+      - {symbol: "TCN.TO",    name: "Tricon Residential"}
+      - {symbol: "IIP-UN.TO", name: "InterRent REIT"}
+      - {symbol: "CRT-UN.TO", name: "CT REIT"}
+      # REIT ETFs
+      - {symbol: "XRE.TO",    name: "iShares S&P/TSX Capped REIT ETF"}
+      - {symbol: "VRE.TO",    name: "Vanguard FTSE Canadian Capped REIT ETF"}
+      - {symbol: "ZRE.TO",    name: "BMO Equal Weight REITs Index ETF"}
+
+    # --- Cannabis ---
+    cannabis:
+      - {symbol: "WEED.TO",   name: "Canopy Growth"}
+      - {symbol: "TLRY.TO",   name: "Tilray Brands"}
+      - {symbol: "ACB.TO",    name: "Aurora Cannabis"}
+      - {symbol: "OGI.TO",    name: "Organigram"}
+      - {symbol: "CRON.TO",   name: "Cronos Group"}
+      - {symbol: "HMMJ.TO",   name: "Horizons Marijuana Life Sciences ETF"}
 
     # --- Crypto / Digital Assets ---
     crypto:
-      - {symbol: "IBIT.NE",  name: "iShares Bitcoin ETF (CDR)"}
+      # Bitcoin
+      - {symbol: "BTCC-B.TO", name: "Purpose Bitcoin ETF"}
       - {symbol: "BTCX-B.TO", name: "CI Galaxy Bitcoin ETF"}
+      - {symbol: "FBTC.TO",   name: "Fidelity Advantage Bitcoin ETF"}
+      - {symbol: "EBIT.TO",   name: "Evolve Bitcoin ETF"}
+      - {symbol: "BTCQ.TO",   name: "3iQ CoinShares Bitcoin ETF"}
+      - {symbol: "BITI.TO",   name: "BetaPro Inverse Bitcoin ETF"}
+      # Ethereum
       - {symbol: "ETHX-B.TO", name: "CI Galaxy Ethereum ETF"}
+      - {symbol: "ETHH.TO",   name: "Purpose Ether ETF"}
+      # Solana
+      - {symbol: "SOLQ.TO",   name: "3iQ Solana Staking ETF"}
+      - {symbol: "SOLX.TO",   name: "CI Galaxy Solana ETF"}
+      - {symbol: "SOLA.TO",   name: "Evolve Solana ETF"}
+      # XRP
+      - {symbol: "XRPQ.TO",   name: "3iQ XRP ETF"}
+      # Multi-crypto
+      - {symbol: "ETC.TO",    name: "Evolve Cryptocurrencies ETF"}
+      # CDR
+      - {symbol: "IBIT.NE",   name: "iShares Bitcoin ETF (CDR)"}
+      # Crypto-adjacent
+      - {symbol: "HUT.TO",    name: "Hut 8 Mining"}
 
-    # --- Broad Market ETFs (CAD-hedged) ---
-    etfs:
-      - {symbol: "XSP.TO",   name: "iShares S&P 500 CAD-hedged"}
-      - {symbol: "ZQQ.TO",   name: "BMO NASDAQ-100 CAD-hedged"}
-      - {symbol: "ZSP.TO",   name: "BMO S&P 500 CAD-hedged"}
-      - {symbol: "HXS.TO",   name: "Horizons S&P 500 CAD-hedged"}
-      - {symbol: "XQQ.TO",   name: "iShares NASDAQ-100 CAD-hedged"}
+    # --- Broad Market ETFs: S&P 500, NASDAQ, Canadian, Global ---
+    etfs_broad_market:
+      # S&P 500
+      - {symbol: "XSP.TO",    name: "iShares S&P 500 Index ETF (CAD-Hedged)"}
+      - {symbol: "ZSP.TO",    name: "BMO S&P 500 Index ETF"}
+      - {symbol: "VFV.TO",    name: "Vanguard S&P 500 Index ETF"}
+      - {symbol: "VSP.TO",    name: "Vanguard S&P 500 Index ETF (CAD-Hedged)"}
+      - {symbol: "HXS.TO",    name: "Global X S&P 500 Index ETF"}
+      - {symbol: "XUS.TO",    name: "iShares Core S&P U.S. Total Market ETF"}
+      - {symbol: "ZUE.TO",    name: "BMO S&P 500 Hedged to CAD ETF"}
+      # NASDAQ
+      - {symbol: "ZQQ.TO",    name: "BMO NASDAQ 100 Equity Hedged to CAD ETF"}
+      - {symbol: "XQQ.TO",    name: "iShares NASDAQ 100 Index ETF (CAD-Hedged)"}
+      - {symbol: "QQC.TO",    name: "Invesco NASDAQ 100 Index ETF"}
+      - {symbol: "HXQ.TO",    name: "Global X NASDAQ 100 Index ETF"}
+      # Canadian broad market
+      - {symbol: "XIU.TO",    name: "iShares S&P/TSX 60 Index ETF"}
+      - {symbol: "XIC.TO",    name: "iShares Core S&P/TSX Capped Composite ETF"}
+      - {symbol: "ZCN.TO",    name: "BMO S&P/TSX Capped Composite Index ETF"}
+      - {symbol: "VCN.TO",    name: "Vanguard FTSE Canada All Cap Index ETF"}
+      - {symbol: "VCE.TO",    name: "Vanguard FTSE Canada Index ETF"}
+      - {symbol: "XMD.TO",    name: "iShares S&P/TSX Completion Index ETF"}
+      - {symbol: "XCS.TO",    name: "iShares S&P/TSX SmallCap Index ETF"}
+      # US total market
+      - {symbol: "VUN.TO",    name: "Vanguard U.S. Total Market Index ETF"}
+      - {symbol: "VUS.TO",    name: "Vanguard U.S. Total Market Index ETF (CAD-Hedged)"}
+      # Global / international
+      - {symbol: "VXC.TO",    name: "Vanguard FTSE Global All Cap ex Canada ETF"}
+      - {symbol: "XAW.TO",    name: "iShares Core MSCI All Country World ex Canada ETF"}
+      - {symbol: "VIU.TO",    name: "Vanguard FTSE Developed All Cap ex NA ETF"}
+      - {symbol: "XEF.TO",    name: "iShares Core MSCI EAFE ETF"}
+      - {symbol: "ZEA.TO",    name: "BMO MSCI EAFE Index ETF"}
+      - {symbol: "XEC.TO",    name: "iShares Core MSCI Emerging Markets ETF"}
+      - {symbol: "VEE.TO",    name: "Vanguard FTSE Emerging Markets All Cap ETF"}
+
+    # --- All-in-One Portfolio ETFs ---
+    etfs_all_in_one:
+      # Vanguard
+      - {symbol: "VEQT.TO",   name: "Vanguard All-Equity ETF Portfolio"}
+      - {symbol: "VGRO.TO",   name: "Vanguard Growth ETF Portfolio"}
+      - {symbol: "VBAL.TO",   name: "Vanguard Balanced ETF Portfolio"}
+      # iShares
+      - {symbol: "XEQT.TO",   name: "iShares Core Equity ETF Portfolio"}
+      - {symbol: "XGRO.TO",   name: "iShares Core Growth ETF Portfolio"}
+      - {symbol: "XBAL.TO",   name: "iShares Core Balanced ETF Portfolio"}
+      # Global X (Horizons)
+      - {symbol: "HGRO.TO",   name: "Global X All-Equity Asset Allocation ETF"}
+      - {symbol: "HBAL.TO",   name: "Global X Balanced Asset Allocation ETF"}
+      # Fidelity
+      - {symbol: "FBAL.TO",   name: "Fidelity All-in-One Balanced ETF"}
+
+    # --- Dividend ETFs ---
+    etfs_dividend:
+      - {symbol: "XDV.TO",    name: "iShares Canadian Select Dividend ETF"}
+      - {symbol: "VDY.TO",    name: "Vanguard FTSE Canadian High Dividend Yield ETF"}
+      - {symbol: "CDZ.TO",    name: "iShares S&P/TSX Canadian Dividend Aristocrats ETF"}
+      - {symbol: "ZDV.TO",    name: "BMO Canadian Dividend ETF"}
+      - {symbol: "PDC.TO",    name: "Invesco Canadian Dividend Index ETF"}
+      - {symbol: "XDIV.TO",   name: "iShares Core MSCI Canadian Quality Dividend ETF"}
+      - {symbol: "XEI.TO",    name: "iShares S&P/TSX Composite High Dividend ETF"}
+      - {symbol: "VGG.TO",    name: "Vanguard U.S. Dividend Appreciation ETF"}
+      - {symbol: "DXM.TO",    name: "CI WisdomTree Canada Quality Div Growth ETF"}
+      - {symbol: "FCCD.TO",   name: "Fidelity Canadian High Dividend ETF"}
+
+    # --- Covered Call ETFs ---
+    etfs_covered_call:
+      # BMO
+      - {symbol: "ZWC.TO",    name: "BMO Canadian High Dividend Covered Call ETF"}
+      - {symbol: "ZWB.TO",    name: "BMO Covered Call Canadian Banks ETF"}
+      - {symbol: "ZWK.TO",    name: "BMO Covered Call U.S. Banks ETF"}
+      - {symbol: "ZWA.TO",    name: "BMO Covered Call Dow Jones Industrial Avg ETF"}
+      - {symbol: "ZWT.TO",    name: "BMO Covered Call Technology ETF"}
+      - {symbol: "ZWU.TO",    name: "BMO Covered Call Utilities ETF"}
+      - {symbol: "ZWH.TO",    name: "BMO U.S. High Dividend Covered Call ETF"}
+      - {symbol: "ZWP.TO",    name: "BMO Europe High Dividend Covered Call ETF"}
+      # Hamilton
+      - {symbol: "HDIV.TO",   name: "Hamilton Enhanced Canadian Covered Call ETF"}
+      - {symbol: "HYLD.TO",   name: "Hamilton Enhanced U.S. Covered Call ETF"}
+      - {symbol: "HMAX.TO",   name: "Hamilton Canadian Financials Yield Maximizer ETF"}
+      # Harvest
+      - {symbol: "HTA.TO",    name: "Harvest Tech Achievers Growth & Income ETF"}
+
+    # --- Bond / Fixed Income ETFs ---
+    etfs_bonds:
+      - {symbol: "ZAG.TO",    name: "BMO Aggregate Bond Index ETF"}
+      - {symbol: "XBB.TO",    name: "iShares Core Canadian Universe Bond ETF"}
+      - {symbol: "VAB.TO",    name: "Vanguard Canadian Aggregate Bond ETF"}
+      - {symbol: "CLF.TO",    name: "iShares 1-5 Year Laddered Corporate Bond ETF"}
+      - {symbol: "XGB.TO",    name: "iShares Canadian Government Bond ETF"}
+      - {symbol: "ZFL.TO",    name: "BMO Long Federal Bond Index ETF"}
+      - {symbol: "PSA.TO",    name: "Purpose High Interest Savings ETF"}
+      - {symbol: "CSAV.TO",   name: "CI High Interest Savings ETF"}
+
+    # --- Gold / Commodities ETFs ---
+    etfs_commodities:
+      # Gold
+      - {symbol: "ZGLD.TO",   name: "BMO Gold Bullion ETF"}
+      - {symbol: "CGL.TO",    name: "iShares Gold Bullion ETF (CAD-Hedged)"}
+      - {symbol: "KILO.TO",   name: "CI Gold Bullion ETF"}
+      - {symbol: "MNT.TO",    name: "Royal Canadian Mint Gold Reserves"}
+      - {symbol: "HUG.TO",    name: "Global X Gold ETF"}
+      - {symbol: "ZGD.TO",    name: "BMO Equal Weight Global Gold Index ETF"}
+      # Other commodities
+      - {symbol: "HUC.TO",    name: "Global X Crude Oil ETF"}
+      - {symbol: "HUN.TO",    name: "Global X Natural Gas ETF"}
+      - {symbol: "HUZ.TO",    name: "Global X Silver ETF"}
+      - {symbol: "VALT.TO",   name: "CI Gold + Silver Bullion ETF"}
+
+    # --- Leveraged / Inverse ETFs (BetaPro by Global X) ---
+    etfs_leveraged:
+      # NASDAQ 100
+      - {symbol: "HQU.TO",    name: "BetaPro NASDAQ-100 2x Daily Bull ETF"}
+      - {symbol: "HQD.TO",    name: "BetaPro NASDAQ-100 -2x Daily Bear ETF"}
+      # S&P/TSX 60
+      - {symbol: "HXU.TO",    name: "BetaPro S&P/TSX 60 2x Daily Bull ETF"}
+      - {symbol: "HXD.TO",    name: "BetaPro S&P/TSX 60 -2x Daily Bear ETF"}
+      # S&P 500
+      - {symbol: "HSU.TO",    name: "BetaPro S&P 500 2x Daily Bull ETF"}
+      - {symbol: "HSD.TO",    name: "BetaPro S&P 500 -2x Daily Bear ETF"}
+      # Gold
+      - {symbol: "HBU.TO",    name: "BetaPro Gold Bullion 2x Daily Bull ETF"}
+      - {symbol: "HBD.TO",    name: "BetaPro Gold Bullion -2x Daily Bear ETF"}
+      # Energy
+      - {symbol: "HEU.TO",    name: "BetaPro S&P/TSX Capped Energy 2x Daily Bull ETF"}
+      - {symbol: "HED.TO",    name: "BetaPro S&P/TSX Capped Energy -2x Daily Bear ETF"}
+      # Crude oil
+      - {symbol: "HOU.TO",    name: "BetaPro Crude Oil Leveraged Daily Bull ETF"}
+      - {symbol: "HOD.TO",    name: "BetaPro Crude Oil Inverse Leveraged Daily Bear ETF"}
+      # Natural gas
+      - {symbol: "HNU.TO",    name: "BetaPro Natural Gas Leveraged Daily Bull ETF"}
+      - {symbol: "HND.TO",    name: "BetaPro Natural Gas Inverse Leveraged Daily Bear ETF"}
+
+    # --- Thematic / Sector ETFs ---
+    etfs_thematic:
+      - {symbol: "HCLN.TO",   name: "Harvest Clean Energy ETF"}
+      - {symbol: "CNCC.TO",   name: "Global X S&P/TSX 60 Covered Call ETF"}
+      - {symbol: "XMV.TO",    name: "iShares MSCI Min Volatility Canada ETF"}
+      - {symbol: "XCG.TO",    name: "iShares Canadian Growth Index ETF"}
+      - {symbol: "XCV.TO",    name: "iShares Canadian Value Index ETF"}
+      - {symbol: "ZEB.TO",    name: "BMO Equal Weight Banks Index ETF"}
+      - {symbol: "ZUB.TO",    name: "BMO Equal Weight U.S. Banks Hedged to CAD ETF"}
+      - {symbol: "ZUH.TO",    name: "BMO Equal Weight U.S. Health Care Hedged ETF"}
+      - {symbol: "ZGI.TO",    name: "BMO Global Infrastructure Index ETF"}
+      - {symbol: "XESG.TO",   name: "iShares ESG Aware MSCI Canada ETF"}
 
   # Diversification limits
   max_sector_pct: 0.40  # Max 40% of portfolio in one sector

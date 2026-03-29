@@ -92,7 +92,7 @@ web/                          # Next.js dashboard (Bun, App Router, Tailwind, Re
 ### Data Flow
 
 **Signal generation (every 15 min during market hours):**
-`cogs/tasks.py` → `strategy.get_top_recommendations()` → for each of ~92 symbols:
+`cogs/tasks.py` → `strategy.get_top_recommendations()` → for each of ~333 symbols:
 1. `market_data` fetches 60 days of daily bars via yfinance
 2. `signals.compute_indicators()` runs TA-Lib (EMA, RSI, MACD, Bollinger Bands, ATR)
 3. `sentiment.analyze()` fetches analyst consensus + Fear & Greed + news headlines (cached)
@@ -244,7 +244,7 @@ Same-sector sell-to-fund swaps are exempt from the 40% sector cap penalty. Swapp
 
 ## Symbol Universe
 
-~92 securities across 12 sectors (configured in `config/settings.yaml`). Symbols ending in `.TO` are TSX-listed; `.NE` are CDRs on CBOE Canada. CDR data falls back to US counterpart via yfinance when `.NE` data is unavailable.
+~333 securities across 21 sectors (configured in `config/settings.yaml`). Symbols ending in `.TO` are TSX-listed; `.NE` are CDRs on CBOE Canada. CDR data falls back to US counterpart via yfinance when `.NE` data is unavailable.
 
 ## Market Data
 

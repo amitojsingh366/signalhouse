@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any
 
 import pandas as pd
@@ -15,6 +16,8 @@ logger = logging.getLogger(__name__)
 _CDR_OVERRIDES: dict[str, str] = {
     "GOOG.NE": "GOOGL",
 }
+
+_HISTORY_CACHE_TTL = 300  # 5 minutes
 
 
 def _build_cdr_map(symbols: list[str]) -> dict[str, str]:
@@ -44,6 +47,7 @@ class MarketData:
             self.symbols = config["strategy"].get("symbols", [])
 
         self.cdr_to_us = _build_cdr_map(self.symbols)
+        self._history_cache: dict[str, tuple[float, pd.DataFrame]] = {}
 
     def _resolve_ticker(self, symbol: str) -> str:
         return symbol
@@ -51,6 +55,13 @@ class MarketData:
     async def get_historical_data(
         self, symbol: str, period: str = "60d"
     ) -> pd.DataFrame | None:
+        cache_key = f"{symbol}:{period}"
+        cached = self._history_cache.get(cache_key)
+        if cached:
+            ts, df = cached
+            if time.monotonic() - ts < _HISTORY_CACHE_TTL:
+                return df.copy()
+
         ticker = self._resolve_ticker(symbol)
 
         try:
@@ -73,7 +84,8 @@ class MarketData:
             logger.debug("No data available for %s", symbol)
             return None
 
-        return df
+        self._history_cache[cache_key] = (time.monotonic(), df)
+        return df.copy()
 
     def _fetch_history(self, ticker: str, period: str) -> pd.DataFrame | None:
         t = yf.Ticker(ticker)

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trader_api.database import get_db
-from trader_api.deps import get_market_data, get_risk, make_portfolio, make_strategy
+from trader_api.deps import get_commodity, get_market_data, get_risk, make_portfolio, make_strategy
 from trader_api.schemas import ExitAlertOut, InsightsOut, RecommendationOut, SignalOut
 
 router = APIRouter(prefix="/api/signals", tags=["signals"])
@@ -131,6 +131,33 @@ async def get_price_history(symbol: str, period: str = "60d"):
             "volume": int(row.get("volume", 0)),
         })
     return {"symbol": symbol, "bars": bars}
+
+
+@router.get("/commodities")
+async def get_commodities():
+    """Get current commodity/crypto prices and overnight moves."""
+    from trader_api.services.commodity import COMMODITY_SECTORS
+
+    correlator = get_commodity()
+    results = []
+    for ticker, (name, _) in COMMODITY_SECTORS.items():
+        data = await correlator._get_overnight_change(ticker)
+        if data:
+            price, change_pct = data
+            results.append({
+                "ticker": ticker,
+                "name": name,
+                "price": round(price, 2),
+                "change_pct": round(change_pct * 100, 2),
+            })
+        else:
+            results.append({
+                "ticker": ticker,
+                "name": name,
+                "price": None,
+                "change_pct": None,
+            })
+    return {"commodities": results}
 
 
 @router.get("/insights", response_model=InsightsOut)

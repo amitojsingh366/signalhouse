@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -12,6 +13,9 @@ from trader_api.services.sentiment import SentimentAnalyzer
 from trader_api.services.signals import Signal, SignalResult, compute_indicators, generate_signal
 
 logger = logging.getLogger(__name__)
+
+# Max concurrent symbol scans — limits yfinance request pressure
+_SCAN_CONCURRENCY = 20
 
 
 class Strategy:
@@ -100,36 +104,47 @@ class Strategy:
 
         return result
 
+    async def _scan_one(
+        self, symbol: str, sem: asyncio.Semaphore
+    ) -> SignalResult | None:
+        """Scan a single symbol (called concurrently with semaphore)."""
+        async with sem:
+            df = await self.market_data.get_historical_data(symbol, period="60d")
+            if df is None or len(df) < 35:
+                return None
+
+            df = compute_indicators(df, self.config)
+            sent = await self.sentiment.analyze(symbol)
+            result = generate_signal(
+                df, self.config, sentiment_score=sent.total_score
+            )
+            result.symbol = symbol
+
+            if result.signal == Signal.BUY and result.strength >= 0.35:
+                result.reasons.extend(sent.reasons)
+                result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
+                return result
+            elif result.signal == Signal.SELL and result.strength >= 0.3:
+                result.reasons.extend(sent.reasons)
+                result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
+                return result
+            return None
+
     async def scan_universe(self) -> list[SignalResult]:
-        logger.info("Scanning %d symbols...", len(self.symbols))
+        logger.info("Scanning %d symbols (%d concurrent)...", len(self.symbols), _SCAN_CONCURRENCY)
+        sem = asyncio.Semaphore(_SCAN_CONCURRENCY)
+
+        tasks = [self._scan_one(symbol, sem) for symbol in self.symbols]
+        outcomes = await asyncio.gather(*tasks, return_exceptions=True)
+
         results: list[SignalResult] = []
         errors = 0
-
-        for symbol in self.symbols:
-            try:
-                df = await self.market_data.get_historical_data(symbol, period="60d")
-                if df is None or len(df) < 35:
-                    continue
-
-                df = compute_indicators(df, self.config)
-                sent = await self.sentiment.analyze(symbol)
-                result = generate_signal(
-                    df, self.config, sentiment_score=sent.total_score
-                )
-                result.symbol = symbol
-
-                if result.signal == Signal.BUY and result.strength >= 0.35:
-                    result.reasons.extend(sent.reasons)
-                    result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
-                    results.append(result)
-                elif result.signal == Signal.SELL and result.strength >= 0.3:
-                    result.reasons.extend(sent.reasons)
-                    result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
-                    results.append(result)
-
-            except Exception:
+        for outcome in outcomes:
+            if isinstance(outcome, Exception):
                 errors += 1
-                logger.exception("Error scanning %s", symbol)
+                logger.exception("Scan error: %s", outcome)
+            elif outcome is not None:
+                results.append(outcome)
 
         results.sort(key=lambda r: r.strength, reverse=True)
         logger.info("Scan complete: %d actionable signals, %d errors", len(results), errors)

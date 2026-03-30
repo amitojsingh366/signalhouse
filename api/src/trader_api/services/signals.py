@@ -126,7 +126,8 @@ def generate_signal(
         score += sentiment_score
 
     # Convert score to signal
-    max_possible = 8.0
+    # Technical (±6) + sentiment (±2) + commodity (±1) = ±9 max
+    max_possible = 9.0
     strength = min(abs(score) / max_possible, 1.0)
 
     if score >= 2.0:

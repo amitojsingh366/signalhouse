@@ -170,6 +170,7 @@ ORM models in `api/src/trader_api/models.py`:
 | GET | `/api/signals/check/{symbol}` | Signal + sentiment for a symbol |
 | GET | `/api/signals/recommend` | Top buy/sell signals |
 | GET | `/api/signals/insights` | Daily insights |
+| GET | `/api/signals/commodities` | Live commodity/crypto prices and overnight moves |
 | GET | `/api/status` | System status |
 | POST | `/api/upload/parse` | Parse screenshot via Claude vision |
 | POST | `/api/upload/confirm` | Confirm parsed holdings |
@@ -196,13 +197,27 @@ Three sources added to technical score:
 
 All fail silently to 0 — sentiment never blocks signal generation.
 
+### Commodity Correlation (±1.0)
+
+Live commodity/crypto futures (which trade nearly 24/7) are used to boost/dampen signals for correlated assets. Fetched via yfinance, cached 5 min. Only triggers on moves >= 0.5%.
+
+- **Gold (GC=F)**: Gold miners (AEM, ABX, FNV, K, etc.), gold ETFs (ZGLD, CGL, KILO, HUG), leveraged gold ETFs
+- **Crude Oil (CL=F)**: Oil producers (SU, CNQ, CVE, IMO, etc.), energy ETFs (XEG), pipelines, leveraged oil ETFs
+- **Natural Gas (NG=F)**: Gas-focused producers (TOU, PEY, CR, BIR), commodity ETFs (HUN), leveraged natgas ETFs
+- **Silver (SI=F)**: Silver miners (PAAS), silver ETFs (HUZ, VALT)
+- **Bitcoin (BTC-USD)**: Bitcoin ETFs (BTCC-B, BTCX-B, FBTC, IBIT), crypto-adjacent (HUT, COIN)
+- **Ethereum (ETH-USD)**: Ether ETFs (ETHX-B, ETHH)
+- **Solana (SOL-USD)**: Solana ETFs (SOLQ, SOLX, SOLA)
+
+Per-symbol overrides (tight correlations like gold miners) take priority over sector-level defaults. Inverse ETFs use negative weights so the signal flips correctly. Service defined in `api/src/trader_api/services/commodity.py`.
+
 ### Strength & Filtering
 
-`strength = min(|score| / 8.0, 1.0)` — 0% to 100%. BUY signals need ≥ 35% strength to surface in scans. SELL signals need ≥ 30%. Non-held sell signals show as "Watchlist Alerts" instead of being hidden.
+`strength = min(|score| / 9.0, 1.0)` — 0% to 100%. BUY signals need ≥ 35% strength to surface in scans. SELL signals need ≥ 30%. Non-held sell signals show as "Watchlist Alerts" instead of being hidden.
 
 ### Score Display
 
-Every signal displays its total score (e.g. `-2.5/8`) next to the badge. Each factor shows its contribution (e.g. `[+1.5]`, `[-0.5]`) color-coded green/red in the web UI. Sentiment reasons also include score tags.
+Every signal displays its total score (e.g. `-2.5/9`) next to the badge. Each factor shows its contribution (e.g. `[+1.5]`, `[-0.5]`) color-coded green/red in the web UI. Sentiment and commodity reasons also include score tags.
 
 ### Sector Cap Swap Exemption
 

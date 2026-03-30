@@ -42,10 +42,12 @@ class SentimentResult:
     fear_greed_label: str = ""
     news_score: float = 0.0
     news_headlines: list[str] = field(default_factory=list)
+    commodity_score: float = 0.0
+    commodity_reasons: list[str] = field(default_factory=list)
 
     @property
     def total_score(self) -> float:
-        return self.analyst_score + self.fear_greed_score + self.news_score
+        return self.analyst_score + self.fear_greed_score + self.news_score + self.commodity_score
 
     @property
     def reasons(self) -> list[str]:
@@ -57,6 +59,7 @@ class SentimentResult:
         if abs(self.news_score) >= 0.1:
             direction = "positive" if self.news_score > 0 else "negative"
             r.append(f"News sentiment: {direction} [{self.news_score:+.1f}]")
+        r.extend(self.commodity_reasons)
         return r
 
 
@@ -73,8 +76,15 @@ class _CacheEntry:
 
 
 class SentimentAnalyzer:
-    def __init__(self, cdr_to_us: dict[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        cdr_to_us: dict[str, str] | None = None,
+        commodity_correlator: Any | None = None,
+        symbol_to_sector: dict[str, str] | None = None,
+    ) -> None:
         self._cdr_to_us = cdr_to_us or {}
+        self._commodity = commodity_correlator
+        self._symbol_to_sector = symbol_to_sector or {}
         self._analyst_cache: dict[str, _CacheEntry] = {}
         self._news_cache: dict[str, _CacheEntry] = {}
         self._fear_greed_cache: _CacheEntry | None = None
@@ -240,6 +250,17 @@ class SentimentAnalyzer:
         else:
             fg_score = -0.5
 
+        commodity_score = 0.0
+        commodity_reasons: list[str] = []
+        if self._commodity:
+            try:
+                sector = self._symbol_to_sector.get(symbol, "")
+                corr = await self._commodity.get_correlation(symbol, sector)
+                commodity_score = corr.total_score
+                commodity_reasons = corr.reasons
+            except Exception:
+                logger.debug("Commodity correlation failed for %s", symbol)
+
         return SentimentResult(
             analyst_score=analyst_score,
             analyst_summary=analyst_summary,
@@ -248,4 +269,6 @@ class SentimentAnalyzer:
             fear_greed_label=fg_label,
             news_score=news_score,
             news_headlines=headlines,
+            commodity_score=commodity_score,
+            commodity_reasons=commodity_reasons,
         )

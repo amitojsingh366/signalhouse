@@ -253,11 +253,13 @@ class CommodityCorrelator:
 
             name = COMMODITY_SECTORS.get(commodity, (commodity, {}))[0]
 
-            # Score = change% * weight * scale, capped at ±0.5 per commodity.
+            # Score = change% * weight * scale, capped per commodity.
             # Scale of 15 means a 1% move with weight 0.85 → ~0.13 score.
             # Negative weights (inverse ETFs) naturally invert the signal.
+            # Normal cap is ±0.5; extreme moves (>5%) get ±1.0.
             adjustment = pct_change * weight * 15.0
-            adjustment = max(-0.5, min(0.5, adjustment))
+            cap = 1.0 if abs(pct_change) >= 0.05 else 0.5
+            adjustment = max(-cap, min(cap, adjustment))
 
             direction = "up" if pct_change > 0 else "down"
             result.moves.append(CommodityMove(

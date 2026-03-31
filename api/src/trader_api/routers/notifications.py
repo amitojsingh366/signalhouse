@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from trader_api.auth import require_auth
 from trader_api.database import get_db
 from trader_api.models import DeviceRegistration, NotificationLog
 from trader_api.schemas import (
@@ -17,7 +18,7 @@ from trader_api.schemas import (
     NotificationPrefsOut,
 )
 
-router = APIRouter(prefix="/api/notifications", tags=["notifications"])
+router = APIRouter(prefix="/api/notifications", tags=["notifications"], dependencies=[Depends(require_auth)])
 
 
 @router.post("/register")

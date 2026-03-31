@@ -1,13 +1,42 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
+// Auth token persistence
+const TOKEN_KEY = "trader_auth_token";
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setAuthToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearAuthToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+// Global 401 handler — set by AuthGate component
+let _onUnauthorized: (() => void) | null = null;
+export function setOnUnauthorized(fn: (() => void) | null): void {
+  _onUnauthorized = fn;
+}
+
 async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getAuthToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   });
+  if (res.status === 401) {
+    clearAuthToken();
+    _onUnauthorized?.();
+    throw new Error("Authentication required");
+  }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`API ${res.status}: ${body}`);
@@ -204,10 +233,17 @@ export const api = {
   parseScreenshot: async (file: File): Promise<UploadHolding[]> => {
     const form = new FormData();
     form.append("file", file);
+    const token = getAuthToken();
     const res = await fetch(`${API_BASE}/api/upload/parse`, {
       method: "POST",
       body: form,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
+    if (res.status === 401) {
+      clearAuthToken();
+      _onUnauthorized?.();
+      throw new Error("Authentication required");
+    }
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       throw new Error(body?.detail || `Upload failed: ${res.status}`);
@@ -222,4 +258,27 @@ export const api = {
 
   // Symbols
   getSymbols: () => fetchAPI<SymbolInfo[]>("/api/symbols"),
+
+  // Auth
+  getAuthStatus: () =>
+    fetchAPI<{
+      registered: boolean;
+      credentials: { id: number; name: string; created_at: string | null }[];
+    }>("/api/auth/status"),
+  getRegisterOptions: () =>
+    fetchAPI<Record<string, unknown>>("/api/auth/register/options", { method: "POST" }),
+  verifyRegistration: (credential: Record<string, unknown>) =>
+    fetchAPI<{ status: string; token: string }>("/api/auth/register/verify", {
+      method: "POST",
+      body: JSON.stringify(credential),
+    }),
+  getLoginOptions: () =>
+    fetchAPI<Record<string, unknown>>("/api/auth/login/options", { method: "POST" }),
+  verifyLogin: (credential: Record<string, unknown>) =>
+    fetchAPI<{ status: string; token: string }>("/api/auth/login/verify", {
+      method: "POST",
+      body: JSON.stringify(credential),
+    }),
+  deleteCredential: (id: number) =>
+    fetchAPI<{ status: string }>(`/api/auth/credentials/${id}`, { method: "DELETE" }),
 };

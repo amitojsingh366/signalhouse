@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, Integer, LargeBinary, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from trader_api.database import Base
@@ -110,3 +110,21 @@ class NotificationLog(Base):
     delivered: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     acknowledged: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class WebAuthnCredential(Base):
+    """Registered passkeys for authentication."""
+
+    __tablename__ = "webauthn_credentials"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    credential_id: Mapped[bytes] = mapped_column(
+        LargeBinary, unique=True, nullable=False, index=True
+    )
+    public_key: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    sign_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    transports: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON array
+    name: Mapped[str] = mapped_column(String(100), nullable=False, default="Passkey")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

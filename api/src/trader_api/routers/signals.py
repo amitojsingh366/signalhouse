@@ -7,11 +7,12 @@ import asyncio
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from trader_api.auth import require_auth
 from trader_api.database import get_db
 from trader_api.deps import get_commodity, get_market_data, get_risk, make_portfolio, make_strategy
 from trader_api.schemas import ExitAlertOut, InsightsOut, RecommendationOut, SignalOut
 
-router = APIRouter(prefix="/api/signals", tags=["signals"])
+router = APIRouter(prefix="/api/signals", tags=["signals"], dependencies=[Depends(require_auth)])
 
 
 @router.get("/check/{symbol}", response_model=SignalOut)

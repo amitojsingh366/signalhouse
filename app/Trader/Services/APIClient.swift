@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// REST API client mirroring web/lib/api.ts.
@@ -6,6 +7,9 @@ final class APIClient: ObservableObject {
     let baseURL: String
     private let session: URLSession
     private let decoder: JSONDecoder
+
+    /// Called when a 401 is received — set by AuthManager
+    var onUnauthorized: (() -> Void)?
 
     init(baseURL: String) {
         self.baseURL = baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -29,6 +33,11 @@ final class APIClient: ObservableObject {
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        // Inject auth token if available
+        if let token = AuthManager.getToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
         if let body {
             let encoder = JSONEncoder()
             encoder.keyEncodingStrategy = .convertToSnakeCase
@@ -40,6 +49,13 @@ final class APIClient: ObservableObject {
         guard let http = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
         }
+
+        if http.statusCode == 401 {
+            AuthManager.clearToken()
+            onUnauthorized?()
+            throw APIError.httpError(401, "Authentication required")
+        }
+
         guard (200...299).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? ""
             throw APIError.httpError(http.statusCode, body)
@@ -139,6 +155,9 @@ final class APIClient: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        if let token = AuthManager.getToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         var body = Data()
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
@@ -203,6 +222,54 @@ final class APIClient: ObservableObject {
     func getNotificationHistory(token: String, limit: Int = 20) async throws -> [NotificationLogOut] {
         let encoded = token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? token
         return try await fetch("/api/notifications/history?device_token=\(encoded)&limit=\(limit)")
+    }
+
+    // MARK: - Auth
+
+    func getAuthStatus() async throws -> AuthStatusOut {
+        try await fetch("/api/auth/status")
+    }
+
+    func getRegisterOptions() async throws -> [String: AnyCodable] {
+        try await fetch("/api/auth/register/options", method: "POST")
+    }
+
+    func verifyRegistration(credential: [String: Any]) async throws -> AuthTokenOut {
+        guard let url = URL(string: "\(baseURL)/api/auth/register/verify") else {
+            throw APIError.invalidURL("/api/auth/register/verify")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: credential)
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            let text = String(data: data, encoding: .utf8) ?? ""
+            throw APIError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0, text)
+        }
+        return try decoder.decode(AuthTokenOut.self, from: data)
+    }
+
+    func getLoginOptions() async throws -> [String: AnyCodable] {
+        try await fetch("/api/auth/login/options", method: "POST")
+    }
+
+    func verifyLogin(credential: [String: Any]) async throws -> AuthTokenOut {
+        guard let url = URL(string: "\(baseURL)/api/auth/login/verify") else {
+            throw APIError.invalidURL("/api/auth/login/verify")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: credential)
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            let text = String(data: data, encoding: .utf8) ?? ""
+            throw APIError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0, text)
+        }
+        return try decoder.decode(AuthTokenOut.self, from: data)
     }
 
     // MARK: - Health check (for onboarding)

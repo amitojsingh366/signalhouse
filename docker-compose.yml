@@ -31,6 +31,9 @@ services:
       - APNS_TEAM_ID=${APNS_TEAM_ID:-}
       - APNS_BUNDLE_ID=${APNS_BUNDLE_ID:-}
       - APNS_SANDBOX=${APNS_SANDBOX:-false}
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - WEBAUTHN_RP_ID=${WEBAUTHN_RP_ID:-yourdomain.com}
+      - WEBAUTHN_RP_NAME=${WEBAUTHN_RP_NAME:-Trader}
     volumes:
       - ./config:/app/config:ro
     expose:
@@ -73,6 +76,8 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      - APPLE_TEAM_ID=${APNS_TEAM_ID:-XXXXXXXXXX}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

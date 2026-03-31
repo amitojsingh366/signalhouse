@@ -167,6 +167,24 @@ struct PriceHistory: Codable {
     let bars: [PriceBar]
 }
 
+// MARK: - Auth
+
+struct AuthStatusOut: Codable {
+    let registered: Bool
+    let credentials: [AuthCredentialInfo]
+}
+
+struct AuthCredentialInfo: Codable, Identifiable {
+    let id: Int
+    let name: String
+    let createdAt: String?
+}
+
+struct AuthTokenOut: Codable {
+    let status: String
+    let token: String
+}
+
 // MARK: - AnyCodable (generic JSON value)
 
 struct AnyCodable: Codable {

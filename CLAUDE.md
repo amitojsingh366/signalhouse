@@ -84,9 +84,9 @@ bot/src/trader_bot/           # Discord bot (imports trader_api)
     └── tasks.py              # Scheduled loops (scans, briefings, recaps)
 
 web/                          # Next.js dashboard (Bun, App Router, Tailwind, Recharts)
-├── app/                      # Pages (dashboard, portfolio, signals, trades, upload, status)
-├── components/ui/            # Reusable components (stat cards, charts, tables, sidebar)
-├── lib/api.ts                # API client with TypeScript types
+├── app/                      # Pages (dashboard, portfolio, signals, trades, upload, status, settings)
+├── components/ui/            # Reusable components (stat cards, charts, tables, sidebar, auth-gate)
+├── lib/api.ts                # API client with TypeScript types + auth token injection
 └── lib/utils.ts              # Formatting helpers (currency, percent, cn)
 ```
 
@@ -157,6 +157,7 @@ ORM models in `api/src/trader_api/models.py`:
 | Trades | `/trades` | Buy/sell forms, trade history table |
 | Upload | `/upload` | Screenshot dropzone, parsed holdings editor, confirm/cancel |
 | Status | `/status` | Uptime, market status, symbols tracked, risk status |
+| Settings | `/settings` | Passkey management, authentication status |
 
 ## REST API Endpoints
 
@@ -181,6 +182,12 @@ ORM models in `api/src/trader_api/models.py`:
 | PUT | `/api/notifications/preferences` | Toggle notifications (enabled, daily mute) |
 | GET | `/api/notifications/history` | Recent notification log |
 | POST | `/api/notifications/acknowledge/{id}` | Mark notification acknowledged |
+| GET | `/api/auth/status` | Check if passkeys registered (no auth required) |
+| POST | `/api/auth/register/options` | WebAuthn registration challenge |
+| POST | `/api/auth/register/verify` | Verify registration, store credential, return JWT |
+| POST | `/api/auth/login/options` | WebAuthn authentication challenge |
+| POST | `/api/auth/login/verify` | Verify authentication, return JWT |
+| DELETE | `/api/auth/credentials/{id}` | Delete a registered passkey |
 
 ## Signal System
 

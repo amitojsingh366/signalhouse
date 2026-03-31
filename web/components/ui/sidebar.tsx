@@ -10,6 +10,7 @@ import {
   Zap,
   Upload,
   Activity,
+  Settings,
   Menu,
   X,
 } from "lucide-react";
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { href: "/trades", label: "Trades", icon: ArrowLeftRight },
   { href: "/upload", label: "Upload", icon: Upload },
   { href: "/status", label: "Status", icon: Activity },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function Sidebar() {

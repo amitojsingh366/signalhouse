@@ -5,11 +5,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from trader_api.auth import require_auth
 from trader_api.database import get_db
 from trader_api.deps import get_risk, make_portfolio
 from trader_api.schemas import TradeIn, TradeOut
 
-router = APIRouter(prefix="/api/trades", tags=["trades"])
+router = APIRouter(prefix="/api/trades", tags=["trades"], dependencies=[Depends(require_auth)])
 
 
 @router.post("/buy", response_model=TradeOut)

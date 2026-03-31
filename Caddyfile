@@ -2,6 +2,12 @@ yourdomain.com {
 	# Caddy auto-HTTPS (Let's Encrypt).
 	# Cloudflare proxied — Caddy likely has a cached cert from initial setup.
 
+	# Apple app-site-association for passkeys (Associated Domains)
+	handle /.well-known/apple-app-site-association {
+		header Content-Type application/json
+		respond `{"webcredentials":{"apps":["{$APPLE_TEAM_ID:XXXXXXXXXX}.net.amitoj.trader"]}}`
+	}
+
 	# API endpoints — proxy to FastAPI
 	handle /api/* {
 		reverse_proxy api:8000

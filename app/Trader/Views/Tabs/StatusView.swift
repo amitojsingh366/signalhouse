@@ -5,12 +5,17 @@ struct StatusView: View {
     @EnvironmentObject private var config: AppConfig
     @EnvironmentObject private var pushManager: PushManager
 
+    @EnvironmentObject private var authManager: AuthManager
+
     @State private var status: StatusOut?
     @State private var isLoading = true
     @State private var notifPrefs: NotificationPrefsOut?
     @State private var notifHistory: [NotificationLogOut] = []
     @State private var notifEnabled = true
     @State private var isMutedToday = false
+    @State private var authStatus: AuthStatusOut?
+    @State private var isRegistering = false
+    @State private var authError: String?
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
@@ -128,6 +133,72 @@ struct StatusView: View {
                     }
                 }
 
+                // Authentication
+                Section {
+                    if let authStatus {
+                        HStack {
+                            Text("Status")
+                            Spacer()
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(authStatus.registered ? Theme.positive : Theme.warning)
+                                    .frame(width: 8, height: 8)
+                                Text(authStatus.registered ? "Active" : "Disabled")
+                            }
+                        }
+
+                        ForEach(authStatus.credentials) { cred in
+                            HStack {
+                                Image(systemName: "key.fill")
+                                    .foregroundStyle(Theme.brand)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(cred.name)
+                                        .fontWeight(.medium)
+                                    if let date = cred.createdAt {
+                                        Text(date.prefix(10))
+                                            .font(.caption2)
+                                            .foregroundStyle(Theme.textDimmed)
+                                    }
+                                }
+                                Spacer()
+                            }
+                        }
+                    }
+
+                    Button {
+                        Task { await registerPasskey() }
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                            Text(isRegistering ? "Registering..." : "Register Passkey")
+                        }
+                    }
+                    .disabled(isRegistering)
+                    .foregroundStyle(Theme.brand)
+
+                    if authManager.authRequired {
+                        Button {
+                            Task { await loginWithPasskey() }
+                        } label: {
+                            HStack {
+                                Image(systemName: "key.fill")
+                                Text("Re-authenticate")
+                            }
+                        }
+                        .foregroundStyle(Theme.brand)
+                    }
+
+                    if let authError {
+                        Text(authError)
+                            .font(.caption)
+                            .foregroundStyle(Theme.negative)
+                    }
+                } header: {
+                    Text("Authentication")
+                } footer: {
+                    Text("Passkeys protect your API with biometric authentication. Once registered, all requests require a valid token.")
+                }
+
                 // Connection info
                 Section("Connection") {
                     LabeledContent("API Server") {
@@ -147,12 +218,36 @@ struct StatusView: View {
         }
     }
 
+    private func registerPasskey() async {
+        isRegistering = true
+        authError = nil
+        defer { isRegistering = false }
+
+        do {
+            try await authManager.register(client: client)
+            authStatus = try? await client.getAuthStatus()
+        } catch {
+            authError = error.localizedDescription
+        }
+    }
+
+    private func loginWithPasskey() async {
+        authError = nil
+        do {
+            try await authManager.login(client: client)
+        } catch {
+            authError = error.localizedDescription
+        }
+    }
+
     private func loadAll() async {
         isLoading = true
         defer { isLoading = false }
 
         async let s = client.getStatus()
+        async let a = client.getAuthStatus()
         do { status = try await s } catch {}
+        do { authStatus = try await a } catch {}
 
         // Load notification prefs if we have a device token
         if let token = pushManager.deviceToken {

@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 /// Persistent app configuration — API URL stored in UserDefaults.

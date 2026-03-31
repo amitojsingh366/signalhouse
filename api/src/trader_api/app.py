@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from trader_api.config import load_config
 from trader_api.database import init_db
 from trader_api.deps import get_config, get_market_data, get_risk, init_services, make_portfolio
-from trader_api.routers import notifications, portfolio, signals, status, trades
+from trader_api.routers import auth, notifications, portfolio, signals, status, trades
 
 
 @asynccontextmanager
@@ -62,6 +62,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)  # No auth required — handles its own access
 app.include_router(portfolio.router)
 app.include_router(trades.router)
 app.include_router(signals.router)

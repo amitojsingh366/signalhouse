@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+
+from trader_api.auth import require_auth
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trader_api.database import get_db
@@ -18,7 +20,7 @@ from trader_api.schemas import (
     TradeOut,
 )
 
-router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
+router = APIRouter(prefix="/api/portfolio", tags=["portfolio"], dependencies=[Depends(require_auth)])
 
 
 @router.get("/holdings", response_model=PortfolioSummary)

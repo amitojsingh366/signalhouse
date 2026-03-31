@@ -9,12 +9,13 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from trader_api.auth import require_auth
 from trader_api.database import get_db
 from trader_api.deps import get_config, get_market_data, get_risk, make_portfolio, make_strategy
 from trader_api.schemas import StatusOut, UploadConfirm, UploadHolding
 from trader_api.services.vision import parse_holdings_screenshot
 
-router = APIRouter(prefix="/api", tags=["status"])
+router = APIRouter(prefix="/api", tags=["status"], dependencies=[Depends(require_auth)])
 
 ET = ZoneInfo("America/New_York")
 _start_time = time.time()

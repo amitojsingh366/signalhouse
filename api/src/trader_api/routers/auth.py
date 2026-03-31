@@ -19,6 +19,7 @@ from webauthn import (
 from webauthn.helpers.cose import COSEAlgorithmIdentifier
 from webauthn.helpers.structs import (
     AuthenticatorSelectionCriteria,
+    AuthenticatorTransport,
     PublicKeyCredentialDescriptor,
     ResidentKeyRequirement,
     UserVerificationRequirement,
@@ -170,12 +171,17 @@ async def login_options(db: AsyncSession = Depends(get_db)) -> dict:
 
     allow_credentials = []
     for cred_id, transports_json in creds:
-        desc = PublicKeyCredentialDescriptor(id=cred_id)
+        transports = []
         if transports_json:
             try:
-                desc.transports = json.loads(transports_json)
+                for t in json.loads(transports_json):
+                    try:
+                        transports.append(AuthenticatorTransport(t))
+                    except ValueError:
+                        pass
             except (json.JSONDecodeError, TypeError):
                 pass
+        desc = PublicKeyCredentialDescriptor(id=cred_id, transports=transports)
         allow_credentials.append(desc)
 
     options = generate_authentication_options(

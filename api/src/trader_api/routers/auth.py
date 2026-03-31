@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -45,33 +44,15 @@ EXPECTED_ORIGINS = [
     "http://localhost:8000",
 ]
 
-# In-memory challenge store: challenge_bytes -> expiry timestamp
-# Single-user, single-instance — no Redis needed
-_challenges: dict[bytes, float] = {}
-_CHALLENGE_TTL = 300  # 5 minutes
+# Single-user challenge store — one active challenge per flow type
+# (registration or authentication). Simple and correct for single-instance apps.
+_registration_challenge: bytes | None = None
+_authentication_challenge: bytes | None = None
 
 # Fixed user for single-user system
 _USER_ID = b"trader-owner"
 _USER_NAME = "owner"
 _USER_DISPLAY_NAME = "Trader Owner"
-
-
-def _store_challenge(challenge: bytes) -> None:
-    """Store a challenge with TTL, clean up expired ones."""
-    now = time.time()
-    # Clean expired
-    expired = [k for k, v in _challenges.items() if now > v]
-    for k in expired:
-        del _challenges[k]
-    _challenges[challenge] = now + _CHALLENGE_TTL
-
-
-def _consume_challenge(challenge: bytes) -> bool:
-    """Consume a challenge. Returns True if valid."""
-    expiry = _challenges.pop(challenge, None)
-    if expiry is None:
-        return False
-    return time.time() < expiry
 
 
 @router.get("/status")
@@ -124,7 +105,8 @@ async def register_options(db: AsyncSession = Depends(get_db)) -> dict:
         ],
     )
 
-    _store_challenge(options.challenge)
+    global _registration_challenge
+    _registration_challenge = options.challenge
 
     return json.loads(options_to_json(options))
 
@@ -135,10 +117,17 @@ async def register_verify(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Verify WebAuthn registration response and store credential."""
+    global _registration_challenge
+    if _registration_challenge is None:
+        raise HTTPException(status_code=400, detail="No pending registration challenge")
+
+    challenge = _registration_challenge
+    _registration_challenge = None  # consume it
+
     try:
         verification = verify_registration_response(
             credential=body,
-            expected_challenge=lambda c: _consume_challenge(c),
+            expected_challenge=challenge,
             expected_rp_id=RP_ID,
             expected_origin=EXPECTED_ORIGINS,
         )
@@ -195,7 +184,8 @@ async def login_options(db: AsyncSession = Depends(get_db)) -> dict:
         user_verification=UserVerificationRequirement.PREFERRED,
     )
 
-    _store_challenge(options.challenge)
+    global _authentication_challenge
+    _authentication_challenge = options.challenge
 
     return json.loads(options_to_json(options))
 
@@ -206,9 +196,15 @@ async def login_verify(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Verify WebAuthn authentication response and issue JWT."""
+    global _authentication_challenge
+    if _authentication_challenge is None:
+        raise HTTPException(status_code=400, detail="No pending authentication challenge")
+
+    challenge = _authentication_challenge
+    _authentication_challenge = None  # consume it
+
     # Look up credential
     raw_id = body.get("rawId", "")
-    # py_webauthn expects the credential lookup by ID
     from webauthn.helpers import base64url_to_bytes
 
     try:
@@ -228,7 +224,7 @@ async def login_verify(
     try:
         verification = verify_authentication_response(
             credential=body,
-            expected_challenge=lambda c: _consume_challenge(c),
+            expected_challenge=challenge,
             expected_rp_id=RP_ID,
             expected_origin=EXPECTED_ORIGINS,
             credential_public_key=stored.public_key,

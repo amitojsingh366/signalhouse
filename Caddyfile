@@ -5,7 +5,7 @@ yourdomain.com {
 	# Apple app-site-association for passkeys (Associated Domains)
 	handle /.well-known/apple-app-site-association {
 		header Content-Type application/json
-		respond `{"webcredentials":{"apps":["{$APPLE_TEAM_ID:XXXXXXXXXX}.net.amitoj.trader"]}}`
+		respond `{"webcredentials":{"apps":["{$APPLE_TEAM_ID:XXXXXXXXXX}.net.amitoj.Trader"]}}`
 	}
 
 	# API endpoints — proxy to FastAPI

@@ -18,7 +18,7 @@ dependencies = [
     "python-multipart>=0.0.9",
     "PyJWT[crypto]>=2.8",
     "httpx[http2]>=0.27",
-    "py-webauthn>=2.0",
+    "webauthn>=2.0",
 ]
 
 [project.optional-dependencies]

@@ -7,15 +7,15 @@ Discord-based swing trading recommendation bot for TSX-listed stocks, CBOE Canad
 **Key characteristics:**
 - Recommendation-only — no automated execution
 - Swing trading with 2–7 day holding periods
-- Scans ~92 symbols every 15 minutes during market hours
-- Combines technical analysis with market sentiment for signal generation
+- Scans ~333 symbols every 15 minutes during market hours (20 concurrent)
+- Combines technical analysis, market sentiment, and commodity correlation for signal generation
 - Sector-aware portfolio management with sell-to-fund suggestions
 
 ---
 
 ## Signal Generation Pipeline
 
-Every signal flows through three stages: **technical analysis** → **sentiment adjustment** → **score conversion**. The pipeline produces a score from approximately -8 to +8, which maps to a BUY, SELL, or HOLD signal with a strength percentage.
+Every signal flows through four stages: **technical analysis** → **sentiment adjustment** → **commodity correlation** → **score conversion**. The pipeline produces a score from approximately -9 to +9, which maps to a BUY, SELL, or HOLD signal with a strength percentage.
 
 ### Stage 1: Technical Analysis (`signals.py`)
 
@@ -100,11 +100,63 @@ total_sentiment = analyst_score + fear_greed_score + news_score
 
 **Maximum sentiment contribution: ±2.0.** This is added directly to the technical score.
 
-### Stage 3: Score → Signal Conversion
+### Stage 3: Commodity Correlation (`commodity.py`)
+
+Live commodity and crypto futures trade nearly 24/7 (COMEX, GLOBEX, crypto exchanges). During off-hours and throughout the trading day, overnight/intraday moves in these instruments are used to boost or dampen signals for correlated Canadian-listed stocks and ETFs.
+
+#### Tracked Commodities
+
+| Ticker | Name | Key Correlated Assets |
+|--------|------|----------------------|
+| GC=F | Gold (COMEX) | Gold miners (AEM, ABX, FNV, K), gold ETFs (ZGLD, CGL, KILO, HUG) |
+| CL=F | Crude Oil (WTI) | Oil producers (SU, CNQ, CVE, IMO), energy ETFs (XEG), pipelines |
+| NG=F | Natural Gas | Gas producers (TOU, PEY, CR, BIR), natgas ETFs (HUN) |
+| SI=F | Silver (COMEX) | Silver miners (PAAS), silver ETFs (HUZ, VALT) |
+| BTC-USD | Bitcoin | Bitcoin ETFs (BTCC-B, BTCX-B, FBTC, IBIT), crypto-adjacent (HUT, COIN) |
+| ETH-USD | Ethereum | Ether ETFs (ETHX-B, ETHH) |
+| SOL-USD | Solana | Solana ETFs (SOLQ, SOLX, SOLA) |
+
+#### Correlation Weights
+
+Each symbol has a correlation weight (0 to 1.0) reflecting how tightly it tracks the commodity. Two levels of mapping:
+
+1. **Per-symbol overrides** (64 symbols) — tight correlations like gold miners (0.80–0.95), oil producers (0.70–0.90), crypto ETFs (0.90–0.95). These take priority.
+2. **Sector-level defaults** — broader correlations (e.g., energy sector ↔ oil at 0.8, materials ↔ gold at 0.7). Used as fallback when no per-symbol override exists.
+
+**Inverse ETFs** use negative weights (e.g., HBD.TO has weight -0.95 for gold). This naturally flips the signal — gold up → inverse gold ETF gets a bearish adjustment.
+
+#### Score Calculation
 
 ```
-total_score = technical_score + sentiment_score
-strength = min(|total_score| / 8.0, 1.0)
+raw_adjustment = commodity_pct_change × weight × 15.0
+```
+
+The scaling factor of 15 means a 1% commodity move with weight 0.85 produces ~0.13 score adjustment.
+
+**Caps:**
+- Normal moves: ±0.5 per commodity
+- Extreme moves (≥5%): ±1.0 per commodity — these are almost always driven by real catalysts (geopolitical events, supply shocks) that hold through to market open
+
+**Total commodity contribution** across all commodities for a symbol is capped at ±1.0.
+
+**Minimum threshold:** Moves below 0.5% are ignored to filter noise.
+
+**Caching:** Commodity prices are cached for 5 minutes (shared across all 333 symbols in a scan cycle).
+
+#### Examples
+
+| Scenario | Symbol | Calculation | Adjustment |
+|----------|--------|-------------|------------|
+| Oil +2.5% | SU.TO (weight 0.85) | 0.025 × 0.85 × 15 = 0.32 | +0.32 |
+| NatGas -5.3% | TOU.TO (NG weight 0.70) | 0.053 × 0.70 × 15 = 0.56 → extreme cap | -1.00 (combined) |
+| Gold -0.3% | AEM.TO (weight 0.85) | Below 0.5% threshold | 0.00 |
+| Oil +30% (war) | SU.TO (weight 0.85) | 0.30 × 0.85 × 15 = 3.83 → extreme cap | +1.00 |
+
+### Stage 4: Score → Signal Conversion
+
+```
+total_score = technical_score + sentiment_score + commodity_score
+strength = min(|total_score| / 9.0, 1.0)
 ```
 
 | Score Range | Signal | Meaning |
@@ -113,11 +165,11 @@ strength = min(|total_score| / 8.0, 1.0)
 | ≤ -2.0 | **SELL** | Bearish — multiple indicators aligned |
 | -2.0 to +2.0 | **HOLD** | Insufficient conviction either way |
 
-**Strength** is a 0–100% value representing how far the score is from the maximum possible ±8. A +4.0 score yields 50% strength; +8.0 yields 100%.
+**Strength** is a 0–100% value representing how far the score is from the maximum possible ±9. A +4.5 score yields 50% strength; +9.0 yields 100%.
 
 ### Score Display
 
-Every signal displays its total score (e.g. `-2.5/8`) alongside the strength percentage. Each contributing factor shows its individual score contribution (e.g. `[+1.5]`, `[-0.5]`) color-coded green/red in the web UI.
+Every signal displays its total score (e.g. `-2.5/9`) alongside the strength percentage. Each contributing factor shows its individual score contribution (e.g. `[+1.5]`, `[-0.5]`) color-coded green/red in the web UI. Sentiment and commodity reasons also include score tags.
 
 ### Filtering Thresholds
 
@@ -139,11 +191,10 @@ The strategy layer sits above signal generation and adds portfolio context: sect
 
 Runs every 15 minutes during market hours (9:30 AM – 4:00 PM ET, weekdays) and on-demand via `/recommend`:
 
-1. Iterates all ~92 symbols in the configured universe
-2. Fetches 60 days of daily bars via yfinance
-3. Computes indicators and generates a signal + sentiment for each
-4. Filters to BUY signals ≥ 35% strength and SELL signals ≥ 30% strength
-5. Sorts by strength descending
+1. Scans all ~333 symbols concurrently (20 at a time via asyncio semaphore)
+2. For each symbol: fetches 60 days of daily bars (cached 5 min), computes indicators, fetches sentiment + commodity correlation
+3. Filters to BUY signals ≥ 35% strength and SELL signals ≥ 30% strength
+4. Sorts by strength descending
 
 ### Top Recommendations (`get_top_recommendations()`)
 
@@ -261,23 +312,31 @@ When halted, the bot stops generating buy recommendations but continues monitori
 
 ## Sector Diversification
 
-The universe of ~92 symbols is organized into 12 sectors:
+The universe of ~333 symbols is organized into 21 sectors:
 
 | Sector | Count | Examples |
 |--------|-------|---------|
-| Technology | 21 | NVDA.NE, SHOP.TO, MSFT.NE |
-| Financials | 10 | RY.TO, TD.TO, V.NE |
-| Energy | 7 | SU.TO, ENB.TO, XOM.NE |
-| Industrials | 8 | CNR.TO, CP.TO, CAT.NE |
-| Consumer | 11 | ATD.TO, DOL.TO, COST.NE |
-| Materials | 7 | AEM.TO, ABX.TO, NTR.TO |
-| Healthcare | 5 | JNJ.NE, LLY.NE, UNH.NE |
-| Aerospace & Defense | 4 | LMT.NE, BA.NE, CAE.TO |
-| Telecom | 3 | T.TO, BCE.TO, RCI-B.TO |
-| Utilities | 4 | FTS.TO, H.TO, NEE.NE |
-| Real Estate | 4 | BAM.TO, REI-UN.TO, CAR-UN.TO |
-| Crypto | 3 | IBIT.NE, BTCX-B.TO, ETHX-B.TO |
-| ETFs | 5 | XSP.TO, ZQQ.TO, XQQ.TO |
+| Technology | 41 | NVDA.NE, SHOP.TO, PLTR.NE, UBER.NE, LSPD.TO |
+| Financials | 28 | RY.TO, TD.TO, BNS.TO, V.NE, BRK.NE, FFH.TO |
+| Energy | 24 | SU.TO, CNQ.TO, TOU.TO, XEG.TO, COP.NE |
+| Consumer | 25 | ATD.TO, DOL.TO, COST.NE, NKE.NE, LULU.NE |
+| Materials | 21 | AEM.TO, ABX.TO, WPM.TO, CCO.TO, XGD.TO |
+| Real Estate | 19 | BAM.TO, REI-UN.TO, GRT-UN.TO, XRE.TO |
+| Industrials | 18 | CNR.TO, CP.TO, WSP.TO, TFII.TO, GE.NE |
+| Crypto | 15 | BTCC-B.TO, ETHX-B.TO, SOLQ.TO, HUT.TO, IBIT.NE |
+| Utilities | 14 | FTS.TO, H.TO, EMA.TO, BEP-UN.TO, NEE.NE |
+| Healthcare | 14 | JNJ.NE, LLY.NE, AMGN.NE, ISRG.NE, WELL.TO |
+| Leveraged/Inverse ETFs | 14 | HQU.TO, HQD.TO, HSU.TO, HOU.TO, HBU.TO |
+| Covered Call ETFs | 12 | ZWC.TO, ZWB.TO, HDIV.TO, HYLD.TO, HTA.TO |
+| Dividend ETFs | 10 | XDV.TO, VDY.TO, CDZ.TO, ZDV.TO, VGG.TO |
+| Broad Market ETFs | 27 | XSP.TO, ZQQ.TO, VFV.TO, XIU.TO, XAW.TO |
+| Gold/Commodities ETFs | 10 | ZGLD.TO, CGL.TO, HUC.TO, HUN.TO, HUZ.TO |
+| All-in-One ETFs | 9 | VEQT.TO, XEQT.TO, VGRO.TO, VBAL.TO |
+| Thematic ETFs | 10 | HCLN.TO, ZEB.TO, XMV.TO, XESG.TO |
+| Bond ETFs | 8 | ZAG.TO, XBB.TO, VAB.TO, PSA.TO |
+| Cannabis | 6 | WEED.TO, TLRY.TO, ACB.TO, HMMJ.TO |
+| Aerospace & Defense | 4 | LMT.NE, BA.NE, RTX.NE, CAE.TO |
+| Telecom | 4 | T.TO, BCE.TO, RCI-B.TO, QBR-B.TO |
 
 The 40% sector cap prevents over-concentration. Buy signals in an already-concentrated sector are demoted (strength halved) but still shown — unless they are paired with a same-sector sell-to-fund (swaps don't change net sector exposure).
 
@@ -368,6 +427,7 @@ Works with any brokerage screenshot (Wealthsimple, Questrade, IBKR, etc.) — Cl
 | Market Data | `yfinance` ≥ 0.2.36 | Price history, analyst data, news headlines |
 | Technical Analysis | `TA-Lib` (C library + Python bindings) | EMA, RSI, MACD, Bollinger Bands, ATR |
 | Sentiment | `yfinance` + `fear-greed` | Analyst consensus, Fear & Greed Index, news |
+| Commodity Correlation | `yfinance` (futures/crypto) | GC=F, CL=F, NG=F, SI=F, BTC/ETH/SOL-USD |
 | Screenshot Parsing | `anthropic` SDK + Claude Sonnet | Vision API for brokerage screenshot extraction |
 | Data Processing | `pandas`, `numpy` | Price data manipulation and indicator DataFrames |
 | Configuration | `PyYAML` | Layered config (settings.yaml + settings.local.yaml) |
@@ -406,18 +466,27 @@ Works with any brokerage screenshot (Wealthsimple, Questrade, IBKR, etc.) — Cl
      └─────────┘ └───┬───┘ └───┬────┘ └────────┘
                      │         │
                   yfinance  yfinance + fear-greed
+                               │
+                        ┌──────┴──────┐
+                        │  Commodity  │
+                        │ Correlator  │
+                        └──────┬──────┘
+                               │
+                     yfinance (GC=F, CL=F,
+                      NG=F, BTC-USD, etc.)
 ```
 
 **Data flow for a scheduled scan:**
 1. `cogs/tasks.py` fires every 15 min → calls `strategy.get_top_recommendations()`
-2. Strategy calls `scan_universe()` → iterates all symbols
-3. For each symbol: `market_data.get_historical_data()` → 60 days of daily bars via yfinance
+2. Strategy calls `scan_universe()` → scans all ~333 symbols (20 concurrent via semaphore)
+3. For each symbol: `market_data.get_historical_data()` → 60 days of daily bars via yfinance (cached 5 min)
 4. `signals.compute_indicators()` → TA-Lib computes EMA, RSI, MACD, Bollinger Bands, ATR
-5. `sentiment.analyze()` → parallel fetch of analyst consensus, Fear & Greed, news headlines
-6. `signals.generate_signal()` → combines technical score + sentiment → BUY/SELL/HOLD + strength
-7. Strategy filters, ranks, adds sector context, generates sell-to-fund suggestions
-8. Results cached for cross-command consistency
-9. Bot posts top signals as embeds with recheck buttons
+5. `sentiment.analyze()` → parallel fetch of analyst consensus, Fear & Greed, news headlines + commodity correlation
+6. `commodity.get_correlation()` → checks live futures (GC=F, CL=F, NG=F, BTC-USD, etc.) for overnight moves
+7. `signals.generate_signal()` → combines technical score + sentiment + commodity → BUY/SELL/HOLD + strength
+8. Strategy filters, ranks, adds sector context, generates sell-to-fund suggestions
+9. Results cached for cross-command consistency
+10. Bot posts top signals as embeds with recheck buttons
 
 ---
 

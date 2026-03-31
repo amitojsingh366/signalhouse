@@ -6,10 +6,11 @@ This file is the primary context document for new Claude Code conversations. Rea
 
 **What this is:** A trading recommendation and portfolio tracking system for TSX stocks, CBOE Canada CDRs, and CAD-hedged ETFs. It provides buy/sell/swap signals — the user trades manually and reports back.
 
-**3-component architecture:**
+**4-component architecture:**
 - `api/` — FastAPI REST API + all shared business logic + PostgreSQL
 - `bot/` — Discord bot that imports `trader_api` as a Python package
 - `web/` — Next.js web dashboard that communicates via REST API
+- `app/` — SwiftUI app (iOS/macOS) with VoIP push notifications via CallKit
 
 **Deployed at:** `yourdomain.com` on `your-server` (Ubuntu ARM, your server)
 
@@ -105,6 +106,19 @@ trader/
 │       ├── api.ts                    # API client, TypeScript types
 │       ├── hooks.ts                  # TanStack Query hooks (useHoldings, usePnl, useRecommendations, etc.)
 │       └── utils.ts                  # formatCurrency, formatPercent, pnlColor, cn, signalBadgeClass
+│
+├── app/                              # SwiftUI app (iOS/macOS) with VoIP push notifications
+│   └── Trader/
+│       ├── TraderApp.swift           # @main entry, tab navigation, onboarding gate
+│       ├── Config/                   # AppConfig (UserDefaults), Theme (design system colors)
+│       ├── Models/APIModels.swift    # Codable structs matching API schemas
+│       ├── Services/
+│       │   ├── APIClient.swift       # URLSession REST client mirroring web/lib/api.ts
+│       │   └── PushManager.swift     # PushKit (VoIP) + CallKit incoming call UI
+│       └── Views/
+│           ├── Onboarding/           # API URL input on first launch
+│           ├── Tabs/                 # Dashboard, Portfolio, Signals, Trades, Upload, Status
+│           └── Components/           # StatCard, SignalBadge, EquityChart, SectorChart, Loading
 │
 ├── config/
 │   ├── settings.yaml                 # Defaults: symbol universe (~92), risk params, schedules
@@ -252,30 +266,27 @@ ssh -i your-ssh-key ubuntu@your-server \
 
 ## Completed Steps
 
-- [x] **Step 1–3:** API package, bot package, Docker Compose — migrated from monolithic `src/trader/` to 3-package architecture with PostgreSQL replacing JSON file storage
-- [x] **Step 4:** Next.js web dashboard — 6 pages (dashboard, portfolio, signals, trades, upload, status), shared UI components, API client with localStorage caching
-- [x] **Step 5:** Configuration & environment updates (`.env.example`, `CLAUDE.md`, `NEXT_STEPS.md`)
-- [x] **Step 6:** Testing & validation across all services
-- [x] **Step 7:** Caddy reverse proxy, deployment to `your-server`, DNS via Cloudflare at `yourdomain.com`
-- [x] **Step 8:** Web performance — localStorage cache layer, progressive loading, sector chart fix, search bar always visible
-- [x] **Step 9:** Portfolio editing (CRUD endpoints), cash tracking (buy deducts/sell adds), dark theme overhaul, P&L fixes (exclude cash, include realized)
-- [x] **Step 10:** Color consolidation (purple positive, red negative, amber warning), skeleton loading states, trade history chronological ordering, sector chart purple gradient with hover
-- [x] **Step 11:** Dashboard polish — CTAs under stat cards, empty state cards for charts/signals, sector tooltip fix, section order: CTAs → signals → equity → sector
-- [x] **Step 12:** Color scheme refinement — P&L green/red (standard financial), CTAs/buy badges stay purple, charts stay purple, success toasts and status indicators now emerald green
-- [x] **Step 13:** Page header UX — Cmd+K global symbol search modal (navigates to signals page), refresh buttons on all data pages (dashboard, portfolio, signals, trades, status), search trigger button in page headers (dashboard, portfolio, trades, status)
-- [x] **Step 14:** Price charts — API endpoint for OHLCV history, PriceChart component with range selector (1W–1Y), chart shown on signal check and expandable signal cards, portfolio symbol names link to signals page
+- [x] Split monolith into 3-package architecture (api, bot, web) with PostgreSQL
+- [x] Build Next.js web dashboard (6 pages, shared UI, API client)
+- [x] Config, env setup, testing, validation
+- [x] Deploy with Caddy reverse proxy to `yourdomain.com` via Cloudflare
+- [x] Web performance (localStorage cache, progressive loading, persistent search bar)
+- [x] Portfolio CRUD endpoints, cash tracking, dark theme, P&L fixes
+- [x] Choose brand theme (purple primary, green/red P&L, amber warning, zinc surfaces)
+- [x] Make brand theme consistent (skeleton loaders, chart colors, badge colors, toasts)
+- [x] Dashboard polish (CTAs, empty states, section ordering)
+- [x] Add Cmd+K global search, refresh buttons, price charts with range selector
+- [x] Same-sector swap exemption, watchlist alerts for non-held sell signals
+- [x] Score breakdown display (per-factor scores, color-coded reasons, score/9 badge)
+- [x] Fix Fear & Greed library API change (dict vs object), fix daily P&L comparison bug
+- [x] Exit alerts on web (stop-loss, max-hold, sell-signal) + fix bot DB pool exhaustion
+- [x] Clickable exit alerts and signal cards (open full score breakdown + price chart)
+- [x] Replace localStorage cache with TanStack Query (typed hooks, auto-invalidation)
+- [x] SwiftUI iOS app with VoIP push notifications (CallKit + PushKit) — 6 tabs matching web, APNs notifier service, notification preferences, DND bypass via repeated calls, onboarding with configurable API URL for self-hosting
+
+**Notable observations:**
+- Steps 10–12 were three iterations to get the color scheme right — started with purple for everything, then realized P&L needs standard green/red financial convention
+- Step 18 was a silent failure — Fear & Greed library changed its return type, sentiment was silently falling back to neutral for weeks
+- Step 19 bundled 4 unrelated bug fixes discovered during exit alert work (P&L, equity chart, DB pool exhaustion)
 
 ---
-
-## Next Steps
-
-See `docs/NEXT_STEPS.md` for the full roadmap (Phase 1: Validate & Tune, Phase 2: Improve Strategy, Phase 3: Scale Up, Phase 4: Advanced Features).
-
-- [x] **Step 15:** Same-sector swap exemption + watchlist alerts — sell-to-fund pairs within the same sector no longer penalize buy signal strength; non-held sell signals now show as "Watchlist Alerts" on signals page and dashboard instead of being silently filtered
-- [x] **Step 16:** Signal badge tooltips, clickable dashboard signals — hover tooltips explain signals, dashboard signal cards link to signals page with symbol preloaded
-- [x] **Step 17:** Score breakdown display — total score (e.g. -2.5/8) shown next to signal badges, per-factor scores ([+1.5], [-0.5]) on each reason line with green/red coloring, sentiment reasons include score tags, BUY scan threshold set to 35% (score 2.8 — needs ~3 agreeing indicators)
-- [x] **Step 18:** Fix Fear & Greed — `fear-greed` library API changed (returns dict with `score`/`rating` instead of object with `.value`/`.description`), causing silent fallback to 50/Neutral. Fixed with dict detection. Actual F&G is 18 (Extreme Fear) = +0.5 contrarian buy boost now applied.
-- [x] **Step 19:** Exit alerts on web + critical bug fixes — stop-loss/max-hold/sell-signal alerts now shown on signals page and dashboard (prioritized first above buy signals, red/amber severity styling); daily P&L fixed (was comparing against today's snapshot instead of previous day); equity chart fixed (snapshots now recorded on page load, not just by bot at 3:50 PM); bot DB connection pool exhaustion fixed (all 6 cogs + 5 scheduled tasks now close sessions via `portfolio.close()`)
-- [x] **Step 20:** Clickable exit alerts — clicking an exit alert on signals page or dashboard opens the full signal check (score breakdown, reasons, price chart) for that symbol, same as a manual search
-- [x] **Step 21:** TanStack Query migration — replaced homebrew localStorage cache layer with `@tanstack/react-query` across all pages (dashboard, portfolio, signals, trades, status, upload) and the PriceChart component. Added `QueryClientProvider`, created `lib/hooks.ts` with typed query/mutation hooks, automatic cache invalidation on mutations, and per-endpoint stale times matching the old TTLs.
-- TBD

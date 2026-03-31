@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from trader_api.database import Base
@@ -72,3 +72,41 @@ class SignalHistory(Base):
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class DeviceRegistration(Base):
+    """Registered devices for VoIP push notifications."""
+
+    __tablename__ = "device_registrations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_token: Mapped[str] = mapped_column(
+        String(255), unique=True, nullable=False, index=True
+    )
+    platform: Mapped[str] = mapped_column(String(10), nullable=False, default="ios")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    daily_disabled_date: Mapped[str | None] = mapped_column(
+        String(10), nullable=True
+    )  # "YYYY-MM-DD" or null
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class NotificationLog(Base):
+    """Log of VoIP push notifications sent to devices."""
+
+    __tablename__ = "notification_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_token: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    symbol: Mapped[str] = mapped_column(String(20), nullable=False)
+    signal: Mapped[str] = mapped_column(String(4), nullable=False)
+    strength: Mapped[float] = mapped_column(Float, nullable=False)
+    caller_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    delivered: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    acknowledged: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

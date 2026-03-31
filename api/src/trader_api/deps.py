@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from trader_api.services.commodity import CommodityCorrelator
 from trader_api.services.market_data import MarketData
+from trader_api.services.notifier import APNsNotifier
 from trader_api.services.portfolio import Portfolio
 from trader_api.services.risk import RiskManager
 from trader_api.services.sentiment import SentimentAnalyzer
@@ -18,11 +20,12 @@ _risk: RiskManager | None = None
 _sentiment: SentimentAnalyzer | None = None
 _commodity: CommodityCorrelator | None = None
 _strategy: Strategy | None = None
+_notifier: APNsNotifier | None = None
 
 
 def init_services(config: dict[str, Any]) -> None:
     """Initialize all singleton services. Called once at app startup."""
-    global _config, _market_data, _risk, _sentiment, _commodity
+    global _config, _market_data, _risk, _sentiment, _commodity, _notifier
     _config = config
     _market_data = MarketData(config)
     _risk = RiskManager(config)
@@ -42,6 +45,21 @@ def init_services(config: dict[str, Any]) -> None:
         commodity_correlator=_commodity,
         symbol_to_sector=symbol_to_sector,
     )
+
+    # APNs notifier — only initializes if credentials are provided
+    apns_key = os.environ.get("APNS_KEY_PATH", "")
+    if apns_key:
+        notif_config = config.get("notifications", {})
+        _notifier = APNsNotifier(
+            key_path=apns_key,
+            key_id=os.environ.get("APNS_KEY_ID", ""),
+            team_id=os.environ.get("APNS_TEAM_ID", ""),
+            bundle_id=os.environ.get("APNS_BUNDLE_ID", ""),
+            sandbox=os.environ.get("APNS_SANDBOX", "false").lower() == "true",
+            retry_delay=notif_config.get("retry_delay_seconds", 30),
+            max_retries=notif_config.get("max_retries", 1),
+            cooldown_minutes=notif_config.get("cooldown_minutes", 60),
+        )
 
 
 def get_config() -> dict[str, Any]:
@@ -66,6 +84,10 @@ def get_sentiment() -> SentimentAnalyzer:
 def get_commodity() -> CommodityCorrelator:
     assert _commodity is not None
     return _commodity
+
+
+def get_notifier() -> APNsNotifier | None:
+    return _notifier
 
 
 def make_strategy(portfolio: Portfolio) -> Strategy:

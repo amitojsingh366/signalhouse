@@ -26,6 +26,11 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://trader:${POSTGRES_PASSWORD:-trader}@postgres:5432/trader
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - APNS_KEY_PATH=/app/config/AuthKey.p8
+      - APNS_KEY_ID=${APNS_KEY_ID:-}
+      - APNS_TEAM_ID=${APNS_TEAM_ID:-}
+      - APNS_BUNDLE_ID=${APNS_BUNDLE_ID:-}
+      - APNS_SANDBOX=${APNS_SANDBOX:-false}
     volumes:
       - ./config:/app/config:ro
     expose:

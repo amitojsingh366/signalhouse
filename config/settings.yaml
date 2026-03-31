@@ -494,6 +494,12 @@ risk:
   max_daily_loss_pct: 0.08     # 8% max daily drawdown, halt trading
   max_total_drawdown_pct: 0.20 # 20% max total drawdown, halt all trading
 
+notifications:
+  min_strength: 0.70           # Only notify for signals >= 70% strength
+  retry_delay_seconds: 30      # Wait before retry attempt
+  max_retries: 1               # Try once more if not acknowledged
+  cooldown_minutes: 60         # Don't re-notify same symbol within this window
+
 schedule:
   # Eastern Time
   market_open: "09:30"

@@ -650,3 +650,93 @@ class Strategy:
             "total_pnl_pct": pnl_data["total_pnl_pct"],
             "cash": pnl_data["cash"],
         }
+
+    async def notify_high_confidence_signals(
+        self, recs: dict[str, Any]
+    ) -> None:
+        """Send VoIP push notifications for high-confidence signals."""
+        from trader_api.database import async_session
+        from trader_api.deps import get_notifier
+        from trader_api.models import DeviceRegistration, NotificationLog
+
+        notifier = get_notifier()
+        if notifier is None or not notifier.is_configured:
+            return
+
+        notif_config = self.config.get("notifications", {})
+        min_strength = notif_config.get("min_strength", 0.70)
+        cooldown = notifier.cooldown_minutes
+
+        # Collect strong signals
+        strong: list[dict[str, Any]] = []
+        for sig in recs.get("buys", []):
+            s = sig if isinstance(sig, dict) else sig.__dict__
+            strength = s.get("strength", 0)
+            if strength >= min_strength:
+                strong.append({
+                    "symbol": s.get("symbol", ""),
+                    "signal": "BUY",
+                    "strength": strength,
+                    "score": s.get("score", 0),
+                })
+        for sig in recs.get("sells", []):
+            s = sig if isinstance(sig, dict) else sig.__dict__
+            strength = s.get("strength", 0)
+            if strength >= max(min_strength - 0.20, 0.30):
+                strong.append({
+                    "symbol": s.get("symbol", ""),
+                    "signal": "SELL",
+                    "strength": strength,
+                    "score": s.get("score", 0),
+                })
+
+        if not strong:
+            return
+
+        from datetime import datetime, timedelta, timezone
+
+        from sqlalchemy import and_, or_, select
+
+        now = datetime.now(timezone.utc)
+        today = now.strftime("%Y-%m-%d")
+        cooldown_cutoff = now - timedelta(minutes=cooldown)
+
+        async with async_session() as db:
+            # Fetch enabled devices not muted today
+            result = await db.execute(
+                select(DeviceRegistration).where(
+                    DeviceRegistration.enabled.is_(True),
+                    or_(
+                        DeviceRegistration.daily_disabled_date.is_(None),
+                        DeviceRegistration.daily_disabled_date != today,
+                    ),
+                )
+            )
+            devices = result.scalars().all()
+
+            if not devices:
+                return
+
+            for sig_info in strong:
+                for device in devices:
+                    # Cooldown check — don't re-notify same symbol too soon
+                    existing = await db.execute(
+                        select(NotificationLog).where(
+                            and_(
+                                NotificationLog.device_token == device.device_token,
+                                NotificationLog.symbol == sig_info["symbol"],
+                                NotificationLog.sent_at >= cooldown_cutoff,
+                            )
+                        )
+                    )
+                    if existing.scalar_one_or_none():
+                        continue
+
+                    await notifier.notify_signal(
+                        db_session_factory=async_session,
+                        symbol=sig_info["symbol"],
+                        signal=sig_info["signal"],
+                        strength=sig_info["strength"],
+                        score=sig_info["score"],
+                        device_token=device.device_token,
+                    )

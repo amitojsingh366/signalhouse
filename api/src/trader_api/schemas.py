@@ -173,3 +173,37 @@ class InsightsOut(BaseModel):
     total_pnl: float
     total_pnl_pct: float
     cash: float
+
+
+# --- Notifications ---
+
+
+class DeviceRegisterIn(BaseModel):
+    device_token: str
+    platform: str = "ios"
+
+
+class NotificationPrefsIn(BaseModel):
+    enabled: bool | None = None
+    daily_disabled: bool | None = None  # True = disable for today
+
+
+class NotificationPrefsOut(BaseModel):
+    device_token: str
+    enabled: bool
+    daily_disabled_date: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class NotificationLogOut(BaseModel):
+    id: int
+    symbol: str
+    signal: str
+    strength: float
+    caller_name: str
+    sent_at: datetime
+    delivered: bool
+    acknowledged: bool
+
+    model_config = {"from_attributes": True}

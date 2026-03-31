@@ -6,10 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Trading recommendation and portfolio tracking system for TSX-listed stocks, CBOE Canada CDRs, and CAD-hedged ETFs. Provides buy/sell/swap signals via technical analysis + market sentiment, tracks holdings, and sends daily P&L summaries. Designed for a Canadian TFSA account with ~$2,000 CAD portfolio.
 
-**3-component architecture:**
+**4-component architecture:**
 - **`api/`** — FastAPI REST API + all shared business logic + PostgreSQL database backend
 - **`bot/`** — Discord bot that imports `trader_api` as a Python package dependency
 - **`web/`** — Next.js web dashboard that communicates via the REST API
+- **`app/`** — SwiftUI app (iOS/macOS) with VoIP push notifications via CallKit
 
 **This is NOT an auto-trading bot** — it provides recommendations and the user executes trades manually via their brokerage UI (Wealthsimple, IBKR, etc.), then reports them back via Discord slash commands, screenshot uploads, or the web dashboard.
 
@@ -175,6 +176,11 @@ ORM models in `api/src/trader_api/models.py`:
 | POST | `/api/upload/parse` | Parse screenshot via Claude vision |
 | POST | `/api/upload/confirm` | Confirm parsed holdings |
 | GET | `/api/symbols` | Full symbol universe |
+| POST | `/api/notifications/register` | Register device for push notifications |
+| GET | `/api/notifications/preferences` | Get notification preferences |
+| PUT | `/api/notifications/preferences` | Toggle notifications (enabled, daily mute) |
+| GET | `/api/notifications/history` | Recent notification log |
+| POST | `/api/notifications/acknowledge/{id}` | Mark notification acknowledged |
 
 ## Signal System
 
@@ -210,6 +216,8 @@ Live commodity/crypto futures (which trade nearly 24/7) are used to boost/dampen
 - **Solana (SOL-USD)**: Solana ETFs (SOLQ, SOLX, SOLA)
 
 Per-symbol overrides (tight correlations like gold miners) take priority over sector-level defaults. Inverse ETFs use negative weights so the signal flips correctly. Service defined in `api/src/trader_api/services/commodity.py`.
+
+**Extreme move escalation:** Normal cap is ±0.5 per commodity. When a commodity moves ≥5% (major geopolitical event, supply shock, etc.), the cap doubles to ±1.0. The 5% threshold was chosen because moves that large are almost always driven by real catalysts that hold through to market open, unlike smaller overnight swings that can retrace on thin volume.
 
 ### Strength & Filtering
 

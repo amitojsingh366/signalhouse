@@ -240,6 +240,12 @@ class TasksCog(commands.Cog):
                 embed = _build_sell_embed(sig)
                 await channel.send(embed=embed, view=RecheckView())
 
+            # Trigger VoIP push notifications for high-confidence signals
+            try:
+                await strategy.notify_high_confidence_signals(recs)
+            except Exception:
+                logger.exception("Error sending push notifications")
+
         except Exception:
             logger.exception("Error during scheduled scan")
         finally:

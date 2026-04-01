@@ -682,7 +682,7 @@ class Strategy:
         for sig in recs.get("sells", []):
             s = sig if isinstance(sig, dict) else sig.__dict__
             strength = s.get("strength", 0)
-            if strength >= max(min_strength - 0.20, 0.30):
+            if strength >= min_strength:
                 strong.append({
                     "symbol": s.get("symbol", ""),
                     "signal": "SELL",

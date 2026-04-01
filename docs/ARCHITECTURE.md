@@ -10,7 +10,7 @@ Bot imports trader_api directly as a Python package (not HTTP).
 Web + App communicate via REST API (web through Caddy, app directly via configured URL).
 All share the same PostgreSQL database.
 
-Signal scan (every 15 min) → if signal strength ≥ 70%:
+Signal scan (every 15 min) → if signal strength ≥ 40%:
   → APNs VoIP push → iOS CallKit incoming call → DND bypass
   → retry once after 30s if not acknowledged
 ```
@@ -120,7 +120,7 @@ trader/
 6. Strategy filters, ranks by strength, adds sector diversification context
 7. Generates sell-to-fund suggestions when cash is low
 8. Caches results for cross-command consistency
-9. Bot posts to Discord; if strength ≥ 70% → APNs VoIP push to iOS
+9. Bot posts to Discord; if strength ≥ 40% → APNs VoIP push to iOS
 
 ### Trade Reporting
 
@@ -200,6 +200,13 @@ ORM models in `api/src/trader_api/models.py`:
 | GET | `/api/notifications/history` | Recent notification log for device |
 | POST | `/api/notifications/acknowledge/{id}` | Mark notification acknowledged (stops retry) |
 
+### Debug
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/debug/devices` | List all registered devices |
+| POST | `/api/debug/test-push` | Send a test notification or VoIP call for a given signal |
+
 ### Authentication
 
 | Method | Path | Description |
@@ -246,7 +253,7 @@ APNs notifier only initializes if `APNS_KEY_PATH` env var is set.
 
 VoIP pushes via Apple Push Notification service (APNs):
 
-- **Trigger:** Signal strength ≥ 70% during scheduled scan, with 60-min cooldown per symbol
+- **Trigger:** Signal strength ≥ 40% during scheduled scan, with 60-min cooldown per symbol
 - **Delivery:** HTTP/2 to APNs with ES256 JWT auth, retry once after 30s if not acknowledged
 - **iOS:** PushKit VoIP registration → CallKit incoming call UI → bypasses DND/silent mode
 - **Models:** `DeviceRegistration` (tokens), `NotificationLog` (delivery audit)
@@ -291,6 +298,7 @@ VoIP pushes via Apple Push Notification service (APNs):
 | `/upload` | Screenshot dropzone, parsed holdings editor, confirm/cancel |
 | `/status` | Uptime, market status, symbols tracked, risk status |
 | `/settings` | Passkey management, authentication status |
+| `/debug` | Test push notifications and VoIP calls (hidden; unlock by tapping footer 10×) |
 
 ---
 

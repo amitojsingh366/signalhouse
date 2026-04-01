@@ -19,7 +19,8 @@ Progress tracker and roadmap. For architecture details see [ARCHITECTURE.md](ARC
 - [x] Passkey authentication — WebAuthn via py-webauthn, JWT token-gated API, web settings page, AuthGate overlay, iOS ASAuthorizationController, Associated Domains
 - [x] iOS app polish — Symbol search suggestions (type-ahead from universe), signal detail with price chart, tappable cash edit, skeleton loading for all Dashboard sections
 - [x] Scheduled push notifications + Pre-Market page — Standard APNs alerts for premarket (8 AM ET), morning briefing (8:30 AM), market close (3:50 PM), evening recap (10 PM PT). Pre-Market tab on iOS and `/premarket` page on web with tappable movers that navigate to signal check. Deep linking from notifications, AppDelegate for push token. DB: push_token on device_registrations, notification_type on notification_log.
-- [x] Debug page on web — `/debug` page to manually trigger test push notification or VoIP call for the highest-confidence current signal. Device dropdown (per-device or all devices), inline send result feedback. API endpoints: `GET /api/debug/devices`, `GET /api/debug/top-signal`, `POST /api/debug/test-push`.
+- [x] Debug page on web — `/debug` page (hidden behind 10-tap footer easter egg, persisted in localStorage for 24h) to manually trigger test push notification or VoIP call for the top signal from cached recommendations. Device dropdown (per-device or all). API: `GET /api/debug/devices`, `POST /api/debug/test-push`.
+- [x] Lower VoIP call threshold to 40% — both BUY and SELL signals now trigger CallKit push at ≥ 40% strength (was 70% buy / 50% sell). Updated `config/settings.yaml` and unified sell threshold to match buy.
 
 **Notable observations:**
 - Brand theme took 3 iterations — started with purple for everything, then split P&L to standard green/red

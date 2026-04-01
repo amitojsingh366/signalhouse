@@ -17,7 +17,23 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+const DEBUG_LS_KEY = "debug_last_visited";
+const DEBUG_TTL_MS = 24 * 60 * 60 * 1000;
+
+function isDebugRecent(): boolean {
+  if (typeof window === "undefined") return false;
+  const raw = localStorage.getItem(DEBUG_LS_KEY);
+  if (!raw) return false;
+  return Date.now() - parseInt(raw, 10) < DEBUG_TTL_MS;
+}
+
+function touchDebugVisit() {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(DEBUG_LS_KEY, String(Date.now()));
+  }
+}
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: Home },
@@ -38,9 +54,20 @@ export function Sidebar() {
   const [footerTaps, setFooterTaps] = useState(0);
   const [debugUnlocked, setDebugUnlocked] = useState(false);
 
+  // Restore from localStorage on mount
+  useEffect(() => {
+    if (isDebugRecent()) setDebugUnlocked(true);
+  }, []);
+
+  // Refresh the TTL whenever /debug is active
+  useEffect(() => {
+    if (pathname.startsWith("/debug")) touchDebugVisit();
+  }, [pathname]);
+
   function handleFooterClick() {
     const next = footerTaps + 1;
     if (next >= 10) {
+      touchDebugVisit();
       setDebugUnlocked(true);
       setFooterTaps(0);
     } else {

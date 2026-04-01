@@ -126,9 +126,9 @@ strength = min(|total_score| / 9.0, 1.0)
 
 | Signal Type | Minimum Strength | Context |
 |-------------|-----------------|---------|
-| BUY (universe scan) | 35% (score ≥ ~2.8) | `/recommend` and scheduled scans |
+| BUY (universe scan) | 35% (score ≥ ~2.8) | Recommendations and scheduled scans |
 | SELL (universe scan) | 30% (score ≤ ~-2.4) | Held → sell signals, non-held → watchlist alerts |
-| BUY/SELL (single check) | None | `/check` and recheck button |
+| BUY/SELL (single check) | None | On-demand symbol lookup |
 
 #### Score Display
 
@@ -140,7 +140,7 @@ Every signal shows its total score (e.g. `-2.5/9`). Each factor shows its contri
 
 ### Universe Scan
 
-Runs every 15 minutes during market hours and on-demand via `/recommend`:
+Runs every 15 minutes during market hours and on-demand when a user requests recommendations:
 1. Scans all ~333 symbols (20 concurrent via asyncio semaphore)
 2. Filters to BUY ≥ 35% and SELL ≥ 30% strength
 3. Sorts by strength descending
@@ -167,7 +167,7 @@ Same-sector swaps are preferred to maintain diversification.
 
 #### Caching
 
-`get_top_recommendations()` caches results. `get_holding_advice()` cross-references the cache so `/holdings` shows the same SWAP suggestions as `/recommend`. Refreshed every 15 min and on `/recommend`.
+`get_top_recommendations()` caches results. `get_holding_advice()` cross-references the cache so the holdings view shows the same SWAP suggestions as the recommendations view. Refreshed every 15 min (scheduled scan) and on-demand when recommendations are requested.
 
 ### Per-Holding Advice
 

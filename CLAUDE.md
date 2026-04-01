@@ -40,6 +40,10 @@ pytest
 ruff check api/src/ bot/src/
 mypy api/src/ bot/src/
 
+# Swift build check (after app/ changes)
+xcodebuild -project app/Trader.xcodeproj -scheme Trader \
+  -destination 'platform=iOS Simulator,name=iPhone 16' build 2>&1 | tail -5
+
 # Deploy
 git push origin main
 ssh -i your-ssh-key ubuntu@your-server \
@@ -53,6 +57,7 @@ ssh -i your-ssh-key ubuntu@your-server \
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture, project structure, data flow, DB models, API endpoints, auth, Docker, design system |
 | [docs/STRATEGY.md](docs/STRATEGY.md) | Trading strategy: signal pipeline, sentiment, commodity correlation, risk management, position sizing, symbol universe |
 | [docs/PLAN.md](docs/PLAN.md) | Development progress tracker and roadmap |
+| [docs/PROMPT.md](docs/PROMPT.md) | Copy-paste prompt to bootstrap a new Claude Code conversation |
 
 ## Quick Reference
 

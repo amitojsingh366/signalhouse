@@ -28,12 +28,27 @@ const NAV_ITEMS = [
   { href: "/upload", label: "Upload", icon: Upload },
   { href: "/status", label: "Status", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
-  { href: "/debug", label: "Debug", icon: Bug },
 ];
+
+const DEBUG_ITEM = { href: "/debug", label: "Debug", icon: Bug };
 
 export function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [footerTaps, setFooterTaps] = useState(0);
+  const [debugUnlocked, setDebugUnlocked] = useState(false);
+
+  function handleFooterClick() {
+    const next = footerTaps + 1;
+    if (next >= 10) {
+      setDebugUnlocked(true);
+      setFooterTaps(0);
+    } else {
+      setFooterTaps(next);
+    }
+  }
+
+  const navItems = debugUnlocked ? [...NAV_ITEMS, DEBUG_ITEM] : NAV_ITEMS;
 
   return (
     <>
@@ -68,7 +83,7 @@ export function Sidebar() {
 
         {/* Nav */}
         <nav className="flex-1 space-y-1 p-4">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const active =
               item.href === "/"
                 ? pathname === "/"
@@ -94,7 +109,17 @@ export function Sidebar() {
 
         {/* Footer */}
         <div className="border-t border-white/10 p-4">
-          <p className="text-xs text-slate-600">TFSA Trading Bot</p>
+          <p
+            onClick={handleFooterClick}
+            className="cursor-default select-none text-xs text-slate-600"
+          >
+            TFSA Trading Bot
+            {footerTaps > 0 && !debugUnlocked && (
+              <span className="ml-1 text-slate-700">
+                {footerTaps}/10
+              </span>
+            )}
+          </p>
         </div>
       </aside>
     </>

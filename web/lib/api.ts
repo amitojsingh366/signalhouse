@@ -197,15 +197,6 @@ export interface DebugDevice {
   enabled: boolean;
 }
 
-export interface DebugTopSignal {
-  symbol: string | null;
-  signal: string | null;
-  strength: number;
-  score: number;
-  reasons?: string[];
-  price?: number | null;
-}
-
 export interface TestPushResult {
   sent_to: number;
   symbol: string;
@@ -320,10 +311,13 @@ export const api = {
 
   // Debug
   getDebugDevices: () => fetchAPI<DebugDevice[]>("/api/debug/devices"),
-  getTopSignal: () => fetchAPI<DebugTopSignal>("/api/debug/top-signal"),
-  testPush: (push_type: "call" | "notification", device_token?: string) =>
+  testPush: (
+    push_type: "call" | "notification",
+    signal: { symbol: string; signal: string; strength: number; score: number },
+    device_token?: string,
+  ) =>
     fetchAPI<TestPushResult>("/api/debug/test-push", {
       method: "POST",
-      body: JSON.stringify({ push_type, device_token: device_token || null }),
+      body: JSON.stringify({ push_type, device_token: device_token || null, ...signal }),
     }),
 };

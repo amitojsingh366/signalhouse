@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bug, Phone, Bell, RefreshCw, Send } from "lucide-react";
+import { Phone, Bell, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
-import type { DebugDevice, DebugTopSignal } from "@/lib/api";
+import type { DebugDevice, SignalOut } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { CardSkeleton } from "@/components/ui/loading";
 
 export default function DebugPage() {
   const [devices, setDevices] = useState<DebugDevice[]>([]);
-  const [topSignal, setTopSignal] = useState<DebugTopSignal | null>(null);
+  const [topSignal, setTopSignal] = useState<SignalOut | null>(null);
   const [loading, setLoading] = useState(true);
   const [signalLoading, setSignalLoading] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<string>("all");
@@ -17,15 +17,21 @@ export default function DebugPage() {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  function pickTopSignal(recs: Awaited<ReturnType<typeof api.getRecommendations>>): SignalOut | null {
+    const all = [...recs.buys, ...recs.sells];
+    if (!all.length) return null;
+    return all.reduce((best, s) => (s.strength > best.strength ? s : best));
+  }
+
   async function loadData() {
     setLoading(true);
     try {
-      const [devs, sig] = await Promise.all([
+      const [devs, recs] = await Promise.all([
         api.getDebugDevices(),
-        api.getTopSignal(),
+        api.getRecommendations(5),
       ]);
       setDevices(devs);
-      setTopSignal(sig);
+      setTopSignal(pickTopSignal(recs));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
@@ -36,8 +42,8 @@ export default function DebugPage() {
   async function refreshSignal() {
     setSignalLoading(true);
     try {
-      const sig = await api.getTopSignal();
-      setTopSignal(sig);
+      const recs = await api.getRecommendations(5);
+      setTopSignal(pickTopSignal(recs));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to refresh signal");
     } finally {
@@ -46,12 +52,17 @@ export default function DebugPage() {
   }
 
   async function sendPush(type: "call" | "notification") {
+    if (!topSignal) return;
     setSending(type);
     setResult(null);
     setError(null);
     try {
       const deviceToken = selectedDevice === "all" ? undefined : selectedDevice;
-      const res = await api.testPush(type, deviceToken);
+      const res = await api.testPush(
+        type,
+        { symbol: topSignal.symbol, signal: topSignal.signal, strength: topSignal.strength, score: topSignal.score },
+        deviceToken,
+      );
       setResult(
         `Sent ${type} to ${res.sent_to} device${res.sent_to !== 1 ? "s" : ""}: ${res.signal} ${res.symbol} (${Math.round(res.strength * 100)}%)`
       );
@@ -78,9 +89,7 @@ export default function DebugPage() {
     );
   }
 
-  const strengthPct = topSignal?.strength
-    ? Math.round(topSignal.strength * 100)
-    : 0;
+  const strengthPct = topSignal ? Math.round(topSignal.strength * 100) : 0;
 
   return (
     <div className="space-y-6">
@@ -89,22 +98,18 @@ export default function DebugPage() {
       {/* Top Signal Card */}
       <div className="glass-card p-5 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-200">
-            Top Signal
-          </h2>
+          <h2 className="text-lg font-semibold text-slate-200">Top Signal</h2>
           <button
             onClick={refreshSignal}
             disabled={signalLoading}
             className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-slate-300 transition-colors hover:bg-white/10"
           >
-            <RefreshCw
-              className={cn("h-3.5 w-3.5", signalLoading && "animate-spin")}
-            />
+            <RefreshCw className={cn("h-3.5 w-3.5", signalLoading && "animate-spin")} />
             Refresh
           </button>
         </div>
 
-        {topSignal?.symbol ? (
+        {topSignal ? (
           <div className="flex items-center gap-4">
             <span
               className={cn(
@@ -117,16 +122,10 @@ export default function DebugPage() {
               {topSignal.signal}
             </span>
             <span className="text-xl font-bold">{topSignal.symbol}</span>
-            <span className="text-slate-400">
-              Score: {topSignal.score}/9
-            </span>
-            <span className="text-slate-400">
-              Strength: {strengthPct}%
-            </span>
+            <span className="text-slate-400">Score: {topSignal.score}/9</span>
+            <span className="text-slate-400">Strength: {strengthPct}%</span>
             {topSignal.price != null && (
-              <span className="text-slate-400">
-                ${topSignal.price.toFixed(2)}
-              </span>
+              <span className="text-slate-400">${topSignal.price.toFixed(2)}</span>
             )}
           </div>
         ) : (
@@ -149,9 +148,7 @@ export default function DebugPage() {
 
       {/* Send Controls */}
       <div className="glass-card p-5 space-y-4">
-        <h2 className="text-lg font-semibold text-slate-200">
-          Send Test Push
-        </h2>
+        <h2 className="text-lg font-semibold text-slate-200">Send Test Push</h2>
 
         {/* Device Selector */}
         <div className="space-y-1.5">
@@ -176,7 +173,7 @@ export default function DebugPage() {
         <div className="flex gap-3">
           <button
             onClick={() => sendPush("notification")}
-            disabled={sending !== null || !topSignal?.symbol}
+            disabled={sending !== null || !topSignal}
             className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-500 disabled:opacity-50"
           >
             {sending === "notification" ? (
@@ -188,7 +185,7 @@ export default function DebugPage() {
           </button>
           <button
             onClick={() => sendPush("call")}
-            disabled={sending !== null || !topSignal?.symbol}
+            disabled={sending !== null || !topSignal}
             className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
           >
             {sending === "call" ? (
@@ -228,9 +225,7 @@ export default function DebugPage() {
                 className="flex items-center justify-between rounded-lg bg-white/[0.03] px-4 py-3"
               >
                 <div className="space-y-0.5">
-                  <p className="text-sm font-medium text-slate-200">
-                    {d.platform}
-                  </p>
+                  <p className="text-sm font-medium text-slate-200">{d.platform}</p>
                   <p className="font-mono text-xs text-slate-500">
                     {d.device_token.slice(0, 16)}...{d.device_token.slice(-8)}
                   </p>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  Bug,
   Home,
   ArrowLeftRight,
   Briefcase,
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { href: "/upload", label: "Upload", icon: Upload },
   { href: "/status", label: "Status", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/debug", label: "Debug", icon: Bug },
 ];
 
 export function Sidebar() {

@@ -190,6 +190,30 @@ export interface PremarketResponse {
   movers: PremarketMover[];
 }
 
+export interface DebugDevice {
+  device_token: string;
+  push_token: string | null;
+  platform: string;
+  enabled: boolean;
+}
+
+export interface DebugTopSignal {
+  symbol: string | null;
+  signal: string | null;
+  strength: number;
+  score: number;
+  reasons?: string[];
+  price?: number | null;
+}
+
+export interface TestPushResult {
+  sent_to: number;
+  symbol: string;
+  signal: string;
+  strength: number;
+  score: number;
+}
+
 // --- API functions ---
 
 export const api = {
@@ -293,4 +317,13 @@ export const api = {
     }),
   deleteCredential: (id: number) =>
     fetchAPI<{ status: string }>(`/api/auth/credentials/${id}`, { method: "DELETE" }),
+
+  // Debug
+  getDebugDevices: () => fetchAPI<DebugDevice[]>("/api/debug/devices"),
+  getTopSignal: () => fetchAPI<DebugTopSignal>("/api/debug/top-signal"),
+  testPush: (push_type: "call" | "notification", device_token?: string) =>
+    fetchAPI<TestPushResult>("/api/debug/test-push", {
+      method: "POST",
+      body: JSON.stringify({ push_type, device_token: device_token || null }),
+    }),
 };

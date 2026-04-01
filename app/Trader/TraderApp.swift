@@ -181,11 +181,20 @@ struct MainTabView: View {
                 selectedTab = 0
             case .signals:
                 selectedTab = 2
+            case .signalCheck:
+                selectedTab = 2
             case .premarket:
                 selectedTab = 3
             }
-            // Clear after navigation
-            pushManager.deepLink = nil
+            // Deep link is consumed by SignalsView, clear after a short delay
+            if case .signalCheck = link {
+                // Let SignalsView read it first
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    pushManager.deepLink = nil
+                }
+            } else {
+                pushManager.deepLink = nil
+            }
         }
     }
 }

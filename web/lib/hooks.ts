@@ -11,6 +11,7 @@ import type {
   SymbolInfo,
   PriceHistory,
   UploadHolding,
+  PremarketResponse,
 } from "./api";
 
 // --- Query key factory ---
@@ -27,6 +28,7 @@ export const queryKeys = {
   price: (symbol: string) => ["price", symbol] as const,
   priceHistory: (symbol: string, period: string) => ["priceHistory", symbol, period] as const,
   insights: ["insights"] as const,
+  premarket: ["premarket"] as const,
 };
 
 // --- Query hooks ---
@@ -92,6 +94,14 @@ export function useSignalCheck(symbol: string | null) {
     queryKey: queryKeys.signal(symbol!),
     queryFn: () => api.checkSignal(symbol!),
     enabled: !!symbol,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function usePremarketMovers() {
+  return useQuery<PremarketResponse>({
+    queryKey: queryKeys.premarket,
+    queryFn: () => api.getPremarketMovers(),
     staleTime: 5 * 60 * 1000,
   });
 }

@@ -179,6 +179,17 @@ export interface SymbolInfo {
   sector: string;
 }
 
+export interface PremarketMover {
+  cdr_symbol: string;
+  us_symbol: string;
+  premarket_price: number;
+  change_pct: number;
+}
+
+export interface PremarketResponse {
+  movers: PremarketMover[];
+}
+
 // --- API functions ---
 
 export const api = {
@@ -225,6 +236,7 @@ export const api = {
   getPriceHistory: (symbol: string, period = "60d") =>
     fetchAPI<PriceHistory>(`/api/signals/history/${encodeURIComponent(symbol)}?period=${period}`),
   getInsights: () => fetchAPI<InsightsOut>("/api/signals/insights"),
+  getPremarketMovers: () => fetchAPI<PremarketResponse>("/api/signals/premarket"),
 
   // Status
   getStatus: () => fetchAPI<StatusOut>("/api/status"),

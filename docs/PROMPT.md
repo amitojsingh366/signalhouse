@@ -7,11 +7,12 @@ Copy-paste this into a new Claude Code conversation to get up to speed quickly.
 ```
 Continue working on the trading system from docs/PLAN.md.
 
-Context docs (read as needed, not all upfront):
-- CLAUDE.md — project overview, commands, key constraints
-- docs/ARCHITECTURE.md — system architecture, project structure, API endpoints, DB models, auth, design system
-- docs/STRATEGY.md — signal pipeline, sentiment, commodity correlation, risk management
-- docs/PLAN.md — completed history + current tasks + roadmap
+Before starting any work, read these docs to understand the system:
+1. docs/ARCHITECTURE.md — system architecture, project structure, data flow, API endpoints, DB models, auth, design system, Docker setup
+2. docs/STRATEGY.md — signal generation pipeline, sentiment scoring, commodity correlation, risk management, position sizing, symbol universe
+3. docs/PLAN.md — completed history + current tasks + roadmap
+
+CLAUDE.md has a quick reference with commands and key constraints if you need it.
 
 Workflow:
 1. Read docs/PLAN.md to find the next unchecked item under "Current / Next"

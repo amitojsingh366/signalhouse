@@ -3,6 +3,7 @@ import SwiftUI
 /// Pre-market movers view — shows CDR counterpart stocks with notable premarket moves.
 struct PreMarketView: View {
     @EnvironmentObject private var config: AppConfig
+    @EnvironmentObject private var pushManager: PushManager
 
     @State private var movers: [PremarketMover] = []
     @State private var isLoading = true
@@ -37,7 +38,12 @@ struct PreMarketView: View {
                 } else {
                     Section("CDR Counterpart Moves") {
                         ForEach(movers) { mover in
-                            PremarketMoverRow(mover: mover)
+                            Button {
+                                pushManager.deepLink = .signalCheck(symbol: mover.cdrSymbol)
+                            } label: {
+                                PremarketMoverRow(mover: mover)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }

@@ -3,6 +3,7 @@ import SwiftUI
 /// Signals page matching web's signals/page.tsx — recommendations + symbol search.
 struct SignalsView: View {
     @EnvironmentObject private var config: AppConfig
+    @EnvironmentObject private var pushManager: PushManager
 
     @State private var recommendations: RecommendationOut?
     @State private var isLoading = true
@@ -119,6 +120,12 @@ struct SignalsView: View {
             }
             .refreshable { await loadData() }
             .task { await loadData() }
+            .onChange(of: pushManager.deepLink) { _, link in
+                if case .signalCheck(let symbol) = link {
+                    searchText = symbol
+                    Task { await checkSymbol(symbol) }
+                }
+            }
         }
     }
 

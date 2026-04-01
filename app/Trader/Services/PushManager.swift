@@ -25,6 +25,7 @@ final class PushManager: NSObject, ObservableObject {
         case premarket
         case dashboard
         case signals
+        case signalCheck(symbol: String)
     }
 
     // MARK: - Setup

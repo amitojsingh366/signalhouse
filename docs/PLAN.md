@@ -18,7 +18,8 @@ Progress tracker and roadmap. For architecture details see [ARCHITECTURE.md](ARC
 - [x] VoIP push notifications — APNs HTTP/2 + ES256 JWT, PushKit + CallKit on iOS for DND bypass, 70% strength threshold, 60min cooldown, 30s retry
 - [x] Passkey authentication — WebAuthn via py-webauthn, JWT token-gated API, web settings page, AuthGate overlay, iOS ASAuthorizationController, Associated Domains
 - [x] iOS app polish — Symbol search suggestions (type-ahead from universe), signal detail with price chart, tappable cash edit, skeleton loading for all Dashboard sections
-- [x] iOS scheduled push notifications — Standard APNs alerts for premarket movers (8 AM ET), morning briefing (8:30 AM), market close (3:50 PM), evening recap (10 PM PT). New Pre-Market tab, deep linking from notifications, AppDelegate for push token registration. DB: push_token on device_registrations, notification_type on notification_log.
+- [x] Scheduled push notifications + Pre-Market page — Standard APNs alerts for premarket (8 AM ET), morning briefing (8:30 AM), market close (3:50 PM), evening recap (10 PM PT). Pre-Market tab on iOS and `/premarket` page on web with tappable movers that navigate to signal check. Deep linking from notifications, AppDelegate for push token. DB: push_token on device_registrations, notification_type on notification_log.
+- [x] Debug page on web — `/debug` page to manually trigger test push notification or VoIP call for the highest-confidence current signal. Device dropdown (per-device or all devices), inline send result feedback. API endpoints: `GET /api/debug/devices`, `GET /api/debug/top-signal`, `POST /api/debug/test-push`.
 
 **Notable observations:**
 - Brand theme took 3 iterations — started with purple for everything, then split P&L to standard green/red

@@ -7,7 +7,7 @@ Copy-paste this into a new Claude Code conversation to get up to speed quickly.
 ```
 Continue working on the trading system from docs/PLAN.md.
 
-Before starting any work, read these docs to understand the system:
+Before starting any work, read these docs based on current task to understand the system:
 1. docs/ARCHITECTURE.md — system architecture, project structure, data flow, API endpoints, DB models, auth, design system, Docker setup
 2. docs/STRATEGY.md — signal generation pipeline, sentiment scoring, commodity correlation, risk management, position sizing, symbol universe
 3. docs/PLAN.md — completed history + current tasks + roadmap
@@ -32,4 +32,7 @@ ssh -i your-ssh-key ubuntu@your-server \
 
 Keep the plan consolidated — don't let completed sub-items bloat. When a step is fully done,
 collapse its sub-items into a single summary line like the existing completed steps.
+
+Current Task:
+
 ```

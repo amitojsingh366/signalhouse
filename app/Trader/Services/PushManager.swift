@@ -2,17 +2,30 @@ import CallKit
 import Combine
 import PushKit
 import SwiftUI
+import UserNotifications
 
-/// Manages VoIP push registration (PushKit) and incoming call UI (CallKit).
+/// Manages VoIP push registration (PushKit), standard push (UNUserNotificationCenter),
+/// incoming call UI (CallKit), and deep-link routing for notification taps.
 @MainActor
 final class PushManager: NSObject, ObservableObject {
     @Published var deviceToken: String?
+    @Published var pushToken: String?
+    /// Deep-link destination set when the user taps a notification.
+    @Published var deepLink: DeepLink?
 
     private var voipRegistry: PKPushRegistry?
     private var provider: CXProvider?
 
     /// Weak reference to the API client — set by the app after onboarding.
     var apiClient: APIClient?
+
+    // MARK: - Deep Link
+
+    enum DeepLink: Equatable {
+        case premarket
+        case dashboard
+        case signals
+    }
 
     // MARK: - Setup
 
@@ -26,12 +39,74 @@ final class PushManager: NSObject, ObservableObject {
         config.maximumCallsPerCallGroup = 1
         config.supportsVideo = false
         config.supportedHandleTypes = [.generic]
-        // ringtoneSound can be customized:
-        // config.ringtoneSound = "signal.caf"
 
         let prov = CXProvider(configuration: config)
         prov.setDelegate(self, queue: .main)
         self.provider = prov
+    }
+
+    /// Register for standard (alert) push notifications.
+    func registerForStandardPush() {
+        UNUserNotificationCenter.current().delegate = self
+        UNUserNotificationCenter.current().requestAuthorization(
+            options: [.alert, .badge, .sound]
+        ) { granted, error in
+            if let error {
+                print("[PushManager] Push auth error: \(error)")
+            }
+            guard granted else { return }
+            DispatchQueue.main.async {
+                UIApplication.shared.registerForRemoteNotifications()
+            }
+        }
+    }
+
+    /// Called from AppDelegate/SceneDelegate when standard push token arrives.
+    func didRegisterForRemoteNotifications(deviceToken: Data) {
+        let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+        self.pushToken = token
+        // Re-register with API including the push token
+        Task {
+            try? await apiClient?.registerDevice(
+                token: self.deviceToken ?? "",
+                pushToken: token
+            )
+        }
+    }
+}
+
+// MARK: - UNUserNotificationCenterDelegate
+
+extension PushManager: UNUserNotificationCenterDelegate {
+    /// Show notification banners even when app is in foreground.
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound, .badge])
+    }
+
+    /// Handle notification tap — route to appropriate deep link.
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+        let type = userInfo["notification_type"] as? String ?? ""
+
+        Task { @MainActor in
+            switch type {
+            case "premarket":
+                self.deepLink = .premarket
+            case "briefing", "recap", "close":
+                self.deepLink = .dashboard
+            default:
+                self.deepLink = .signals
+            }
+        }
+        completionHandler()
     }
 }
 
@@ -50,7 +125,7 @@ extension PushManager: PKPushRegistryDelegate {
         Task { @MainActor in
             self.deviceToken = token
             // Register with API server
-            try? await apiClient?.registerDevice(token: token)
+            try? await apiClient?.registerDevice(token: token, pushToken: self.pushToken)
         }
     }
 
@@ -105,6 +180,8 @@ extension PushManager: CXProviderDelegate {
         if notifId > 0 {
             Task { @MainActor in
                 try? await self.apiClient?.acknowledgeNotification(id: notifId)
+                // Deep link to signals when answering a signal call
+                self.deepLink = .signals
             }
             UserDefaults.standard.removeObject(forKey: key)
         }

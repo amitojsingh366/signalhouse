@@ -138,6 +138,16 @@ final class APIClient: ObservableObject {
         return try await fetch("/api/signals/history/\(encoded)?period=\(period)")
     }
 
+    // MARK: - Insights
+
+    func getInsights() async throws -> InsightsOut {
+        try await fetch("/api/signals/insights")
+    }
+
+    func getPremarketMovers() async throws -> PremarketResponse {
+        try await fetch("/api/signals/premarket")
+    }
+
     // MARK: - Status
 
     func getStatus() async throws -> StatusOut {
@@ -191,11 +201,11 @@ final class APIClient: ObservableObject {
 
     // MARK: - Notifications
 
-    func registerDevice(token: String, platform: String = "ios") async throws {
-        struct Body: Encodable { let deviceToken: String; let platform: String }
+    func registerDevice(token: String, pushToken: String? = nil, platform: String = "ios") async throws {
+        struct Body: Encodable { let deviceToken: String; let pushToken: String?; let platform: String }
         let _: [String: AnyCodable] = try await fetch(
             "/api/notifications/register", method: "POST",
-            body: Body(deviceToken: token, platform: platform)
+            body: Body(deviceToken: token, pushToken: pushToken, platform: platform)
         )
     }
 

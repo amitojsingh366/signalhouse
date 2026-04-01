@@ -166,6 +166,15 @@ async def get_commodities():
     return {"commodities": results}
 
 
+@router.get("/premarket")
+async def get_premarket_movers(db: AsyncSession = Depends(get_db)):
+    """Get pre-market movers for CDR counterpart stocks."""
+    portfolio = make_portfolio(db)
+    strategy = make_strategy(portfolio)
+    movers = await strategy.get_premarket_movers()
+    return {"movers": movers}
+
+
 @router.get("/insights", response_model=InsightsOut)
 async def get_insights(db: AsyncSession = Depends(get_db)):
     portfolio = make_portfolio(db)

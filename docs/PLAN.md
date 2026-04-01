@@ -18,11 +18,13 @@ Progress tracker and roadmap. For architecture details see [ARCHITECTURE.md](ARC
 - [x] VoIP push notifications — APNs HTTP/2 + ES256 JWT, PushKit + CallKit on iOS for DND bypass, 70% strength threshold, 60min cooldown, 30s retry
 - [x] Passkey authentication — WebAuthn via py-webauthn, JWT token-gated API, web settings page, AuthGate overlay, iOS ASAuthorizationController, Associated Domains
 - [x] iOS app polish — Symbol search suggestions (type-ahead from universe), signal detail with price chart, tappable cash edit, skeleton loading for all Dashboard sections
+- [x] iOS scheduled push notifications — Standard APNs alerts for premarket movers (8 AM ET), morning briefing (8:30 AM), market close (3:50 PM), evening recap (10 PM PT). New Pre-Market tab, deep linking from notifications, AppDelegate for push token registration. DB: push_token on device_registrations, notification_type on notification_log.
 
 **Notable observations:**
 - Brand theme took 3 iterations — started with purple for everything, then split P&L to standard green/red
 - Fear & Greed library silently changed return type (dict vs object), sentiment fell back to neutral for weeks
 - Xcode 26 uses `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` and `SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES` by default — requires explicit `import Combine` for `ObservableObject`
+- `create_all` doesn't add columns to existing tables — new columns (push_token, notification_type) need manual ALTER TABLE on production
 
 ---
 

@@ -35,9 +35,12 @@ async def register_device(
 
     if device:
         device.platform = data.platform
+        if data.push_token is not None:
+            device.push_token = data.push_token
     else:
         device = DeviceRegistration(
             device_token=data.device_token,
+            push_token=data.push_token,
             platform=data.platform,
         )
         db.add(device)

@@ -142,6 +142,7 @@ struct NotificationPrefsOut: Codable {
 
 struct NotificationLogOut: Codable, Identifiable {
     let id: Int
+    let notificationType: String?
     let symbol: String
     let signal: String
     let strength: Double
@@ -149,6 +150,35 @@ struct NotificationLogOut: Codable, Identifiable {
     let sentAt: String
     let delivered: Bool
     let acknowledged: Bool
+}
+
+// MARK: - Premarket Movers
+
+struct PremarketMover: Codable, Identifiable {
+    var id: String { cdrSymbol }
+    let cdrSymbol: String
+    let usSymbol: String
+    let premarketPrice: Double
+    let changePct: Double
+}
+
+struct PremarketResponse: Codable {
+    let movers: [PremarketMover]
+}
+
+// MARK: - Insights
+
+struct InsightsOut: Codable {
+    let holdings: [[String: AnyCodable]]
+    let premarket: [[String: AnyCodable]]
+    let topMovers: [[String: AnyCodable]]
+    let sectorExposure: [String: AnyCodable]
+    let portfolioValue: Double
+    let dailyPnl: Double
+    let dailyPnlPct: Double
+    let totalPnl: Double
+    let totalPnlPct: Double
+    let cash: Double
 }
 
 // MARK: - Price History

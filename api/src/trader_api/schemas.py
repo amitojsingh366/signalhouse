@@ -180,6 +180,7 @@ class InsightsOut(BaseModel):
 
 class DeviceRegisterIn(BaseModel):
     device_token: str
+    push_token: str | None = None  # Standard APNs token for alert notifications
     platform: str = "ios"
 
 
@@ -198,6 +199,7 @@ class NotificationPrefsOut(BaseModel):
 
 class NotificationLogOut(BaseModel):
     id: int
+    notification_type: str = "signal"
     symbol: str
     signal: str
     strength: float

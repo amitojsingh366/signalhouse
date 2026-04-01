@@ -75,7 +75,7 @@ class SignalHistory(Base):
 
 
 class DeviceRegistration(Base):
-    """Registered devices for VoIP push notifications."""
+    """Registered devices for push notifications."""
 
     __tablename__ = "device_registrations"
 
@@ -83,6 +83,9 @@ class DeviceRegistration(Base):
     device_token: Mapped[str] = mapped_column(
         String(255), unique=True, nullable=False, index=True
     )
+    push_token: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, index=True
+    )  # Standard APNs token (separate from VoIP device_token)
     platform: Mapped[str] = mapped_column(String(10), nullable=False, default="ios")
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     daily_disabled_date: Mapped[str | None] = mapped_column(
@@ -94,12 +97,15 @@ class DeviceRegistration(Base):
 
 
 class NotificationLog(Base):
-    """Log of VoIP push notifications sent to devices."""
+    """Log of push notifications sent to devices."""
 
     __tablename__ = "notification_log"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     device_token: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    notification_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="signal"
+    )  # signal, premarket, briefing, close, recap
     symbol: Mapped[str] = mapped_column(String(20), nullable=False)
     signal: Mapped[str] = mapped_column(String(4), nullable=False)
     strength: Mapped[float] = mapped_column(Float, nullable=False)

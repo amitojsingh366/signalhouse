@@ -5,6 +5,7 @@ struct TraderApp: App {
     @StateObject private var config = AppConfig()
     @StateObject private var pushManager = PushManager()
     @StateObject private var authManager = AuthManager()
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
         WindowGroup {
@@ -15,6 +16,8 @@ struct TraderApp: App {
                             let client = APIClient(baseURL: config.apiBaseURL!)
                             pushManager.apiClient = client
                             pushManager.registerForVoIPPushes()
+                            pushManager.registerForStandardPush()
+                            appDelegate.pushManager = pushManager
                             client.onUnauthorized = {
                                 authManager.isAuthenticated = false
                             }
@@ -31,6 +34,20 @@ struct TraderApp: App {
             .environmentObject(authManager)
             .preferredColorScheme(.dark)
             .tint(Theme.brand)
+        }
+    }
+}
+
+/// AppDelegate for receiving standard push token.
+class AppDelegate: NSObject, UIApplicationDelegate {
+    var pushManager: PushManager?
+
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Task { @MainActor in
+            pushManager?.didRegisterForRemoteNotifications(deviceToken: deviceToken)
         }
     }
 }
@@ -109,38 +126,66 @@ struct AuthGateView: View {
 /// Main tab navigation matching the web sidebar.
 struct MainTabView: View {
     @EnvironmentObject private var config: AppConfig
+    @EnvironmentObject private var pushManager: PushManager
+
+    @State private var selectedTab = 0
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             DashboardView()
                 .tabItem {
                     Label("Dashboard", systemImage: "house")
                 }
+                .tag(0)
 
             PortfolioView()
                 .tabItem {
                     Label("Portfolio", systemImage: "briefcase")
                 }
+                .tag(1)
 
             SignalsView()
                 .tabItem {
                     Label("Signals", systemImage: "bolt")
                 }
+                .tag(2)
+
+            PreMarketView()
+                .tabItem {
+                    Label("Pre-Market", systemImage: "sunrise")
+                }
+                .tag(3)
 
             TradesView()
                 .tabItem {
                     Label("Trades", systemImage: "arrow.left.arrow.right")
                 }
+                .tag(4)
 
             UploadView()
                 .tabItem {
                     Label("Upload", systemImage: "square.and.arrow.up")
                 }
+                .tag(5)
 
             StatusView()
                 .tabItem {
                     Label("Status", systemImage: "waveform.path.ecg")
                 }
+                .tag(6)
+        }
+        .onChange(of: pushManager.deepLink) { _, link in
+            guard let link else { return }
+            switch link {
+            case .dashboard:
+                selectedTab = 0
+            case .signals:
+                selectedTab = 2
+            case .premarket:
+                selectedTab = 3
+            }
+            // Clear after navigation
+            pushManager.deepLink = nil
         }
     }
 }

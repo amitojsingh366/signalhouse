@@ -1,4 +1,4 @@
-"""APNs VoIP push notification service for trading signal alerts."""
+"""APNs push notification service — VoIP (signals) and standard alerts (scheduled)."""
 
 from __future__ import annotations
 
@@ -87,10 +87,14 @@ class APNsNotifier:
         self._jwt_expires = now + self.JWT_LIFETIME
         return self._jwt_token
 
-    async def send_voip_push(
-        self, device_token: str, payload: dict[str, Any]
+    async def _send_push(
+        self,
+        device_token: str,
+        payload: dict[str, Any],
+        *,
+        push_type: str = "voip",
     ) -> bool:
-        """Send a VoIP push notification to a device. Returns True if accepted."""
+        """Send a push notification. push_type is 'voip' or 'alert'."""
         if not self.is_configured:
             logger.debug("APNs not configured, skipping push")
             return False
@@ -99,10 +103,13 @@ class APNsNotifier:
         url = f"{self.base_url}/3/device/{device_token}"
         token = self._get_jwt()
 
+        topic = (
+            f"{self.bundle_id}.voip" if push_type == "voip" else self.bundle_id
+        )
         headers = {
             "authorization": f"bearer {token}",
-            "apns-topic": f"{self.bundle_id}.voip",
-            "apns-push-type": "voip",
+            "apns-topic": topic,
+            "apns-push-type": push_type,
             "apns-priority": "10",
             "apns-expiration": "0",
         }
@@ -115,10 +122,12 @@ class APNsNotifier:
             )
             if response.status_code == 200:
                 logger.info(
-                    "VoIP push sent to %s…%s: %s",
+                    "%s push sent to %s…%s: %s",
+                    push_type,
                     device_token[:8],
                     device_token[-4:],
-                    payload.get("caller_name", "?"),
+                    payload.get("caller_name")
+                    or payload.get("aps", {}).get("alert", {}).get("title", "?"),
                 )
                 return True
             else:
@@ -128,8 +137,35 @@ class APNsNotifier:
                 )
                 return False
         except Exception:
-            logger.exception("Failed to send VoIP push")
+            logger.exception("Failed to send %s push", push_type)
             return False
+
+    async def send_voip_push(
+        self, device_token: str, payload: dict[str, Any]
+    ) -> bool:
+        """Send a VoIP push notification to a device. Returns True if accepted."""
+        return await self._send_push(device_token, payload, push_type="voip")
+
+    async def send_alert_push(
+        self,
+        push_token: str,
+        *,
+        title: str,
+        body: str,
+        category: str = "general",
+        data: dict[str, Any] | None = None,
+    ) -> bool:
+        """Send a standard alert push notification. Returns True if accepted."""
+        payload: dict[str, Any] = {
+            "aps": {
+                "alert": {"title": title, "body": body},
+                "sound": "default",
+                "category": category,
+            },
+        }
+        if data:
+            payload.update(data)
+        return await self._send_push(push_token, payload, push_type="alert")
 
     async def notify_signal(
         self,
@@ -226,6 +262,69 @@ class APNsNotifier:
                 payload.get("caller_name", "?"),
                 "delivered" if delivered else "failed",
             )
+
+    async def notify_scheduled(
+        self,
+        db_session_factory: Any,
+        *,
+        notification_type: str,
+        title: str,
+        body: str,
+        category: str,
+    ) -> int:
+        """Send a standard alert push to all enabled devices. Returns count sent."""
+        from datetime import UTC, datetime
+
+        from sqlalchemy import or_, select
+
+        from trader_api.models import DeviceRegistration
+
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
+        sent = 0
+
+        async with db_session_factory() as db:
+            result = await db.execute(
+                select(DeviceRegistration).where(
+                    DeviceRegistration.enabled.is_(True),
+                    DeviceRegistration.push_token.isnot(None),
+                    or_(
+                        DeviceRegistration.daily_disabled_date.is_(None),
+                        DeviceRegistration.daily_disabled_date != today,
+                    ),
+                )
+            )
+            devices = result.scalars().all()
+
+            for device in devices:
+                log_entry = NotificationLog(
+                    device_token=device.push_token,
+                    notification_type=notification_type,
+                    symbol="",
+                    signal="",
+                    strength=0.0,
+                    caller_name=title,
+                    delivered=False,
+                    acknowledged=False,
+                    retry_count=0,
+                )
+                db.add(log_entry)
+                await db.commit()
+                await db.refresh(log_entry)
+
+                delivered = await self.send_alert_push(
+                    device.push_token,
+                    title=title,
+                    body=body,
+                    category=category,
+                    data={"notification_type": notification_type},
+                )
+                log_entry.delivered = delivered
+                await db.commit()
+                if delivered:
+                    sent += 1
+
+        logger.info("Scheduled push [%s] sent to %d devices", notification_type, sent)
+        return sent
 
     async def close(self) -> None:
         if self._client and not self._client.is_closed:

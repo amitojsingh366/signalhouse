@@ -8,6 +8,9 @@ struct PortfolioView: View {
     @State private var isLoading = true
     @State private var selectedHolding: HoldingAdvice?
     @State private var searchText = ""
+    @State private var showCashEdit = false
+    @State private var cashEditText = ""
+    @State private var isSavingCash = false
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
@@ -31,11 +34,20 @@ struct PortfolioView: View {
                             Text(Formatting.currency(portfolio.totalValue))
                                 .fontWeight(.semibold)
                         }
-                        HStack {
-                            Text("Cash")
-                            Spacer()
-                            Text(Formatting.currency(portfolio.cash))
+                        Button {
+                            cashEditText = String(format: "%.2f", portfolio.cash)
+                            showCashEdit = true
+                        } label: {
+                            HStack {
+                                Text("Cash")
+                                Spacer()
+                                Text(Formatting.currency(portfolio.cash))
+                                Image(systemName: "pencil")
+                                    .font(.caption2)
+                                    .foregroundStyle(Theme.textDimmed)
+                            }
                         }
+                        .buttonStyle(.plain)
                         HStack {
                             Text("Total P&L")
                             Spacer()
@@ -81,7 +93,27 @@ struct PortfolioView: View {
                     await loadData()
                 }
             }
+            .alert("Edit Cash Balance", isPresented: $showCashEdit) {
+                TextField("Cash amount", text: $cashEditText)
+                    .keyboardType(.decimalPad)
+                Button("Cancel", role: .cancel) {}
+                Button("Save") {
+                    Task { await saveCash() }
+                }
+            } message: {
+                Text("Enter new cash balance")
+            }
         }
+    }
+
+    private func saveCash() async {
+        guard let value = Double(cashEditText) else { return }
+        isSavingCash = true
+        defer { isSavingCash = false }
+        do {
+            try await client.updateCash(value)
+            await loadData()
+        } catch { /* silent */ }
     }
 
     private func loadData() async {

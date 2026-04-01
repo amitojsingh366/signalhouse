@@ -303,6 +303,8 @@ ssh -i your-ssh-key ubuntu@your-server \
 
 - [x] Passkey authentication — WebAuthn registration/login via py-webauthn, JWT token-gated API (auto-skips if no passkey registered), web settings page with passkey management, AuthGate overlay on 401, iOS ASAuthorizationController integration with Associated Domains, apple-app-site-association via Caddy
 
+- [x] iOS app polish — Symbol search suggestions (type-ahead from tracked universe), signal detail view with price history chart (area+line, range picker), tappable cash edit on Portfolio page, skeleton loading for all Dashboard sections (stat cards, signals, equity chart, sector exposure)
+
 **Notable observations:**
 - Brand theme took 3 iterations — started with purple for everything, then split P&L to standard green/red
 - Fear & Greed library silently changed return type (dict vs object), sentiment fell back to neutral for weeks

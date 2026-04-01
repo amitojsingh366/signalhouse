@@ -10,9 +10,20 @@ struct SignalsView: View {
     @State private var checkedSignal: SignalOut?
     @State private var isChecking = false
     @State private var expandedSymbol: String?
+    @State private var allSymbols: [SymbolInfo] = []
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
+    }
+
+    /// Symbols filtered by search text for suggestions
+    private var searchSuggestions: [SymbolInfo] {
+        let query = searchText.trimmingCharacters(in: .whitespaces)
+        guard query.count >= 1 else { return [] }
+        let upper = query.uppercased()
+        return allSymbols.filter {
+            $0.symbol.uppercased().contains(upper) || $0.name.uppercased().contains(upper)
+        }.prefix(8).map { $0 }
     }
 
     var body: some View {
@@ -21,8 +32,10 @@ struct SignalsView: View {
                 // Search result
                 if let checkedSignal {
                     Section("Search Result") {
-                        SignalCardContent(signal: checkedSignal, expanded: expandedSymbol == checkedSignal.symbol) {
-                            toggleExpand(checkedSignal.symbol)
+                        NavigationLink {
+                            SignalDetailView(signal: checkedSignal)
+                        } label: {
+                            SignalCardContent(signal: checkedSignal)
                         }
                     }
                 }
@@ -40,8 +53,10 @@ struct SignalsView: View {
                 if let buys = recommendations?.buys, !buys.isEmpty {
                     Section("Buy Signals") {
                         ForEach(buys) { sig in
-                            SignalCardContent(signal: sig, expanded: expandedSymbol == sig.symbol) {
-                                toggleExpand(sig.symbol)
+                            NavigationLink {
+                                SignalDetailView(signal: sig)
+                            } label: {
+                                SignalCardContent(signal: sig)
                             }
                         }
                     }
@@ -51,8 +66,10 @@ struct SignalsView: View {
                 if let sells = recommendations?.sells, !sells.isEmpty {
                     Section("Sell Signals") {
                         ForEach(sells) { sig in
-                            SignalCardContent(signal: sig, expanded: expandedSymbol == sig.symbol) {
-                                toggleExpand(sig.symbol)
+                            NavigationLink {
+                                SignalDetailView(signal: sig)
+                            } label: {
+                                SignalCardContent(signal: sig)
                             }
                         }
                     }
@@ -62,8 +79,10 @@ struct SignalsView: View {
                 if let watchlist = recommendations?.watchlistSells, !watchlist.isEmpty {
                     Section("Watchlist Alerts") {
                         ForEach(watchlist) { sig in
-                            SignalCardContent(signal: sig, expanded: expandedSymbol == sig.symbol) {
-                                toggleExpand(sig.symbol)
+                            NavigationLink {
+                                SignalDetailView(signal: sig)
+                            } label: {
+                                SignalCardContent(signal: sig)
                             }
                         }
                     }
@@ -77,23 +96,34 @@ struct SignalsView: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Signals")
-            .searchable(text: $searchText, prompt: "Check a symbol (e.g. SHOP.TO)")
+            .searchable(text: $searchText, prompt: "Search symbol (e.g. SHOP.TO)")
+            .searchSuggestions {
+                ForEach(searchSuggestions) { symbol in
+                    Button {
+                        searchText = symbol.symbol
+                        Task { await checkSymbol(symbol.symbol) }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(symbol.symbol)
+                                .fontWeight(.medium)
+                            Text("\(symbol.name) \u{2022} \(symbol.sector)")
+                                .font(.caption)
+                                .foregroundStyle(Theme.textDimmed)
+                        }
+                    }
+                    .searchCompletion(symbol.symbol)
+                }
+            }
             .onSubmit(of: .search) {
-                Task { await checkSymbol() }
+                Task { await checkSymbol(nil) }
             }
             .refreshable { await loadData() }
             .task { await loadData() }
         }
     }
 
-    private func toggleExpand(_ symbol: String) {
-        withAnimation {
-            expandedSymbol = expandedSymbol == symbol ? nil : symbol
-        }
-    }
-
-    private func checkSymbol() async {
-        let symbol = searchText.trimmingCharacters(in: .whitespaces).uppercased()
+    private func checkSymbol(_ symbolOverride: String?) async {
+        let symbol = (symbolOverride ?? searchText).trimmingCharacters(in: .whitespaces).uppercased()
         guard !symbol.isEmpty else { return }
         isChecking = true
         defer { isChecking = false }
@@ -107,9 +137,17 @@ struct SignalsView: View {
     private func loadData() async {
         isLoading = true
         defer { isLoading = false }
+
+        async let recs = client.getRecommendations()
+        async let syms = client.getSymbols()
+
         do {
-            recommendations = try await client.getRecommendations()
+            recommendations = try await recs
         } catch { /* pull-to-refresh retries */ }
+
+        do {
+            allSymbols = try await syms
+        } catch { /* symbols are optional, suggestions just won't show */ }
     }
 }
 
@@ -117,43 +155,38 @@ struct SignalsView: View {
 
 private struct SignalCardContent: View {
     let signal: SignalOut
-    let expanded: Bool
-    let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(signal.symbol)
-                        .font(.headline)
-                    Spacer()
-                    if signal.score != 0 {
-                        Text("\(signal.score > 0 ? "+" : "")\(String(format: "%.1f", signal.score))/8")
-                            .font(.caption)
-                            .fontDesign(.monospaced)
-                            .foregroundStyle(Theme.textDimmed)
-                    }
-                    SignalBadgeView(signal: signal.signal, strength: signal.strength)
-                }
-
-                if let price = signal.price {
-                    Text("Price: \(Formatting.currency(price))")
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(signal.symbol)
+                    .font(.headline)
+                Spacer()
+                if signal.score != 0 {
+                    Text("\(signal.score > 0 ? "+" : "")\(String(format: "%.1f", signal.score))/8")
                         .font(.caption)
-                        .foregroundStyle(Theme.textMuted)
-                }
-                if let sector = signal.sector {
-                    Text(sector)
-                        .font(.caption2)
+                        .fontDesign(.monospaced)
                         .foregroundStyle(Theme.textDimmed)
                 }
-
-                ForEach(signal.reasons, id: \.self) { reason in
-                    ScoreReasonRow(text: reason)
-                }
+                SignalBadgeView(signal: signal.signal, strength: signal.strength)
             }
-            .padding(.vertical, 4)
+
+            if let price = signal.price {
+                Text("Price: \(Formatting.currency(price))")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textMuted)
+            }
+            if let sector = signal.sector {
+                Text(sector)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textDimmed)
+            }
+
+            ForEach(signal.reasons, id: \.self) { reason in
+                ScoreReasonRow(text: reason)
+            }
         }
-        .buttonStyle(.plain)
+        .padding(.vertical, 4)
     }
 }
 

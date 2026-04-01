@@ -56,6 +56,40 @@ struct DashboardView: View {
                         }
                     }
 
+                    // Latest signals skeleton
+                    if isLoading && signals == nil {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.white.opacity(0.06))
+                                    .frame(width: 100, height: 14)
+                                Spacer()
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.white.opacity(0.06))
+                                    .frame(width: 50, height: 12)
+                            }
+                            ForEach(0..<3, id: \.self) { _ in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(Color.white.opacity(0.06))
+                                            .frame(width: 70, height: 14)
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(Color.white.opacity(0.06))
+                                            .frame(width: 100, height: 10)
+                                    }
+                                    Spacer()
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(Color.white.opacity(0.06))
+                                        .frame(width: 60, height: 22)
+                                }
+                                .padding(12)
+                                .glassCard()
+                            }
+                        }
+                        .shimmer()
+                    }
+
                     // Latest signals
                     if let signals, !signals.buys.isEmpty || !signals.sells.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
@@ -111,12 +145,49 @@ struct DashboardView: View {
                     }
 
                     // Equity chart
-                    if let snapshots, !snapshots.isEmpty {
+                    if isLoading && snapshots == nil {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.white.opacity(0.06))
+                                    .frame(width: 90, height: 14)
+                                Spacer()
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.white.opacity(0.06))
+                                    .frame(width: 200, height: 28)
+                            }
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.white.opacity(0.04))
+                                .frame(height: 220)
+                        }
+                        .padding()
+                        .glassCard()
+                        .shimmer()
+                    } else if let snapshots, !snapshots.isEmpty {
                         EquityChartView(snapshots: snapshots)
                     }
 
                     // Sector exposure
-                    if let signals, !signals.sectorExposure.isEmpty {
+                    if isLoading && signals == nil {
+                        VStack(alignment: .leading, spacing: 12) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.white.opacity(0.06))
+                                .frame(width: 120, height: 14)
+                            ForEach(0..<4, id: \.self) { _ in
+                                HStack {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.white.opacity(0.06))
+                                        .frame(width: 80, height: 12)
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.white.opacity(0.06))
+                                        .frame(height: 12)
+                                }
+                            }
+                        }
+                        .padding()
+                        .glassCard()
+                        .shimmer()
+                    } else if let signals, !signals.sectorExposure.isEmpty {
                         SectorChartView(exposure: signals.sectorExposure)
                     }
                 }

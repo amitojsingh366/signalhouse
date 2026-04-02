@@ -22,7 +22,6 @@ strategy:
       - {symbol: "AMD.NE",    name: "AMD (CDR)"}
       - {symbol: "AAPL.NE",   name: "Apple (CDR)"}
       - {symbol: "MSFT.NE",   name: "Microsoft (CDR)"}
-      - {symbol: "MSFT.TO",   name: "Microsoft (TSX)"}
       - {symbol: "GOOG.NE",   name: "Alphabet (CDR)"}
       - {symbol: "META.NE",   name: "Meta Platforms (CDR)"}
       - {symbol: "AMZN.NE",   name: "Amazon (CDR)"}

@@ -52,7 +52,15 @@ class Strategy:
             self.symbols = config["strategy"].get("symbols", [])
 
     def get_sector(self, symbol: str) -> str:
-        return self.symbol_to_sector.get(symbol, "unknown")
+        if symbol in self.symbol_to_sector:
+            return self.symbol_to_sector[symbol]
+        # Try alternate exchange suffixes (.TO, .NE, bare US ticker)
+        base = symbol.rsplit(".", 1)[0] if "." in symbol else symbol
+        for suffix in (".TO", ".NE", ""):
+            alt = f"{base}{suffix}"
+            if alt != symbol and alt in self.symbol_to_sector:
+                return self.symbol_to_sector[alt]
+        return "unknown"
 
     async def get_sector_exposure(
         self, live_prices: dict[str, float]

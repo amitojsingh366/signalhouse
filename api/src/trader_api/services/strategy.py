@@ -187,7 +187,7 @@ class Strategy:
                 continue
 
             try:
-                df = await self.market_data.get_historical_data(symbol, period="30d")
+                df = await self.market_data.get_historical_data(symbol, period="60d")
                 if df is not None and len(df) >= 35:
                     df = compute_indicators(df, self.config)
                     sent = await self.sentiment.analyze(symbol)
@@ -235,7 +235,7 @@ class Strategy:
             sell_score = 0.0
             signal_reasons: list[str] = []
             try:
-                df = await self.market_data.get_historical_data(symbol, period="30d")
+                df = await self.market_data.get_historical_data(symbol, period="60d")
                 if df is not None and len(df) >= 35:
                     df = compute_indicators(df, self.config)
                     sent = await self.sentiment.analyze(symbol)

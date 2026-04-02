@@ -93,14 +93,20 @@ def generate_signal(
             score -= 1.5
             reasons.append(f"RSI overbought ({rsi:.1f}) [-1.5]")
 
-    # MACD histogram direction (±1.0)
-    if not np.isnan(latest["macd_hist"]):
+    # MACD histogram direction (±1.0 on crossover, ±0.5 persistent)
+    if not np.isnan(latest["macd_hist"]) and not np.isnan(prev["macd_hist"]):
         if latest["macd_hist"] > 0 and prev["macd_hist"] <= 0:
             score += 1.0
             reasons.append("MACD histogram turned positive [+1.0]")
         elif latest["macd_hist"] < 0 and prev["macd_hist"] >= 0:
             score -= 1.0
             reasons.append("MACD histogram turned negative [-1.0]")
+        elif latest["macd_hist"] > 0 and prev["macd_hist"] > 0:
+            score += 0.5
+            reasons.append("MACD histogram persistently positive [+0.5]")
+        elif latest["macd_hist"] < 0 and prev["macd_hist"] < 0:
+            score -= 0.5
+            reasons.append("MACD histogram persistently negative [-0.5]")
 
     # Bollinger Band touch (±1.5)
     if latest["close"] <= latest["bb_lower"]:

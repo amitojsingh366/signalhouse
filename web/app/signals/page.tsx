@@ -34,7 +34,7 @@ function SignalCard({ signal, expanded, onToggle }: { signal: SignalOut; expande
         <div className="flex items-center gap-2">
           {signal.score !== undefined && signal.score !== 0 && (
             <span className="text-xs font-mono text-slate-500">
-              {signal.score > 0 ? "+" : ""}{signal.score}/8
+              {signal.score > 0 ? "+" : ""}{signal.score}/9
             </span>
           )}
           <SignalBadge signal={signal.signal} strength={signal.strength} />
@@ -167,7 +167,7 @@ function SignalsContent() {
             <div className="flex items-center gap-3">
               {checked.score !== undefined && checked.score !== 0 && (
                 <span className="text-sm font-mono text-slate-500">
-                  {checked.score > 0 ? "+" : ""}{checked.score}/8
+                  {checked.score > 0 ? "+" : ""}{checked.score}/9
                 </span>
               )}
               {checked.price && (

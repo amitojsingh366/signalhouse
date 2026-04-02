@@ -26,6 +26,8 @@ Six TA-Lib indicators computed on 60 days of daily OHLCV bars. Maximum technical
 | **RSI** (14-period) | RSI > 70 (overbought) | -1.5 |
 | **MACD Histogram** | Crosses above zero | +1.0 |
 | **MACD Histogram** | Crosses below zero | -1.0 |
+| **MACD Histogram** | Persistently positive (both bars > 0) | +0.5 |
+| **MACD Histogram** | Persistently negative (both bars < 0) | -0.5 |
 
 #### Mean Reversion
 

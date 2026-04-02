@@ -329,6 +329,31 @@ class SignalsCog(commands.Cog):
             for sig in recs["sells"]:
                 embed = _build_sell_embed(sig)
                 await interaction.followup.send(embed=embed, view=RecheckView())
+
+            watchlist = recs.get("watchlist_sells", [])
+            if watchlist:
+                lines = []
+                for sig in watchlist:
+                    price_str = ""
+                    for r in sig.reasons:
+                        if r.startswith("Price: $"):
+                            try:
+                                price_str = f" @ ${float(r.split('$')[1]):.2f}"
+                            except (ValueError, IndexError):
+                                pass
+                            break
+                    lines.append(
+                        f"\U0001f534 **{sig.symbol}**{price_str} — {sig.strength:.0%} strength"
+                    )
+                watchlist_embed = discord.Embed(
+                    title="\U000026A0 Watchlist Sell Alerts",
+                    description=(
+                        "Sell signals for symbols you don't hold — avoid buying these\n\n"
+                        + "\n".join(lines)
+                    ),
+                    color=0xF39C12,
+                )
+                await interaction.followup.send(embed=watchlist_embed)
         finally:
             await portfolio.close()
             await strategy.portfolio.close()

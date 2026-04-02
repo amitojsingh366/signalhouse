@@ -34,6 +34,7 @@ Progress tracker and roadmap. For architecture details see [ARCHITECTURE.md](ARC
 
 _Check off items as they're completed. Break large items into sub-items as needed._
 
+- [x] Signal strategy audit + sell signal fixes — fixed critical `period="30d"` bug (exit alerts and sell-to-fund never fired due to 22-bar result failing 35-bar check), added persistent MACD direction score (±0.5 when histogram stays negative/positive, not just on crossover), fixed score display `/8`→`/9` across web + iOS, added watchlist sell alerts to Discord bot `/recommend`.
 
 ---
 

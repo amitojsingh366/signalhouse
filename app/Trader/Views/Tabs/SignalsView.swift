@@ -170,7 +170,7 @@ private struct SignalCardContent: View {
                     .font(.headline)
                 Spacer()
                 if signal.score != 0 {
-                    Text("\(signal.score > 0 ? "+" : "")\(String(format: "%.1f", signal.score))/8")
+                    Text("\(signal.score > 0 ? "+" : "")\(String(format: "%.1f", signal.score))/9")
                         .font(.caption)
                         .fontDesign(.monospaced)
                         .foregroundStyle(Theme.textDimmed)

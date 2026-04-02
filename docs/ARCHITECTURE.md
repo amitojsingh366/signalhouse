@@ -24,7 +24,7 @@ whether the Discord bot is up.
 | Component | Technology | Role |
 |-----------|-----------|------|
 | **API** (`api/`) | FastAPI, SQLAlchemy async, asyncpg | REST API + all shared business logic |
-| **Bot** (`bot/`) | discord.py ≥ 2.3 | Discord slash commands, scheduled tasks |
+| **Bot** (`bot/`) | discord.py ≥ 2.3 | Discord slash commands, scheduled tasks (single event loop) |
 | **Web** (`web/`) | Next.js 14, Bun, Tailwind, Recharts | Web dashboard |
 | **App** (`app/`) | SwiftUI, Swift Charts, PushKit, CallKit | iOS/macOS native app |
 | **DB** | PostgreSQL 16 | Shared persistence |
@@ -73,7 +73,7 @@ trader/
 │   ├── pyproject.toml
 │   └── src/trader_bot/
 │       ├── bot.py                    # TraderBot class, fresh-session-per-command pattern
-│       ├── main.py                   # Entry point: init DB, load config, start bot
+│       ├── main.py                   # Entry point: single asyncio.run() for init + bot
 │       └── cogs/
 │           ├── trading.py            # /buy, /sell
 │           ├── portfolio.py          # /holdings, /pnl + dropdown edit
@@ -411,3 +411,5 @@ ssh -i your-ssh-key ubuntu@your-server \
 - **Risk hard limits** — 8% daily drawdown or 20% total drawdown halts all recommendations.
 - **Web uses Bun** — Not npm/yarn. `bun install`, `bun run dev`, `bun run build`.
 - **Anthropic API** — Required for `/upload` screenshot parsing. Uses Claude Sonnet for vision.
+- **Bot single event loop** — Bot must run init + start on one `asyncio.run()` call. asyncpg connections are bound to the event loop they were created on; a second loop causes `InterfaceError`.
+- **Sector resolution** — `get_sector()` tries alternate exchange suffixes (`.TO` ↔ `.NE` ↔ bare), so holdings don't need to match the exact config symbol to get the right sector.

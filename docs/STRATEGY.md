@@ -151,6 +151,10 @@ Runs every 15 minutes during market hours and on-demand when a user requests rec
 2. Filters to BUY ≥ 35% and SELL ≥ 30% strength
 3. Sorts by strength descending
 
+### Sector Resolution
+
+`get_sector()` resolves a symbol's sector by trying alternate exchange suffixes. If `MSFT.TO` isn't in the universe, it checks `MSFT.NE` and bare `MSFT`. This means holdings on any exchange (TSX `.TO`, CBOE Canada `.NE`, US bare) map to the correct sector without duplicating config entries.
+
 ### Top Recommendations
 
 Adds portfolio context:

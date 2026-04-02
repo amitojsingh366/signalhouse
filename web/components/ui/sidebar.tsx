@@ -105,7 +105,7 @@ export function Sidebar() {
         {/* Brand */}
         <div className="flex h-16 items-center gap-3 border-b border-white/10 px-6">
           <BarChart3 className="h-6 w-6 text-brand-500" />
-          <span className="text-lg font-bold tracking-tight">Trader</span>
+          <span className="text-lg font-bold tracking-tight">signalhouse</span>
         </div>
 
         {/* Nav */}

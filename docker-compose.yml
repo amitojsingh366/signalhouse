@@ -33,7 +33,7 @@ services:
       - APNS_SANDBOX=${APNS_SANDBOX:-false}
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
       - WEBAUTHN_RP_ID=${WEBAUTHN_RP_ID:-yourdomain.com}
-      - WEBAUTHN_RP_NAME=${WEBAUTHN_RP_NAME:-Trader}
+      - WEBAUTHN_RP_NAME=${WEBAUTHN_RP_NAME:-signalhouse}
     volumes:
       - ./config:/app/config:ro
     expose:

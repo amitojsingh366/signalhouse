@@ -37,7 +37,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 # Config from env
 RP_ID = os.environ.get("WEBAUTHN_RP_ID", "yourdomain.com")
-RP_NAME = os.environ.get("WEBAUTHN_RP_NAME", "Trader")
+RP_NAME = os.environ.get("WEBAUTHN_RP_NAME", "signalhouse")
 EXPECTED_ORIGINS = [
     f"https://{RP_ID}",
     # localhost for dev
@@ -53,7 +53,7 @@ _authentication_challenge: bytes | None = None
 # Fixed user for single-user system
 _USER_ID = b"trader-owner"
 _USER_NAME = "owner"
-_USER_DISPLAY_NAME = "Trader Owner"
+_USER_DISPLAY_NAME = "signalhouse owner"
 
 
 @router.get("/status")

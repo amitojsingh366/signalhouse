@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Trader API",
+    title="signalhouse API",
     description="Trading recommendation and portfolio tracking API",
     version="1.0.0",
     lifespan=lifespan,

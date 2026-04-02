@@ -16,7 +16,7 @@ struct OnboardingView: View {
                 .font(.system(size: 64))
                 .foregroundStyle(Theme.brand)
 
-            Text("Trader")
+            Text("signalhouse")
                 .font(.largeTitle)
                 .fontWeight(.bold)
 

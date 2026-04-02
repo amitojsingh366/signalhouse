@@ -3,7 +3,7 @@ import "./globals.css";
 import { ClientProviders } from "./providers";
 
 export const metadata: Metadata = {
-  title: "Trader — TFSA Portfolio Dashboard",
+  title: "signalhouse — TFSA Portfolio Dashboard",
   description: "Trading signals, portfolio tracking, and P&L analysis for Canadian TFSA",
 };
 

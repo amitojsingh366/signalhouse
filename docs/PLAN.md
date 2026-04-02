@@ -38,6 +38,7 @@ _Check off items as they're completed. Break large items into sub-items as neede
 - [x] Move notification loops to API scheduler — new `services/scheduler.py` owns all 5 asyncio background loops (scan + premarket + briefing + close + recap); starts in FastAPI lifespan, client-agnostic. Bot cog stripped of all push calls — now only does Discord channel posting. Also removed spurious VoIP call on signals page load (leftover `notify_high_confidence_signals` call in `/recommend` route).
 - [x] Strategy audit + codebase cleanup + bot fixes — Full code-vs-docs audit (all match), removed legacy `src/trader/` monolith (4,171 lines), fixed bot dual-event-loop crash (asyncpg connections bound to wrong loop), added cross-exchange sector resolution (`.TO` ↔ `.NE` ↔ bare ticker fallback in `get_sector()`).
 - [x] Skeleton & loading state polish — Rewrote iOS shimmer (GeometryReader + easeInOut), added per-view skeleton components matching actual UI on both web and iOS (holdings table, signal cards, trade rows, premarket movers, status items). Capped dashboard signals to 3 (exit alerts first). Fixed iOS chart x-axis overlap by parsing date strings into Date objects for temporal axis.
+- [x] Signal notification dedup + mobile alert push — Changed signal notification dedup from 60-min cooldown to once-per-day-per-symbol (ET day boundary), re-sending only when strength % changes. Added standard APNs alert push alongside VoIP call in `notify_signal()` so signals appear in iOS notification center (not just CallKit). Updated debug endpoint to pass `push_token` too.
 
 ---
 

@@ -673,7 +673,6 @@ class Strategy:
 
         notif_config = self.config.get("notifications", {})
         min_strength = notif_config.get("min_strength", 0.70)
-        cooldown = notifier.cooldown_minutes
 
         # Collect strong signals
         strong: list[dict[str, Any]] = []
@@ -701,13 +700,18 @@ class Strategy:
         if not strong:
             return
 
-        from datetime import datetime, timedelta, timezone
+        from datetime import UTC, datetime
+        from zoneinfo import ZoneInfo
 
         from sqlalchemy import and_, or_, select
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         today = now.strftime("%Y-%m-%d")
-        cooldown_cutoff = now - timedelta(minutes=cooldown)
+        # Start of today (ET) — dedup window resets each trading day
+        et = ZoneInfo("America/New_York")
+        today_start = datetime.now(et).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).astimezone(UTC)
 
         async with async_session() as db:
             # Fetch enabled devices not muted today
@@ -726,19 +730,22 @@ class Strategy:
                 return
 
             for sig_info in strong:
+                strength_pct = int(sig_info["strength"] * 100)
                 for device in devices:
-                    # Cooldown check — don't re-notify same symbol too soon
+                    # Once-per-day check — skip if already notified today
+                    # with the same strength (re-send if strength changed)
                     existing = await db.execute(
                         select(NotificationLog).where(
                             and_(
                                 NotificationLog.device_token == device.device_token,
                                 NotificationLog.symbol == sig_info["symbol"],
-                                NotificationLog.sent_at >= cooldown_cutoff,
+                                NotificationLog.sent_at >= today_start,
                             )
                         )
                     )
-                    if existing.scalar_one_or_none():
-                        continue
+                    prev = existing.scalar_one_or_none()
+                    if prev and int(prev.strength * 100) == strength_pct:
+                        continue  # Same strength today — skip
 
                     await notifier.notify_signal(
                         db_session_factory=async_session,
@@ -747,4 +754,5 @@ class Strategy:
                         strength=sig_info["strength"],
                         score=sig_info["score"],
                         device_token=device.device_token,
+                        push_token=device.push_token,
                     )

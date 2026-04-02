@@ -175,8 +175,9 @@ class APNsNotifier:
         strength: float,
         score: float,
         device_token: str,
+        push_token: str | None = None,
     ) -> None:
-        """Build and send a VoIP push for a trading signal, with retry logic."""
+        """Send VoIP call + standard alert push for a trading signal."""
         strength_pct = int(strength * 100)
         caller_name = f"{signal} {symbol} {strength_pct}%"
 
@@ -213,6 +214,20 @@ class APNsNotifier:
         payload["notification_id"] = notification_id
 
         delivered = await self.send_voip_push(device_token, payload)
+
+        # Also send a standard alert push so it shows in notification center
+        if push_token:
+            await self.send_alert_push(
+                push_token,
+                title=caller_name,
+                body=f"Score {score}/9 · {strength_pct}% strength",
+                category="signal",
+                data={
+                    "symbol": symbol,
+                    "signal": signal,
+                    "notification_id": notification_id,
+                },
+            )
 
         # Update delivery status
         async with db_session_factory() as db:

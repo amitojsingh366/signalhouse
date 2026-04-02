@@ -90,6 +90,7 @@ async def test_push(req: TestPushRequest, db: AsyncSession = Depends(get_db)):
                 strength=req.strength,
                 score=req.score,
                 device_token=device.device_token,
+                push_token=device.push_token,
             )
             sent += 1
         else:

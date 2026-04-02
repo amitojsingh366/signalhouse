@@ -35,7 +35,7 @@ Progress tracker and roadmap. For architecture details see [ARCHITECTURE.md](ARC
 _Check off items as they're completed. Break large items into sub-items as needed._
 
 - [x] Signal strategy audit + sell signal fixes — fixed critical `period="30d"` bug (exit alerts and sell-to-fund never fired due to 22-bar result failing 35-bar check), added persistent MACD direction score (±0.5 when histogram stays negative/positive, not just on crossover), fixed score display `/8`→`/9` across web + iOS, added watchlist sell alerts to Discord bot `/recommend`.
-- [x] Move notification loops to API scheduler — new `services/scheduler.py` owns all 5 asyncio background loops (scan + premarket + briefing + close + recap); starts in FastAPI lifespan, client-agnostic. Bot cog stripped of all push calls — now only does Discord channel posting.
+- [x] Move notification loops to API scheduler — new `services/scheduler.py` owns all 5 asyncio background loops (scan + premarket + briefing + close + recap); starts in FastAPI lifespan, client-agnostic. Bot cog stripped of all push calls — now only does Discord channel posting. Also removed spurious VoIP call on signals page load (leftover `notify_high_confidence_signals` call in `/recommend` route).
 
 ---
 

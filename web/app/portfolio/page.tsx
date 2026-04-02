@@ -14,7 +14,7 @@ import {
 import { StatCard } from "@/components/ui/stat-card";
 import { DataTable } from "@/components/ui/data-table";
 import { SignalBadge } from "@/components/ui/signal-badge";
-import { CardSkeleton, TableSkeleton } from "@/components/ui/loading";
+import { CardSkeleton, HoldingsTableSkeleton } from "@/components/ui/loading";
 import { SearchTrigger } from "@/components/ui/search-trigger";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -378,7 +378,7 @@ export default function PortfolioPage() {
 
       {/* Holdings table */}
       {loading ? (
-        <TableSkeleton rows={4} />
+        <HoldingsTableSkeleton rows={4} />
       ) : (
         <DataTable
           columns={columns}

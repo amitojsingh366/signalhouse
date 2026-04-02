@@ -76,7 +76,9 @@ struct TradesView: View {
                 // Trade history
                 Section("Recent Trades") {
                     if isLoading && trades.isEmpty {
-                        ListLoadingView(rows: 5)
+                        ForEach(0..<5, id: \.self) { _ in
+                            TradeRowSkeleton()
+                        }
                     } else if trades.isEmpty {
                         Text("No trades recorded")
                             .foregroundStyle(Theme.textDimmed)

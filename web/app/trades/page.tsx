@@ -8,7 +8,7 @@ import type { TradeOut, SymbolInfo } from "@/lib/api";
 import { useTradeHistory, useSymbols, useRecordBuy, useRecordSell, queryKeys } from "@/lib/hooks";
 import { formatCurrency, formatPercent, pnlColor, cn } from "@/lib/utils";
 import { DataTable } from "@/components/ui/data-table";
-import { TableSkeleton } from "@/components/ui/loading";
+import { TradesTableSkeleton } from "@/components/ui/loading";
 import { useToast } from "@/components/ui/toast";
 import { SearchTrigger } from "@/components/ui/search-trigger";
 
@@ -319,7 +319,7 @@ export default function TradesPage() {
             Trade History
           </h2>
           {loading ? (
-            <TableSkeleton rows={6} />
+            <TradesTableSkeleton rows={6} />
           ) : (
             <DataTable
               columns={columns}

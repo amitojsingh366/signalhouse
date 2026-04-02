@@ -9,7 +9,7 @@ import type { ExitAlert, SignalOut } from "@/lib/api";
 import { formatCurrency, formatPercent, cn, pnlColor } from "@/lib/utils";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { SearchBar } from "@/components/ui/search-bar";
-import { Skeleton, SignalCardsSkeleton, CardSkeleton } from "@/components/ui/loading";
+import { Skeleton, SignalCardsSkeleton } from "@/components/ui/loading";
 import { PriceChart } from "@/components/ui/price-chart";
 
 function ScoreTag({ text }: { text: string }) {
@@ -153,7 +153,38 @@ function SignalsContent() {
 
       {/* Checked symbol result */}
       {checkLoading && checkedSymbol && (
-        <CardSkeleton />
+        <div className="glass-card p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-28" />
+              <Skeleton className="h-3.5 w-20" />
+            </div>
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-3.5 w-12" />
+              <Skeleton className="h-6 w-20" />
+              <Skeleton className="h-5 w-20 rounded-full" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3.5 w-[44%]" />
+              <Skeleton className="h-3 w-8" />
+            </div>
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3.5 w-[36%]" />
+              <Skeleton className="h-3 w-8" />
+            </div>
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3.5 w-[40%]" />
+              <Skeleton className="h-3 w-8" />
+            </div>
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3.5 w-[32%]" />
+              <Skeleton className="h-3 w-8" />
+            </div>
+          </div>
+          <Skeleton className="mt-3 h-3 w-14" />
+        </div>
       )}
       {checked && !checkLoading && (
         <div className="glass-card p-5">

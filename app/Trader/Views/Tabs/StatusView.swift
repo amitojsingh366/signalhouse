@@ -27,7 +27,9 @@ struct StatusView: View {
                 // System status
                 Section("System") {
                     if isLoading && status == nil {
-                        ListLoadingView(rows: 4)
+                        ForEach(0..<6, id: \.self) { _ in
+                            StatusRowSkeleton()
+                        }
                     } else if let status {
                         LabeledContent("Symbols Tracked", value: "\(status.symbolsTracked)")
                         LabeledContent("Holdings", value: "\(status.holdingsCount)")

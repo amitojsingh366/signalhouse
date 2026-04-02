@@ -12,7 +12,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useStatus, queryKeys } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
-import { CardSkeleton } from "@/components/ui/loading";
+import { StatusItemSkeleton } from "@/components/ui/loading";
 import { SearchTrigger } from "@/components/ui/search-trigger";
 
 function formatUptime(seconds: number): string {
@@ -83,12 +83,12 @@ export default function StatusPage() {
       <div className="space-y-6">
         <h1 className="text-2xl font-bold">Status</h1>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <CardSkeleton />
-          <CardSkeleton />
-          <CardSkeleton />
-          <CardSkeleton />
-          <CardSkeleton />
-          <CardSkeleton />
+          <StatusItemSkeleton />
+          <StatusItemSkeleton />
+          <StatusItemSkeleton />
+          <StatusItemSkeleton />
+          <StatusItemSkeleton />
+          <StatusItemSkeleton />
         </div>
       </div>
     );

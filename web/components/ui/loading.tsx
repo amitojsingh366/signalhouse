@@ -6,16 +6,106 @@ export function Skeleton({ className }: { className?: string }) {
   return <div className={cn("skeleton h-4 w-full", className)} />;
 }
 
+/* ── StatCard skeleton (matches stat-card.tsx layout) ── */
 export function CardSkeleton({ className }: { className?: string }) {
   return (
     <div className={cn("glass-card p-5", className)}>
-      <Skeleton className="mb-3 h-3 w-24" />
-      <Skeleton className="mb-2 h-7 w-32" />
-      <Skeleton className="h-3 w-20" />
+      {/* Title row with icon */}
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-3.5 w-24" />
+        <Skeleton className="h-4 w-4 rounded" />
+      </div>
+      {/* Large value */}
+      <Skeleton className="mt-2 h-7 w-28" />
+      {/* Change % + label */}
+      <Skeleton className="mt-1 h-3.5 w-20" />
     </div>
   );
 }
 
+/* ── StatusItem skeleton (matches status page StatusItem: icon box + label/value) ── */
+export function StatusItemSkeleton() {
+  return (
+    <div className="glass-card flex items-center gap-4 p-5">
+      <Skeleton className="h-11 w-11 shrink-0 rounded-lg" />
+      <div className="space-y-2">
+        <Skeleton className="h-3.5 w-24" />
+        <Skeleton className="h-5 w-16" />
+      </div>
+    </div>
+  );
+}
+
+/* ── Holdings table skeleton (matches portfolio DataTable: 8 columns) ── */
+export function HoldingsTableSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="glass-card overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-white/10">
+              {["Symbol", "Qty", "Avg Cost", "Price", "Value", "P&L", "Signal", ""].map((h) => (
+                <th key={h} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {Array.from({ length: rows }).map((_, i) => (
+              <tr key={i}>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-4 w-10" /></td>
+                <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-4 w-14" /></td>
+                <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-4 w-14" /></td>
+                <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-4 w-16" /></td>
+                <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-4 w-24" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-3.5 w-3.5 rounded" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ── Trades table skeleton (matches trades DataTable: 7 columns) ── */
+export function TradesTableSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="glass-card overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-white/10">
+              {["Date", "Action", "Symbol", "Qty", "Price", "Total", "P&L"].map((h) => (
+                <th key={h} className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {Array.from({ length: rows }).map((_, i) => (
+              <tr key={i}>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-5 w-12 rounded-full" /></td>
+                <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-4 w-10" /></td>
+                <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-4 w-14" /></td>
+                <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-4 w-16" /></td>
+                <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-4 w-14" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ── Generic table skeleton (fallback) ── */
 export function TableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <div className="glass-card overflow-hidden">
@@ -37,6 +127,7 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
   );
 }
 
+/* ── Equity chart skeleton ── */
 export function ChartSkeleton({ height = 280, className }: { height?: number; className?: string }) {
   return (
     <div className={cn("glass-card p-5", className)}>
@@ -72,9 +163,6 @@ export function ChartSkeleton({ height = 280, className }: { height?: number; cl
             vectorEffect="non-scaling-stroke"
           />
         </svg>
-        <div className="absolute bottom-0 left-0 right-0 flex items-end">
-          {/* No bar chart items needed */}
-        </div>
         {/* Axis lines */}
         <div className="absolute bottom-5 left-8 right-0">
           <Skeleton className="h-px w-full opacity-30" />
@@ -89,15 +177,17 @@ export function ChartSkeleton({ height = 280, className }: { height?: number; cl
   );
 }
 
+/* ── Sector chart skeleton (horizontal bar chart) ── */
 export function SectorChartSkeleton({ className }: { className?: string }) {
   return (
     <div className={cn("glass-card p-5", className)}>
       <Skeleton className="mb-4 h-4 w-32" />
-      <div className="space-y-3">
-        {[75, 55, 30].map((w, i) => (
+      {/* Matches BarChart layout="vertical" with YAxis width=90 */}
+      <div className="space-y-4" style={{ height: 200 }}>
+        {[80, 60, 40, 20].map((w, i) => (
           <div key={i} className="flex items-center gap-3">
-            <Skeleton className="h-3 w-16 shrink-0" />
-            <div className="skeleton h-6 rounded" style={{ width: `${w}%` }} />
+            <Skeleton className="h-3.5 w-[90px] shrink-0" />
+            <div className="skeleton h-5 rounded" style={{ width: `${w}%` }} />
           </div>
         ))}
       </div>
@@ -105,6 +195,7 @@ export function SectorChartSkeleton({ className }: { className?: string }) {
   );
 }
 
+/* ── Dashboard signals preview skeleton (matches signal card grid) ── */
 export function SignalsSkeleton({ count = 6 }: { count?: number }) {
   return (
     <div className="glass-card p-5">
@@ -120,9 +211,9 @@ export function SignalsSkeleton({ count = 6 }: { count?: number }) {
           >
             <div className="space-y-1.5">
               <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-3 w-32" />
             </div>
-            <Skeleton className="h-5 w-16 rounded-full" />
+            <Skeleton className="h-5 w-20 rounded-full" />
           </div>
         ))}
       </div>
@@ -130,19 +221,38 @@ export function SignalsSkeleton({ count = 6 }: { count?: number }) {
   );
 }
 
+/* ── Signal cards skeleton (matches SignalCard: symbol, score, badge, price, sector, reasons) ── */
 export function SignalCardsSkeleton({ count = 3 }: { count?: number }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="glass-card p-4">
+          {/* Header: symbol + score + badge */}
           <div className="mb-2 flex items-center justify-between">
-            <Skeleton className="h-5 w-20" />
-            <Skeleton className="h-5 w-16 rounded-full" />
+            <Skeleton className="h-5 w-24" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-3 w-10" />
+              <Skeleton className="h-5 w-20 rounded-full" />
+            </div>
           </div>
-          <Skeleton className="mb-2 h-3 w-24" />
-          <div className="space-y-1">
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-3/4" />
+          {/* Price */}
+          <Skeleton className="mb-2 h-3.5 w-28" />
+          {/* Sector */}
+          <Skeleton className="mb-2 h-3 w-20" />
+          {/* Score breakdown reasons */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3 w-40" />
+              <Skeleton className="h-3 w-8" />
+            </div>
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-3 w-8" />
+            </div>
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-3 w-8" />
+            </div>
           </div>
         </div>
       ))}

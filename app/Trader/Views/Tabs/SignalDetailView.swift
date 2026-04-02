@@ -157,12 +157,19 @@ struct SignalDetailView: View {
             HStack {
                 RoundedRectangle(cornerRadius: 4)
                     .fill(Color.white.opacity(0.06))
-                    .frame(width: 100, height: 14)
+                    .frame(width: 100, height: 14) // "Price History"
                 Spacer()
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.white.opacity(0.06))
-                    .frame(width: 200, height: 28)
+                // Segmented picker placeholder (4 range buttons)
+                HStack(spacing: 2) {
+                    ForEach(0..<4, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.white.opacity(0.06))
+                            .frame(width: 36, height: 24)
+                    }
+                }
+                .frame(width: 200)
             }
+            // Chart area matching actual frame(height: 220)
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color.white.opacity(0.04))
                 .frame(height: 220)

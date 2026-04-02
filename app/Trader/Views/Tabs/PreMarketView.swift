@@ -17,7 +17,9 @@ struct PreMarketView: View {
             List {
                 if isLoading && movers.isEmpty {
                     Section {
-                        ListLoadingView(rows: 6)
+                        ForEach(0..<6, id: \.self) { _ in
+                            PremarketMoverSkeleton()
+                        }
                     }
                 } else if movers.isEmpty {
                     Section {

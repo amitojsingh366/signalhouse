@@ -68,23 +68,9 @@ struct DashboardView: View {
                                     .fill(Color.white.opacity(0.06))
                                     .frame(width: 50, height: 12)
                             }
+                            .shimmer()
                             ForEach(0..<3, id: \.self) { _ in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .fill(Color.white.opacity(0.06))
-                                            .frame(width: 70, height: 14)
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .fill(Color.white.opacity(0.06))
-                                            .frame(width: 100, height: 10)
-                                    }
-                                    Spacer()
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(Color.white.opacity(0.06))
-                                        .frame(width: 60, height: 22)
-                                }
-                                .padding(12)
-                                .glassCard()
+                                DashboardSignalSkeleton()
                             }
                         }
                         .shimmer()
@@ -147,15 +133,21 @@ struct DashboardView: View {
                     // Equity chart
                     if isLoading && snapshots == nil {
                         VStack(alignment: .leading, spacing: 12) {
+                            // Header: "Equity Curve" + range picker buttons
                             HStack {
                                 RoundedRectangle(cornerRadius: 4)
                                     .fill(Color.white.opacity(0.06))
                                     .frame(width: 90, height: 14)
                                 Spacer()
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.white.opacity(0.06))
-                                    .frame(width: 200, height: 28)
+                                HStack(spacing: 4) {
+                                    ForEach(0..<4, id: \.self) { _ in
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(Color.white.opacity(0.06))
+                                            .frame(width: 32, height: 24)
+                                    }
+                                }
                             }
+                            // Chart area
                             RoundedRectangle(cornerRadius: 8)
                                 .fill(Color.white.opacity(0.04))
                                 .frame(height: 220)
@@ -173,14 +165,18 @@ struct DashboardView: View {
                             RoundedRectangle(cornerRadius: 4)
                                 .fill(Color.white.opacity(0.06))
                                 .frame(width: 120, height: 14)
-                            ForEach(0..<4, id: \.self) { _ in
-                                HStack {
+                            // Horizontal bars of varying width like a bar chart
+                            ForEach([0.75, 0.55, 0.35, 0.2], id: \.self) { pct in
+                                HStack(spacing: 8) {
                                     RoundedRectangle(cornerRadius: 4)
                                         .fill(Color.white.opacity(0.06))
-                                        .frame(width: 80, height: 12)
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .fill(Color.white.opacity(0.06))
-                                        .frame(height: 12)
+                                        .frame(width: 70, height: 14) // sector label
+                                    GeometryReader { geo in
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(Color.white.opacity(0.06))
+                                            .frame(width: geo.size.width * pct, height: 20)
+                                    }
+                                    .frame(height: 20)
                                 }
                             }
                         }

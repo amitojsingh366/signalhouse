@@ -65,7 +65,9 @@ struct PortfolioView: View {
                 // Holdings
                 Section {
                     if isLoading && portfolio == nil {
-                        ListLoadingView(rows: 4)
+                        ForEach(0..<4, id: \.self) { _ in
+                            HoldingRowSkeleton()
+                        }
                     } else if filteredHoldings.isEmpty {
                         Text("No holdings")
                             .foregroundStyle(Theme.textDimmed)

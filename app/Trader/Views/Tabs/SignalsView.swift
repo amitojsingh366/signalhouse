@@ -91,7 +91,9 @@ struct SignalsView: View {
 
                 if isLoading && recommendations == nil {
                     Section {
-                        ListLoadingView(rows: 5)
+                        ForEach(0..<4, id: \.self) { _ in
+                            SignalCardSkeleton()
+                        }
                     }
                 }
             }

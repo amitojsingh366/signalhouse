@@ -19,31 +19,6 @@ ET = ZoneInfo("America/New_York")
 PT = ZoneInfo("America/Vancouver")
 
 
-async def _send_scheduled_push(
-    notification_type: str,
-    title: str,
-    body: str,
-) -> None:
-    """Send a standard alert push notification to all registered devices."""
-    try:
-        from trader_api.database import async_session
-        from trader_api.deps import get_notifier
-
-        notifier = get_notifier()
-        if notifier is None or not notifier.is_configured:
-            return
-
-        await notifier.notify_scheduled(
-            async_session,
-            notification_type=notification_type,
-            title=title,
-            body=body,
-            category=notification_type,
-        )
-    except Exception:
-        logger.exception("Error sending scheduled push [%s]", notification_type)
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -254,7 +229,7 @@ class TasksCog(commands.Cog):
                     )
                     await channel.send(embed=embed)
 
-            # Scan for new signals
+            # Scan for new signals and post to Discord
             recs = await strategy.get_top_recommendations(n=3)
             funding = recs.get("funding", [])
             for sig in recs["buys"]:
@@ -264,12 +239,6 @@ class TasksCog(commands.Cog):
             for sig in recs["sells"]:
                 embed = _build_sell_embed(sig)
                 await channel.send(embed=embed, view=RecheckView())
-
-            # Trigger VoIP push notifications for high-confidence signals
-            try:
-                await strategy.notify_high_confidence_signals(recs)
-            except Exception:
-                logger.exception("Error sending push notifications")
 
         except Exception:
             logger.exception("Error during scheduled scan")
@@ -349,17 +318,6 @@ class TasksCog(commands.Cog):
             embed.set_footer(text=now.strftime("%Y-%m-%d %H:%M ET"))
             await channel.send(embed=embed)
 
-            # Push notification to iOS
-            daily = pnl_data["daily_pnl"]
-            daily_pct = pnl_data["daily_pnl_pct"]
-            total = pnl_data["total_pnl"]
-            total_pct = pnl_data["total_pnl_pct"]
-            close_body = (
-                f"Daily: ${daily:+.2f} ({daily_pct:+.1f}%) · "
-                f"Total: ${total:+.2f} ({total_pct:+.1f}%)"
-            )
-            await _send_scheduled_push("close", "Market Close", close_body)
-
         except Exception:
             logger.exception("Error sending daily status")
         finally:
@@ -409,17 +367,6 @@ class TasksCog(commands.Cog):
             embed.set_footer(text=footer)
             await channel.send(embed=embed)
 
-            # Push notification to iOS
-            top = movers[:3]
-            summary = ", ".join(
-                f"{m['cdr_symbol']} {m['change_pct']:+.1%}" for m in top
-            )
-            await _send_scheduled_push(
-                "premarket",
-                "Pre-Market Movers",
-                summary,
-            )
-
         except Exception:
             logger.exception("Error sending premarket movers")
         finally:
@@ -447,17 +394,6 @@ class TasksCog(commands.Cog):
             strategy = await self.bot.get_fresh_strategy()
             insights = await strategy.get_daily_insights()
             await _send_insights_embeds(channel, insights, title="Morning Briefing")
-
-            # Push notification to iOS
-            pv = insights["portfolio_value"]
-            pnl = insights["total_pnl"]
-            pnl_pct = insights["total_pnl_pct"]
-            n_holdings = len(insights["holdings"])
-            await _send_scheduled_push(
-                "briefing",
-                "Morning Briefing",
-                f"Portfolio: ${pv:,.2f} ({pnl:+.2f}, {pnl_pct:+.1f}%) · {n_holdings} holdings",
-            )
         except Exception:
             logger.exception("Error sending morning briefing")
         finally:
@@ -485,16 +421,6 @@ class TasksCog(commands.Cog):
             strategy = await self.bot.get_fresh_strategy()
             insights = await strategy.get_daily_insights()
             await _send_insights_embeds(channel, insights, title="Evening Recap")
-
-            # Push notification to iOS
-            pv = insights["portfolio_value"]
-            pnl = insights["total_pnl"]
-            pnl_pct = insights["total_pnl_pct"]
-            await _send_scheduled_push(
-                "recap",
-                "Evening Recap",
-                f"Portfolio: ${pv:,.2f} ({pnl:+.2f}, {pnl_pct:+.1f}%)",
-            )
         except Exception:
             logger.exception("Error sending evening recap")
         finally:

@@ -12,13 +12,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from trader_api.config import load_config
 from trader_api.database import init_db
-from trader_api.deps import get_config, get_market_data, get_risk, init_services, make_portfolio
+from trader_api.deps import get_market_data, get_risk, init_services, make_portfolio
 from trader_api.routers import auth, debug, notifications, portfolio, signals, status, trades
+from trader_api.services.scheduler import Scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: load config, init DB, init services, sync risk manager."""
+    """Startup: load config, init DB, init services, sync risk manager, start scheduler."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -44,7 +45,13 @@ async def lifespan(app: FastAPI):
         "API started — tracking %d symbols",
         len(get_market_data().symbols),
     )
-    yield
+
+    scheduler = Scheduler()
+    scheduler.start(config)
+    try:
+        yield
+    finally:
+        scheduler.stop()
 
 
 app = FastAPI(

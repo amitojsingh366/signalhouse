@@ -8,6 +8,12 @@ struct EquityChartView: View {
     @State private var selectedRange = "ALL"
     private let ranges = ["1W", "1M", "3M", "ALL"]
 
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
     private var filtered: [SnapshotOut] {
         guard !snapshots.isEmpty else { return [] }
         let now = Date()
@@ -51,10 +57,15 @@ struct EquityChartView: View {
                     .foregroundStyle(Theme.textDimmed)
                     .frame(maxWidth: .infinity, minHeight: 200)
             } else {
-                Chart(filtered) { snap in
+                let parsed = filtered.compactMap { snap -> (date: Date, value: Double)? in
+                    guard let d = Self.dateFormatter.date(from: snap.date) else { return nil }
+                    return (d, snap.portfolioValue)
+                }
+
+                Chart(Array(parsed.enumerated()), id: \.offset) { _, item in
                     AreaMark(
-                        x: .value("Date", snap.date),
-                        y: .value("Value", snap.portfolioValue)
+                        x: .value("Date", item.date),
+                        y: .value("Value", item.value)
                     )
                     .foregroundStyle(
                         LinearGradient(
@@ -65,17 +76,22 @@ struct EquityChartView: View {
                     )
 
                     LineMark(
-                        x: .value("Date", snap.date),
-                        y: .value("Value", snap.portfolioValue)
+                        x: .value("Date", item.date),
+                        y: .value("Value", item.value)
                     )
                     .foregroundStyle(Theme.brand)
                     .lineStyle(StrokeStyle(lineWidth: 2))
                 }
                 .chartYScale(domain: .automatic(includesZero: false))
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 5)) { _ in
-                        AxisValueLabel()
-                            .foregroundStyle(Theme.textDimmed)
+                    AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                        AxisValueLabel {
+                            if let d = value.as(Date.self) {
+                                Text(d, format: .dateTime.month(.abbreviated).day())
+                                    .font(.caption2)
+                            }
+                        }
+                        .foregroundStyle(Theme.textDimmed)
                     }
                 }
                 .chartYAxis {

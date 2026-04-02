@@ -12,6 +12,12 @@ struct SignalDetailView: View {
 
     private let ranges = ["1W", "1M", "3M", "ALL"]
 
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
     }
@@ -110,10 +116,15 @@ struct SignalDetailView: View {
                 .frame(width: 200)
             }
 
-            Chart(Array(filteredBars.enumerated()), id: \.offset) { _, bar in
+            let parsed = filteredBars.compactMap { bar -> (date: Date, close: Double)? in
+                guard let d = Self.dateFormatter.date(from: bar.date) else { return nil }
+                return (d, bar.close)
+            }
+
+            Chart(Array(parsed.enumerated()), id: \.offset) { _, item in
                 AreaMark(
-                    x: .value("Date", bar.date),
-                    y: .value("Price", bar.close)
+                    x: .value("Date", item.date),
+                    y: .value("Price", item.close)
                 )
                 .foregroundStyle(
                     LinearGradient(
@@ -124,17 +135,22 @@ struct SignalDetailView: View {
                 )
 
                 LineMark(
-                    x: .value("Date", bar.date),
-                    y: .value("Price", bar.close)
+                    x: .value("Date", item.date),
+                    y: .value("Price", item.close)
                 )
                 .foregroundStyle(Theme.brand)
                 .lineStyle(StrokeStyle(lineWidth: 2))
             }
             .chartYScale(domain: .automatic(includesZero: false))
             .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: 5)) { _ in
-                    AxisValueLabel()
-                        .foregroundStyle(Theme.textDimmed)
+                AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                    AxisValueLabel {
+                        if let d = value.as(Date.self) {
+                            Text(d, format: .dateTime.month(.abbreviated).day())
+                                .font(.caption2)
+                        }
+                    }
+                    .foregroundStyle(Theme.textDimmed)
                 }
             }
             .chartYAxis {

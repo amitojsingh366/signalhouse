@@ -76,8 +76,8 @@ struct DashboardView: View {
                         .shimmer()
                     }
 
-                    // Latest signals
-                    if let signals, !signals.buys.isEmpty || !signals.sells.isEmpty {
+                    // Latest signals (max 3 on dashboard)
+                    if let signals, !signals.buys.isEmpty || !signals.sells.isEmpty || !signals.exitAlerts.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text("Latest Signals")
@@ -88,8 +88,11 @@ struct DashboardView: View {
                                     .font(.caption)
                             }
 
-                            // Exit alerts
-                            ForEach(signals.exitAlerts) { alert in
+                            let exitAlertsCapped = Array(signals.exitAlerts.prefix(3))
+                            let remaining = max(0, 3 - exitAlertsCapped.count)
+
+                            // Exit alerts (priority)
+                            ForEach(exitAlertsCapped) { alert in
                                 HStack {
                                     Image(systemName: "exclamationmark.triangle")
                                         .foregroundStyle(alert.severity == "high" ? Theme.negative : Theme.warning)
@@ -106,26 +109,28 @@ struct DashboardView: View {
                                 .glassCard()
                             }
 
-                            // Buy/sell signals
-                            let allSignals = signals.buys + signals.sells + signals.watchlistSells
-                            ForEach(allSignals.prefix(6)) { sig in
-                                HStack {
-                                    VStack(alignment: .leading) {
-                                        Text(sig.symbol).fontWeight(.medium)
-                                        if let sector = sig.sector {
-                                            Text(sector).font(.caption).foregroundStyle(Theme.textDimmed)
+                            // Buy/sell signals (fill remaining slots up to 3 total)
+                            if remaining > 0 {
+                                let allSignals = signals.buys + signals.sells + signals.watchlistSells
+                                ForEach(allSignals.prefix(remaining)) { sig in
+                                    HStack {
+                                        VStack(alignment: .leading) {
+                                            Text(sig.symbol).fontWeight(.medium)
+                                            if let sector = sig.sector {
+                                                Text(sector).font(.caption).foregroundStyle(Theme.textDimmed)
+                                            }
                                         }
+                                        Spacer()
+                                        if let price = sig.price {
+                                            Text(Formatting.currency(price))
+                                                .font(.caption)
+                                                .foregroundStyle(Theme.textMuted)
+                                        }
+                                        SignalBadgeView(signal: sig.signal, strength: sig.strength)
                                     }
-                                    Spacer()
-                                    if let price = sig.price {
-                                        Text(Formatting.currency(price))
-                                            .font(.caption)
-                                            .foregroundStyle(Theme.textMuted)
-                                    }
-                                    SignalBadgeView(signal: sig.signal, strength: sig.strength)
+                                    .padding(12)
+                                    .glassCard()
                                 }
-                                .padding(12)
-                                .glassCard()
                             }
                         }
                     }

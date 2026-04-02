@@ -151,9 +151,9 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Exit alerts first */}
-            {signals.exit_alerts?.map((a) => (
+          {(() => {
+            // Collect all signals into a single list, exit alerts first, capped at 3
+            const exitCards = (signals.exit_alerts ?? []).map((a) => (
               <Link
                 key={`exit-${a.symbol}`}
                 href={`/signals?check=${encodeURIComponent(a.symbol)}`}
@@ -178,25 +178,33 @@ export default function DashboardPage() {
                   {a.pnl_pct >= 0 ? "+" : ""}{a.pnl_pct.toFixed(1)}%
                 </span>
               </Link>
-            ))}
-            {/* Buy/sell/watchlist signals */}
-            {[...signals.buys, ...signals.sells, ...(signals.watchlist_sells ?? [])].slice(0, 6).map((s) => (
-              <Link
-                key={s.symbol}
-                href={`/signals?check=${encodeURIComponent(s.symbol)}`}
-                className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-4 py-3 transition-colors hover:bg-white/[0.08]"
-              >
-                <div>
-                  <p className="font-medium">{s.symbol}</p>
-                  <p className="text-xs text-slate-500">
-                    {s.sector}
-                    {s.price && ` \u00B7 ${formatCurrency(s.price)}`}
-                  </p>
-                </div>
-                <SignalBadge signal={s.signal} strength={s.strength} />
-              </Link>
-            ))}
-          </div>
+            ));
+            const remaining = 3 - exitCards.length;
+            const signalCards = remaining > 0
+              ? [...signals.buys, ...signals.sells, ...(signals.watchlist_sells ?? [])].slice(0, remaining).map((s) => (
+                  <Link
+                    key={s.symbol}
+                    href={`/signals?check=${encodeURIComponent(s.symbol)}`}
+                    className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-4 py-3 transition-colors hover:bg-white/[0.08]"
+                  >
+                    <div>
+                      <p className="font-medium">{s.symbol}</p>
+                      <p className="text-xs text-slate-500">
+                        {s.sector}
+                        {s.price && ` \u00B7 ${formatCurrency(s.price)}`}
+                      </p>
+                    </div>
+                    <SignalBadge signal={s.signal} strength={s.strength} />
+                  </Link>
+                ))
+              : [];
+            return (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {exitCards.slice(0, 3)}
+                {signalCards}
+              </div>
+            );
+          })()}
         </div>
       ) : chartsLoading ? (
         <SignalsSkeleton />

@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
-from pathlib import Path
 
 from trader_api.config import load_config
 from trader_api.database import async_session, init_db
@@ -18,8 +17,12 @@ from trader_api.services.strategy import Strategy
 from trader_bot.bot import TraderBot
 
 
-async def _init() -> TraderBot:
-    """Initialize database and wire up components."""
+async def _run() -> None:
+    """Initialize database, wire up components, and run the bot.
+
+    Everything runs on a single event loop to avoid asyncpg connection
+    issues (connections are bound to the loop they were created on).
+    """
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -71,14 +74,14 @@ async def _init() -> TraderBot:
     )
 
     bot = TraderBot(config, strategy, init_portfolio, market_data, risk, async_session)
-    return bot
+
+    async with bot:
+        await bot.start(bot_token, reconnect=True)
 
 
 def main() -> None:
-    """Wire up components and start the Discord bot."""
-    bot = asyncio.run(_init())
-    token = bot.config["discord"]["bot_token"]
-    bot.run(token, log_handler=None)
+    """Single entry point — runs init + bot on one event loop."""
+    asyncio.run(_run())
 
 
 if __name__ == "__main__":

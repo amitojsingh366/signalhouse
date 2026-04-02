@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -87,9 +85,6 @@ async def get_recommendations(n: int = 5, db: AsyncSession = Depends(get_db)):
     buys = [_to_signal_out(s) for s in recs["buys"]]
     sells = [_to_signal_out(s) for s in recs["sells"]]
     watchlist_sells = [_to_signal_out(s) for s in recs.get("watchlist_sells", [])]
-
-    # Trigger push notifications in background (don't block response)
-    asyncio.create_task(strategy.notify_high_confidence_signals(recs))
 
     return RecommendationOut(
         exit_alerts=exit_alerts,

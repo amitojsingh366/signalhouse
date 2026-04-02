@@ -134,7 +134,11 @@ strength = min(|total_score| / 9.0, 1.0)
 
 #### Score Display
 
-Every signal shows its total score (e.g. `-2.5/9`). Each factor shows its contribution (`[+1.5]`, `[-0.5]`) color-coded green/red.
+Every signal shows its total score (e.g. `-2.5/9`, max ±9). Each factor shows its contribution (`[+1.5]`, `[-0.5]`) color-coded green/red in all clients (web, iOS, Discord).
+
+#### Why Sells Are Less Frequent Than Buys
+
+The indicator set is oriented toward catching **overbought reversals** (RSI > 70 + BB upper + bearish EMA) rather than scoring sustained downtrends. A stock already in a downtrend will show: EMA downtrend (−0.5) + MACD persistently negative (−0.5) + possibly BB lower (+1.5 mean-reversion!) = net near zero. This is intentional — the system avoids selling into oversold dips. Strong sell signals require multiple overbought indicators agreeing simultaneously.
 
 ---
 
@@ -187,10 +191,12 @@ For each held position:
 
 ### Exit Alerts
 
-Checked every 15 minutes:
+Checked every 15 minutes for held positions only:
 1. **Stop loss hit** — price below trailing/hard stop (high severity)
 2. **Max hold time** — held 7+ days (medium severity)
-3. **Sell signal** — technical sell for held position (medium severity)
+3. **Sell signal** — technical SELL (≥ 30% strength) for a held position (medium severity)
+
+Exit alerts use 60 days of price history (same as universe scan) to ensure all indicators have enough data.
 
 ---
 

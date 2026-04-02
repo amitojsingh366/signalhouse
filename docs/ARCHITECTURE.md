@@ -10,9 +10,13 @@ Bot imports trader_api directly as a Python package (not HTTP).
 Web + App communicate via REST API (web through Caddy, app directly via configured URL).
 All share the same PostgreSQL database.
 
-Signal scan (every 15 min) → if signal strength ≥ 40%:
-  → APNs VoIP push → iOS CallKit incoming call → DND bypass
+API scheduler (every 15 min, market hours) → signal scan:
+  → if strength ≥ 40%: APNs VoIP push → iOS CallKit incoming call → DND bypass
   → retry once after 30s if not acknowledged
+  → Bot independently posts same signals to Discord channel
+
+Scheduler runs inside FastAPI lifespan — notifications fire regardless of
+whether the Discord bot is up.
 ```
 
 ### Components
@@ -57,9 +61,10 @@ trader/
 │           ├── strategy.py           # Recommendations, caching, sell-to-fund, advice
 │           ├── portfolio.py          # DB-backed portfolio CRUD (async SQLAlchemy)
 │           ├── risk.py               # Position sizing (ATR), stop losses, drawdown
-│           ├── sentiment.py          # Analyst consensus, Fear & Greed, news
+│           ├── sentiment.py          # Analyst consensus, Fear & Greed, news, commodity
 │           ├── commodity.py          # Commodity/crypto correlation adjustments
-│           ├── notifier.py           # APNs VoIP push (HTTP/2, ES256 JWT)
+│           ├── notifier.py           # APNs push: VoIP signals + standard alerts (HTTP/2, ES256 JWT)
+│           ├── scheduler.py          # Background asyncio loops: scan + premarket/briefing/close/recap
 │           ├── vision.py             # Claude Sonnet vision (screenshot parsing)
 │           └── backtest.py           # Historical replay
 │
@@ -75,7 +80,7 @@ trader/
 │           ├── signals.py            # /recommend, /check + recheck button
 │           ├── upload.py             # /upload + screenshot parsing
 │           ├── status.py             # /status
-│           └── tasks.py              # Scheduled loops (scans, briefings, recaps) + notification trigger
+│           └── tasks.py              # Scheduled loops: exit alerts + Discord channel posting (no push logic)
 │
 ├── web/                              # Next.js dashboard (Bun, App Router, Tailwind, Recharts)
 │   ├── Dockerfile
@@ -110,17 +115,22 @@ trader/
 
 ### Signal Generation (every 15 min during market hours)
 
-`cogs/tasks.py` → `strategy.get_top_recommendations()` → for each of ~333 symbols:
+Two independent consumers fire simultaneously:
+- **`scheduler.py` (API)** — sends push notifications to all registered devices
+- **`cogs/tasks.py` (Bot)** — posts signal embeds to the Discord channel
+
+Both call `strategy.get_top_recommendations()` → for each of ~333 symbols:
 
 1. `market_data.get_historical_data()` — 60 days of daily bars via yfinance (cached 5 min)
-2. `signals.compute_indicators()` — TA-Lib: EMA, RSI, MACD, Bollinger Bands, ATR
-3. `sentiment.analyze()` — parallel fetch: analyst consensus + Fear & Greed + news headlines
-4. `commodity.get_correlation()` — live futures (GC=F, CL=F, BTC-USD, etc.) for overnight moves
-5. `signals.generate_signal()` — technical + sentiment + commodity → BUY/SELL/HOLD + strength %
-6. Strategy filters, ranks by strength, adds sector diversification context
-7. Generates sell-to-fund suggestions when cash is low
+2. `signals.compute_indicators()` — TA-Lib: EMA, RSI, MACD, Bollinger Bands, ATR, volume
+3. `sentiment.analyze()` — parallel: analyst consensus + Fear & Greed + news headlines + commodity correlation
+4. `signals.generate_signal()` — scores each indicator, sums to final score (max ±9)
+5. Score ≥ +2.0 → BUY, ≤ -2.0 → SELL, else HOLD. Strength = `|score| / 9`
+6. Scanner filters: BUY ≥ 35% strength, SELL ≥ 30% strength
+7. Strategy ranks by strength, applies sector cap penalty (>40% exposure → halved), adds sell-to-fund suggestions
 8. Caches results for cross-command consistency
-9. Bot posts to Discord; if strength ≥ 40% → APNs VoIP push to iOS
+9. **API scheduler:** strength ≥ 40% → `notifier.notify_signal()` → APNs VoIP push → iOS CallKit
+10. **Bot:** posts BUY/SELL embeds with Recheck button to Discord channel
 
 ### Trade Reporting
 
@@ -175,7 +185,7 @@ ORM models in `api/src/trader_api/models.py`:
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/signals/check/{symbol}` | Signal + sentiment for one symbol |
-| GET | `/api/signals/recommend` | Top N buy/sell signals + funding pairs |
+| GET | `/api/signals/recommend` | Top N buy/sell/watchlist signals + exit alerts + funding pairs |
 | GET | `/api/signals/price/{symbol}` | Current market price |
 | GET | `/api/signals/history/{symbol}` | OHLCV price history (60d default) |
 | GET | `/api/signals/insights` | Daily insights (all holdings, movers, sectors) |
@@ -251,24 +261,36 @@ APNs notifier only initializes if `APNS_KEY_PATH` env var is set.
 
 ## Push Notifications
 
-VoIP pushes via Apple Push Notification service (APNs):
+All push logic lives in `api/services/notifier.py` and is triggered exclusively by `api/services/scheduler.py`. The Discord bot has no push responsibilities.
 
-- **Trigger:** Signal strength ≥ 40% during scheduled scan, with 60-min cooldown per symbol
-- **Delivery:** HTTP/2 to APNs with ES256 JWT auth, retry once after 30s if not acknowledged
-- **iOS:** PushKit VoIP registration → CallKit incoming call UI → bypasses DND/silent mode
-- **Models:** `DeviceRegistration` (tokens), `NotificationLog` (delivery audit)
+**VoIP signal pushes** (CallKit — bypasses DND):
+- Trigger: strength ≥ 40% on BUY or SELL signals during the 15-min scan
+- Cooldown: 60 min per symbol per device (prevents repeated calls on the same signal)
+- Delivery: HTTP/2 to `api.push.apple.com` with ES256 JWT, retry once after 30s if unacknowledged
+- iOS: PushKit → `PKPushRegistry` → `CXProvider.reportNewIncomingCall()` → CallKit UI
+
+**Standard alert pushes** (banner/sound):
+- Premarket movers: 8:00 AM ET weekdays
+- Morning briefing: 8:30 AM ET weekdays
+- Market close summary: 3:50 PM ET weekdays
+- Evening recap: 10:00 PM PT weekdays
+- Delivery: standard APNs alert push (not VoIP), `aps.alert` payload with `sound: default`
+
+**Models:** `DeviceRegistration` (VoIP token + push token per device), `NotificationLog` (delivery + ack audit trail)
 
 ---
 
 ## Scheduled Tasks
 
-| Task | Schedule | Description |
-|------|----------|-------------|
-| Market scan | Every 15 min, market hours (9:30 AM – 4:00 PM ET) | Exit alerts + top buy/sell signals |
-| Pre-market movers | 8:00 AM ET, weekdays | US premarket moves for CDR counterparts |
-| Morning briefing | 8:30 AM ET, weekdays | Full portfolio analysis + market overview |
-| Daily status | 3:50 PM ET, weekdays | P&L summary, daily snapshot saved |
-| Evening recap | 10:00 PM PT, weekdays | Full portfolio analysis + market overview |
+Two independent schedulers run the same logical events. The API scheduler handles all push notifications; the bot scheduler handles all Discord posting. Both are fault-tolerant — if the bot is down, push notifications still fire; if the API is down, nothing works (it's the central service).
+
+| Event | Schedule | API scheduler (`scheduler.py`) | Bot scheduler (`tasks.py`) |
+|-------|----------|---------------------------------|---------------------------|
+| Market scan | Every 15 min, market hours | VoIP signal pushes (≥ 40% strength) | Exit alert embeds + buy/sell embeds to Discord |
+| Pre-market movers | 8:00 AM ET, weekdays | Alert push with top 3 CDR movers | Pre-market embed to Discord |
+| Morning briefing | 8:30 AM ET, weekdays | Alert push with portfolio summary | Full insights embeds to Discord |
+| Market close | 3:50 PM ET, weekdays | Alert push with daily P&L | Daily status embed + record daily snapshot |
+| Evening recap | 10:00 PM PT, weekdays | Alert push with portfolio summary | Full insights embeds to Discord |
 
 ---
 

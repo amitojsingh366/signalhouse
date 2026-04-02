@@ -70,7 +70,7 @@ Contrarian modifier via the `fear-greed` library:
 
 #### News Headline Sentiment (per-ticker, cached 30min)
 
-Scores 10 most recent yfinance headlines via keyword matching (32 positive, 34 negative words). Range: **-0.5 to +0.5**.
+Scores 10 most recent yfinance headlines via keyword matching (32 positive, 37 negative words). Range: **-0.5 to +0.5**.
 
 ### Stage 3: Commodity Correlation (`services/commodity.py`)
 
@@ -167,7 +167,7 @@ Each held position gets a sell desirability score:
 | Active SELL signal | `strength × 2.0` |
 | Over-concentrated sector | +0.5 |
 | Exceeded max hold time | +0.3 |
-| HOLD signal (neutral) | +0.1 |
+| HOLD signal (neutral) | +0.2 (0.1 × 2.0) |
 
 Same-sector swaps are preferred to maintain diversification.
 

@@ -24,7 +24,7 @@ Workflow:
 Verification:
 - Web changes: `cd web && bun run build` must pass
 - Python changes: `ruff check api/src/ bot/src/` should be clean
-- Swift changes: `xcodebuild -project app/Trader.xcodeproj -scheme Trader -destination 'platform=iOS Simulator,name=iPhone 16' build 2>&1 | tail -5` must succeed
+- Swift changes: `xcodebuild -project app/Trader.xcodeproj -scheme Trader -destination 'generic/platform=iOS' build 2>&1 | tail -5` must succeed
 
 Deploy (commit and push first):
 ssh -i your-ssh-key ubuntu@your-server \

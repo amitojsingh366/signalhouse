@@ -68,6 +68,7 @@ ssh -i your-ssh-key ubuntu@your-server \
 - API routes: `api/src/trader_api/routers/` (portfolio, trades, signals, status, auth, notifications)
 - Bot commands: `bot/src/trader_bot/cogs/` (trading, portfolio, signals, upload, tasks)
 - Web pages: `web/app/` (dashboard, portfolio, signals, trades, upload, status, settings)
+- Web shared: `web/lib/privacy.tsx` (hide-numbers toggle context), `web/lib/utils.ts` (formatters)
 - iOS views: `app/Trader/Views/Tabs/` (Dashboard, Portfolio, Signals, Trades, Upload, Status)
 - Config: `config/settings.yaml` (symbol universe, risk params, schedules)
 

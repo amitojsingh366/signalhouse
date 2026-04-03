@@ -322,6 +322,10 @@ Two independent schedulers run the same logical events. The API scheduler handle
 | `/settings` | Passkey management, authentication status |
 | `/debug` | Test push notifications and VoIP calls (hidden; unlock by tapping footer 10×) |
 
+### Privacy Toggle
+
+Eye icon in the sidebar header toggles a "hide numbers" mode (`web/lib/privacy.tsx`). When active, portfolio-sensitive numbers (value, cash, P&L, quantities, avg cost, equity chart Y-axis/tooltips) are masked — digits replaced with `••••` while preserving `$`, `%`, `+`, `-` signs. Market-fact data (current stock prices, price charts, premarket movers) remains visible. State persists in `localStorage`.
+
 ---
 
 ## iOS App Tabs

@@ -15,6 +15,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useHoldings, usePnl, useSnapshots, useRecommendations, queryKeys } from "@/lib/hooks";
 import { formatCurrency, cn } from "@/lib/utils";
+import { usePrivacy } from "@/lib/privacy";
 import { StatCard } from "@/components/ui/stat-card";
 import { EquityChart } from "@/components/ui/equity-chart";
 import { SignalBadge } from "@/components/ui/signal-badge";
@@ -29,6 +30,7 @@ export default function DashboardPage() {
   const { data: snapshots, isLoading: snapshotsLoading } = useSnapshots();
   const { data: signals, isLoading: signalsLoading, isFetching: refreshing } = useRecommendations();
 
+  const { mask } = usePrivacy();
   const statsLoading = portfolioLoading && pnlLoading;
   const chartsLoading = snapshotsLoading || signalsLoading;
   const hasStats = portfolio || pnl;
@@ -175,7 +177,7 @@ export default function DashboardPage() {
                   "text-sm font-medium",
                   a.pnl_pct >= 0 ? "text-emerald-400" : "text-red-400"
                 )}>
-                  {a.pnl_pct >= 0 ? "+" : ""}{a.pnl_pct.toFixed(1)}%
+                  {mask(`${a.pnl_pct >= 0 ? "+" : ""}${a.pnl_pct.toFixed(1)}%`)}
                 </span>
               </Link>
             ));
@@ -191,7 +193,7 @@ export default function DashboardPage() {
                       <p className="font-medium">{s.symbol}</p>
                       <p className="text-xs text-slate-500">
                         {s.sector}
-                        {s.price && ` \u00B7 ${formatCurrency(s.price)}`}
+                        {s.price && ` \u00B7 ${mask(formatCurrency(s.price))}`}
                       </p>
                     </div>
                     <SignalBadge signal={s.signal} strength={s.strength} />

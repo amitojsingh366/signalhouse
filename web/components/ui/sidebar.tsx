@@ -15,9 +15,12 @@ import {
   Settings,
   Menu,
   X,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
+import { usePrivacy } from "@/lib/privacy";
 
 const DEBUG_LS_KEY = "debug_last_visited";
 const DEBUG_TTL_MS = 24 * 60 * 60 * 1000;
@@ -53,6 +56,7 @@ export function Sidebar() {
   const [open, setOpen] = useState(false);
   const [footerTaps, setFooterTaps] = useState(0);
   const [debugUnlocked, setDebugUnlocked] = useState(false);
+  const { hidden, toggle: togglePrivacy } = usePrivacy();
 
   // Restore from localStorage on mount
   useEffect(() => {
@@ -103,9 +107,18 @@ export function Sidebar() {
         )}
       >
         {/* Brand */}
-        <div className="flex h-16 items-center gap-3 border-b border-white/10 px-6">
-          <BarChart3 className="h-6 w-6 text-brand-500" />
-          <span className="text-lg font-bold tracking-tight">signalhouse</span>
+        <div className="flex h-16 items-center justify-between border-b border-white/10 px-6">
+          <div className="flex items-center gap-3">
+            <BarChart3 className="h-6 w-6 text-brand-500" />
+            <span className="text-lg font-bold tracking-tight">signalhouse</span>
+          </div>
+          <button
+            onClick={togglePrivacy}
+            className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-white/10 hover:text-slate-300"
+            title={hidden ? "Show numbers" : "Hide numbers"}
+          >
+            {hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
         </div>
 
         {/* Nav */}

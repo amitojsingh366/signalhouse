@@ -1,6 +1,7 @@
 "use client";
 
 import { cn, formatCurrency, formatPercent, pnlColor } from "@/lib/utils";
+import { usePrivacy } from "@/lib/privacy";
 import type { LucideIcon } from "lucide-react";
 
 interface StatCardProps {
@@ -22,12 +23,14 @@ export function StatCard({
   format = "none",
   className,
 }: StatCardProps) {
+  const { mask } = usePrivacy();
+
   const formatted =
     typeof value === "number"
       ? format === "currency"
-        ? formatCurrency(value)
+        ? mask(formatCurrency(value))
         : format === "percent"
-          ? formatPercent(value)
+          ? mask(formatPercent(value))
           : value.toLocaleString()
       : value;
 
@@ -40,7 +43,7 @@ export function StatCard({
       <p className="mt-2 text-2xl font-semibold tracking-tight">{formatted}</p>
       {change !== undefined && (
         <p className={cn("mt-1 text-sm", pnlColor(change))}>
-          {formatPercent(change)}
+          {mask(formatPercent(change))}
           {changeLabel && (
             <span className="ml-1 text-slate-500">{changeLabel}</span>
           )}

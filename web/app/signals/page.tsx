@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRecommendations, useSymbols, useSignalCheck, queryKeys } from "@/lib/hooks";
 import type { ExitAlert, SignalOut } from "@/lib/api";
 import { formatCurrency, formatPercent, cn, pnlColor } from "@/lib/utils";
+import { usePrivacy } from "@/lib/privacy";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { SearchBar } from "@/components/ui/search-bar";
 import { Skeleton, SignalCardsSkeleton } from "@/components/ui/loading";
@@ -27,6 +28,7 @@ function ScoreTag({ text }: { text: string }) {
 }
 
 function SignalCard({ signal, expanded, onToggle }: { signal: SignalOut; expanded: boolean; onToggle: () => void }) {
+  const { mask } = usePrivacy();
   return (
     <div className="glass-card p-4 cursor-pointer transition-colors hover:bg-white/[0.05]" onClick={onToggle}>
       <div className="mb-2 flex items-center justify-between">
@@ -42,7 +44,7 @@ function SignalCard({ signal, expanded, onToggle }: { signal: SignalOut; expande
       </div>
       {signal.price && (
         <p className="mb-2 text-sm text-slate-400">
-          Price: {formatCurrency(signal.price)}
+          Price: {mask(formatCurrency(signal.price))}
         </p>
       )}
       {signal.sector && (
@@ -65,6 +67,7 @@ function SignalCard({ signal, expanded, onToggle }: { signal: SignalOut; expande
 }
 
 function ExitAlertCard({ alert, onClick }: { alert: ExitAlert; onClick: () => void }) {
+  const { mask } = usePrivacy();
   const isHigh = alert.severity === "high";
   return (
     <div
@@ -88,10 +91,10 @@ function ExitAlertCard({ alert, onClick }: { alert: ExitAlert; onClick: () => vo
       </div>
       <p className="mb-2 text-sm text-slate-400">{alert.detail}</p>
       <div className="flex items-center gap-4 text-xs text-slate-500">
-        <span>Entry: {formatCurrency(alert.entry_price)}</span>
-        <span>Current: {formatCurrency(alert.current_price)}</span>
+        <span>Entry: {mask(formatCurrency(alert.entry_price))}</span>
+        <span>Current: {mask(formatCurrency(alert.current_price))}</span>
         <span className={cn("font-medium", alert.pnl_pct >= 0 ? "text-emerald-400" : "text-red-400")}>
-          {formatPercent(alert.pnl_pct)}
+          {mask(formatPercent(alert.pnl_pct))}
         </span>
       </div>
     </div>
@@ -116,6 +119,7 @@ function SignalsContent() {
   );
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
 
+  const { mask } = usePrivacy();
   const { data: symbols = [] } = useSymbols();
   const { data: recs, isLoading: recsLoading, isFetching: refreshing } = useRecommendations();
   const { data: checked, isLoading: checkLoading } = useSignalCheck(checkedSymbol);
@@ -203,7 +207,7 @@ function SignalsContent() {
               )}
               {checked.price && (
                 <span className="text-lg font-semibold">
-                  {formatCurrency(checked.price)}
+                  {mask(formatCurrency(checked.price))}
                 </span>
               )}
               <SignalBadge signal={checked.signal} strength={checked.strength} />

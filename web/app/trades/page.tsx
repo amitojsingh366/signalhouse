@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import type { TradeOut, SymbolInfo } from "@/lib/api";
 import { useTradeHistory, useSymbols, useRecordBuy, useRecordSell, queryKeys } from "@/lib/hooks";
 import { formatCurrency, formatPercent, pnlColor, cn } from "@/lib/utils";
+import { usePrivacy } from "@/lib/privacy";
 import { DataTable } from "@/components/ui/data-table";
 import { TradesTableSkeleton } from "@/components/ui/loading";
 import { useToast } from "@/components/ui/toast";
@@ -20,6 +21,7 @@ function TradeForm({
   onComplete: () => void;
 }) {
   const { toast } = useToast();
+  const { mask } = usePrivacy();
   const recordBuy = useRecordBuy();
   const recordSell = useRecordSell();
   const [action, setAction] = useState<"buy" | "sell">("buy");
@@ -144,7 +146,7 @@ function TradeForm({
           </div>
           {marketPrice != null && (
             <p className="mt-1 text-xs text-slate-500">
-              Market price: {formatCurrency(marketPrice)}
+              Market price: {mask(formatCurrency(marketPrice))}
             </p>
           )}
         </div>
@@ -188,7 +190,7 @@ function TradeForm({
 
         {symbol && quantity && price && (
           <p className="text-xs text-slate-500">
-            Total: {formatCurrency(parseFloat(quantity) * parseFloat(price))}
+            Total: {mask(formatCurrency(parseFloat(quantity) * parseFloat(price)))}
           </p>
         )}
 
@@ -213,6 +215,7 @@ function TradeForm({
 
 export default function TradesPage() {
   const qc = useQueryClient();
+  const { mask: maskNum } = usePrivacy();
   const { data: trades = [], isLoading: loading, isFetching } = useTradeHistory(50);
   const { data: symbols = [] } = useSymbols();
 
@@ -261,19 +264,19 @@ export default function TradesPage() {
       key: "quantity",
       header: "Qty",
       className: "text-right",
-      render: (t: TradeOut) => t.quantity.toFixed(2),
+      render: (t: TradeOut) => maskNum(t.quantity.toFixed(2)),
     },
     {
       key: "price",
       header: "Price",
       className: "text-right",
-      render: (t: TradeOut) => formatCurrency(t.price),
+      render: (t: TradeOut) => maskNum(formatCurrency(t.price)),
     },
     {
       key: "total",
       header: "Total",
       className: "text-right",
-      render: (t: TradeOut) => formatCurrency(t.total),
+      render: (t: TradeOut) => maskNum(formatCurrency(t.total)),
     },
     {
       key: "pnl",
@@ -282,7 +285,7 @@ export default function TradesPage() {
       render: (t: TradeOut) =>
         t.pnl != null ? (
           <span className={pnlColor(t.pnl)}>
-            {formatCurrency(t.pnl)}
+            {maskNum(formatCurrency(t.pnl))}
           </span>
         ) : (
           <span className="text-slate-600">—</span>

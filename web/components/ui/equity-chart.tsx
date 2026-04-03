@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import type { SnapshotOut } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
+import { usePrivacy } from "@/lib/privacy";
 
 const RANGES = [
   { label: "1D", days: 1 },
@@ -29,6 +30,7 @@ interface EquityChartProps {
 }
 
 export function EquityChart({ snapshots, className }: EquityChartProps) {
+  const { mask } = usePrivacy();
   const [range, setRange] = useState(3); // default 1M
 
   const selected = RANGES[range];
@@ -99,7 +101,7 @@ export function EquityChart({ snapshots, className }: EquityChartProps) {
               stroke="#52525b"
               fontSize={11}
               tickLine={false}
-              tickFormatter={(v) => `$${v}`}
+              tickFormatter={(v) => mask(`$${v}`)}
               domain={["dataMin - 20", "dataMax + 20"]}
             />
             <Tooltip
@@ -111,7 +113,7 @@ export function EquityChart({ snapshots, className }: EquityChartProps) {
                 color: "#e4e4e7",
                 boxShadow: "0 4px 12px rgba(0, 0, 0, 0.4)",
               }}
-              formatter={(value: number) => [formatCurrency(value), "Value"]}
+              formatter={(value: number) => [mask(formatCurrency(value)), "Value"]}
               labelStyle={{ color: "#a78bfa", fontWeight: 500 }}
             />
             <Area

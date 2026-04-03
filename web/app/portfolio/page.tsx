@@ -11,6 +11,7 @@ import {
   pnlColor,
   cn,
 } from "@/lib/utils";
+import { usePrivacy } from "@/lib/privacy";
 import { StatCard } from "@/components/ui/stat-card";
 import { DataTable } from "@/components/ui/data-table";
 import { SignalBadge } from "@/components/ui/signal-badge";
@@ -29,6 +30,7 @@ function EditHoldingPanel({
   onDelete: (symbol: string) => Promise<void>;
   onClose: () => void;
 }) {
+  const { mask } = usePrivacy();
   const [qty, setQty] = useState(holding.quantity.toString());
   const [cost, setCost] = useState(holding.avg_cost.toString());
   const [saving, setSaving] = useState(false);
@@ -97,16 +99,16 @@ function EditHoldingPanel({
       <div className="mb-4 grid grid-cols-3 gap-3 rounded-lg border border-white/5 bg-white/5 p-3">
         <div>
           <p className="text-xs text-slate-500">Current Price</p>
-          <p className="text-sm font-medium">{formatCurrency(holding.current_price)}</p>
+          <p className="text-sm font-medium">{mask(formatCurrency(holding.current_price))}</p>
         </div>
         <div>
           <p className="text-xs text-slate-500">Market Value</p>
-          <p className="text-sm font-medium">{formatCurrency(holding.market_value)}</p>
+          <p className="text-sm font-medium">{mask(formatCurrency(holding.market_value))}</p>
         </div>
         <div>
           <p className="text-xs text-slate-500">P&L</p>
           <p className={cn("text-sm font-medium", pnlColor(holding.pnl))}>
-            {formatCurrency(holding.pnl)} ({formatPercent(holding.pnl_pct)})
+            {mask(formatCurrency(holding.pnl))} ({mask(formatPercent(holding.pnl_pct))})
           </p>
         </div>
       </div>
@@ -224,6 +226,7 @@ export default function PortfolioPage() {
   const updateHolding = useUpdateHolding();
   const deleteHolding = useDeleteHolding();
   const updateCash = useUpdateCash();
+  const { mask } = usePrivacy();
   const [selected, setSelected] = useState<HoldingAdvice | null>(null);
   const [editingCash, setEditingCash] = useState(false);
 
@@ -266,25 +269,25 @@ export default function PortfolioPage() {
       key: "quantity",
       header: "Qty",
       className: "text-right",
-      render: (h: HoldingAdvice) => h.quantity.toFixed(2),
+      render: (h: HoldingAdvice) => mask(h.quantity.toFixed(2)),
     },
     {
       key: "avg_cost",
       header: "Avg Cost",
       className: "text-right",
-      render: (h: HoldingAdvice) => formatCurrency(h.avg_cost),
+      render: (h: HoldingAdvice) => mask(formatCurrency(h.avg_cost)),
     },
     {
       key: "price",
       header: "Price",
       className: "text-right",
-      render: (h: HoldingAdvice) => formatCurrency(h.current_price),
+      render: (h: HoldingAdvice) => mask(formatCurrency(h.current_price)),
     },
     {
       key: "value",
       header: "Value",
       className: "text-right",
-      render: (h: HoldingAdvice) => formatCurrency(h.market_value),
+      render: (h: HoldingAdvice) => mask(formatCurrency(h.market_value)),
     },
     {
       key: "pnl",
@@ -292,7 +295,7 @@ export default function PortfolioPage() {
       className: "text-right",
       render: (h: HoldingAdvice) => (
         <span className={pnlColor(h.pnl)}>
-          {formatCurrency(h.pnl)} ({formatPercent(h.pnl_pct)})
+          {mask(`${formatCurrency(h.pnl)} (${formatPercent(h.pnl_pct)})`)}
         </span>
       ),
     },

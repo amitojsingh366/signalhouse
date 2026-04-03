@@ -183,4 +183,4 @@ Open `app/Trader.xcodeproj` in Xcode. Configure API URL during onboarding. Requi
 
 ## License
 
-Private project. Not open source.
+[MIT](LICENSE)

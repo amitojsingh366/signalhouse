@@ -36,7 +36,7 @@ from trader_api.models import WebAuthnCredential
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 # Config from env
-RP_ID = os.environ.get("WEBAUTHN_RP_ID", "yourdomain.com")
+RP_ID = os.environ.get("WEBAUTHN_RP_ID", "localhost")
 RP_NAME = os.environ.get("WEBAUTHN_RP_NAME", "signalhouse")
 EXPECTED_ORIGINS = [
     f"https://{RP_ID}",

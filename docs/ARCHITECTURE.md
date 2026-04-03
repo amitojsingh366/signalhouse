@@ -247,7 +247,7 @@ Single-user, token-gated authentication. If no passkey is registered, the API re
 - `web/components/ui/auth-gate.tsx` — intercepts 401s, shows passkey login overlay
 - `web/app/settings/page.tsx` — passkey management (register, delete, list)
 - `app/Services/AuthManager.swift` — `ASAuthorizationController` for iOS passkeys
-- Apple Associated Domains (`webcredentials:yourdomain.com`) — cross-platform passkeys
+- Apple Associated Domains (`webcredentials:<your-domain>`) — cross-platform passkeys
 
 ---
 
@@ -393,14 +393,13 @@ Eye icon in the sidebar header toggles a "hide numbers" mode (`web/lib/privacy.t
 | `web` | Custom (Next.js) | 3000 (internal) | Depends on api, Bun for builds |
 | `caddy` | Caddy | 80, 443 | Routes `/api/*` → api, `/*` → web |
 
-**Domain:** `yourdomain.com` — SSL terminated by Cloudflare, proxied to Caddy.
+**Domain:** Set via `DOMAIN` env var in your Caddy config. SSL terminated by Cloudflare (or Caddy auto-HTTPS), proxied to Caddy.
 
-### Deploy from Local
+### Deploy
 
 ```bash
 git push origin main
-ssh -i your-ssh-key ubuntu@your-server \
-  "cd ~/trader && git pull origin main && docker compose up -d --build"
+ssh user@your-server "cd ~/trader && git pull origin main && docker compose up -d --build"
 ```
 
 ---

@@ -1,7 +1,4 @@
-yourdomain.com {
-	# Caddy auto-HTTPS (Let's Encrypt).
-	# Cloudflare proxied — Caddy likely has a cached cert from initial setup.
-
+{$DOMAIN:localhost} {
 	# Apple app-site-association for passkeys (Associated Domains)
 	handle /.well-known/apple-app-site-association {
 		header Content-Type application/json

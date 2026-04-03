@@ -30,3 +30,6 @@ web/node_modules/
 
 # Claude Code
 .claude/
+
+# Personal project config
+docs/PROMPT.md

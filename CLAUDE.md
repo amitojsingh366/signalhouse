@@ -12,7 +12,7 @@ Designed for Canadian TFSA accounts of any size, targeting safe aggressive growt
 |-----------|-------|-------------|
 | `api/` | FastAPI, SQLAlchemy async, PostgreSQL | REST API + all shared business logic |
 | `bot/` | discord.py | Discord slash commands + scheduled tasks (imports `trader_api`) |
-| `web/` | Next.js 14, Bun, Tailwind, Recharts | Web dashboard at `yourdomain.com` |
+| `web/` | Next.js 14, Bun, Tailwind, Recharts | Web dashboard |
 | `app/` | SwiftUI, Swift Charts, PushKit/CallKit | iOS/macOS app (Xcode, not Docker) |
 
 ## Commands
@@ -44,10 +44,8 @@ mypy api/src/ bot/src/
 xcodebuild -project app/Trader.xcodeproj -scheme Trader \
   -destination 'platform=iOS Simulator,name=iPhone 16' build 2>&1 | tail -5
 
-# Deploy
+# Deploy (see docs/PROMPT.md for server-specific deploy command)
 git push origin main
-ssh -i your-ssh-key ubuntu@your-server \
-  "cd ~/trader && git pull origin main && docker compose up -d --build"
 ```
 
 ## Documentation
@@ -74,7 +72,7 @@ ssh -i your-ssh-key ubuntu@your-server \
 
 **Environment variables:** `DISCORD_BOT_TOKEN`, `DISCORD_CHANNEL_ID`, `DISCORD_GUILD_ID`, `ANTHROPIC_API_KEY`, `DATABASE_URL`, `POSTGRES_PASSWORD`, `NEXT_PUBLIC_API_URL`, `APNS_KEY_PATH`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`
 
-**Server:** `your-server` (Ubuntu ARM, your server). Repo at `/home/ubuntu/trader/`. Secrets in `.env` on server.
+**Server:** See `docs/PROMPT.md` for deploy target and SSH details.
 
 ## Key Constraints
 

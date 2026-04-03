@@ -4,7 +4,7 @@ Trading signal system for Canadian investors. Scans ~333 TSX stocks, CBOE Canada
 
 **Not an auto-trader** — it tells you what to trade and why. You execute manually through your brokerage, then report back.
 
-Built for Canadian TFSA accounts of any size, targeting safe aggressive growth. Live at [yourdomain.com](https://yourdomain.com).
+Built for Canadian TFSA accounts of any size, targeting safe aggressive growth.
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
@@ -169,7 +169,7 @@ Open `app/Trader.xcodeproj` in Xcode. Configure API URL during onboarding. Requi
 
 **Mobile:** SwiftUI, Swift Charts, PushKit, CallKit, ASAuthorizationController (passkeys)
 
-**Infrastructure:** PostgreSQL 16, Docker Compose, Caddy, Cloudflare, your server
+**Infrastructure:** PostgreSQL 16, Docker Compose, Caddy, Cloudflare
 
 **AI:** Anthropic Claude Sonnet (vision API for brokerage screenshot parsing)
 

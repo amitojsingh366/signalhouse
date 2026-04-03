@@ -12,7 +12,6 @@ import {
 } from "recharts";
 import { usePriceHistory } from "@/lib/hooks";
 import { cn, formatCurrency } from "@/lib/utils";
-import { usePrivacy } from "@/lib/privacy";
 import { Skeleton } from "@/components/ui/loading";
 
 const RANGES = [
@@ -31,7 +30,6 @@ interface PriceChartProps {
 }
 
 export function PriceChart({ symbol, className }: PriceChartProps) {
-  const { mask } = usePrivacy();
   const [rangeIdx, setRangeIdx] = useState(3); // default 2M
   const { data: priceData, isLoading: loading } = usePriceHistory(symbol, RANGES[rangeIdx].period);
 
@@ -110,7 +108,7 @@ export function PriceChart({ symbol, className }: PriceChartProps) {
               stroke="#52525b"
               fontSize={11}
               tickLine={false}
-              tickFormatter={(v) => mask(`$${v}`)}
+              tickFormatter={(v) => `$${v}`}
               domain={["dataMin - 1", "dataMax + 1"]}
             />
             <Tooltip
@@ -122,7 +120,7 @@ export function PriceChart({ symbol, className }: PriceChartProps) {
                 color: "#e4e4e7",
                 boxShadow: "0 4px 12px rgba(0, 0, 0, 0.4)",
               }}
-              formatter={(value: number) => [mask(formatCurrency(value)), "Close"]}
+              formatter={(value: number) => [formatCurrency(value), "Close"]}
               labelFormatter={(label) => {
                 const d = new Date(label + "T00:00:00");
                 return d.toLocaleDateString("en-US", {

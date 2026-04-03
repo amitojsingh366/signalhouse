@@ -44,7 +44,7 @@ function SignalCard({ signal, expanded, onToggle }: { signal: SignalOut; expande
       </div>
       {signal.price && (
         <p className="mb-2 text-sm text-slate-400">
-          Price: {mask(formatCurrency(signal.price))}
+          Price: {formatCurrency(signal.price)}
         </p>
       )}
       {signal.sector && (
@@ -92,7 +92,7 @@ function ExitAlertCard({ alert, onClick }: { alert: ExitAlert; onClick: () => vo
       <p className="mb-2 text-sm text-slate-400">{alert.detail}</p>
       <div className="flex items-center gap-4 text-xs text-slate-500">
         <span>Entry: {mask(formatCurrency(alert.entry_price))}</span>
-        <span>Current: {mask(formatCurrency(alert.current_price))}</span>
+        <span>Current: {formatCurrency(alert.current_price)}</span>
         <span className={cn("font-medium", alert.pnl_pct >= 0 ? "text-emerald-400" : "text-red-400")}>
           {mask(formatPercent(alert.pnl_pct))}
         </span>
@@ -207,7 +207,7 @@ function SignalsContent() {
               )}
               {checked.price && (
                 <span className="text-lg font-semibold">
-                  {mask(formatCurrency(checked.price))}
+                  {formatCurrency(checked.price)}
                 </span>
               )}
               <SignalBadge signal={checked.signal} strength={checked.strength} />

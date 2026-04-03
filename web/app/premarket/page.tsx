@@ -6,13 +6,11 @@ import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePremarketMovers, queryKeys } from "@/lib/hooks";
 import { formatCurrency, cn } from "@/lib/utils";
-import { usePrivacy } from "@/lib/privacy";
 import { Skeleton } from "@/components/ui/loading";
 
 function MoverCard({ mover }: { mover: { cdr_symbol: string; us_symbol: string; premarket_price: number; change_pct: number } }) {
-  const { mask } = usePrivacy();
   const isPositive = mover.change_pct >= 0;
-  const pctDisplay = mask(`${isPositive ? "+" : ""}${(mover.change_pct * 100).toFixed(1)}%`);
+  const pctDisplay = `${isPositive ? "+" : ""}${(mover.change_pct * 100).toFixed(1)}%`;
 
   return (
     <Link
@@ -27,7 +25,7 @@ function MoverCard({ mover }: { mover: { cdr_symbol: string; us_symbol: string; 
             <span className="text-xs text-slate-500">({mover.us_symbol})</span>
           </div>
           <p className="text-sm text-slate-400">
-            Premarket: {mask(formatCurrency(mover.premarket_price))}
+            Premarket: {formatCurrency(mover.premarket_price)}
           </p>
         </div>
       </div>

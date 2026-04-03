@@ -193,7 +193,7 @@ export default function DashboardPage() {
                       <p className="font-medium">{s.symbol}</p>
                       <p className="text-xs text-slate-500">
                         {s.sector}
-                        {s.price && ` \u00B7 ${mask(formatCurrency(s.price))}`}
+                        {s.price && ` \u00B7 ${formatCurrency(s.price)}`}
                       </p>
                     </div>
                     <SignalBadge signal={s.signal} strength={s.strength} />

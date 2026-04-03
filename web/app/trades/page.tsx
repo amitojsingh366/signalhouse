@@ -146,7 +146,7 @@ function TradeForm({
           </div>
           {marketPrice != null && (
             <p className="mt-1 text-xs text-slate-500">
-              Market price: {mask(formatCurrency(marketPrice))}
+              Market price: {formatCurrency(marketPrice)}
             </p>
           )}
         </div>

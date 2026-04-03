@@ -32,7 +32,11 @@ export function PrivacyProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const mask = useCallback(
-    (value: string) => (hidden ? "••••••" : value),
+    (value: string) => {
+      if (!hidden) return value;
+      // Replace digits (and commas/dots between them) with dots, keep $, %, +, - signs
+      return value.replace(/[\d][\d,.]*[\d]|[\d]/g, "••••");
+    },
     [hidden]
   );
 

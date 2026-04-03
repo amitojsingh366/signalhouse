@@ -99,7 +99,7 @@ function EditHoldingPanel({
       <div className="mb-4 grid grid-cols-3 gap-3 rounded-lg border border-white/5 bg-white/5 p-3">
         <div>
           <p className="text-xs text-slate-500">Current Price</p>
-          <p className="text-sm font-medium">{mask(formatCurrency(holding.current_price))}</p>
+          <p className="text-sm font-medium">{formatCurrency(holding.current_price)}</p>
         </div>
         <div>
           <p className="text-xs text-slate-500">Market Value</p>
@@ -281,7 +281,7 @@ export default function PortfolioPage() {
       key: "price",
       header: "Price",
       className: "text-right",
-      render: (h: HoldingAdvice) => mask(formatCurrency(h.current_price)),
+      render: (h: HoldingAdvice) => formatCurrency(h.current_price),
     },
     {
       key: "value",

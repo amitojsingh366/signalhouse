@@ -408,7 +408,7 @@ ssh -i your-ssh-key ubuntu@your-server \
 ## Key Constraints
 
 - **No auto-execution** — IBKR no longer allows Canadian securities via API. All trades are manual.
-- **Commission drag** — ~$2,000 capital means each round-trip costs ~0.1%. High-frequency not viable.
+- **Commission drag** — commission-free brokerages (Wealthsimple) are assumed. On fee-based brokerages, round-trip costs should be factored into position sizing.
 - **yfinance data** — ~15 min delayed. Fine for daily-bar swing trading, not intraday.
 - **Sentiment limitations** — Analyst data updates infrequently, news is keyword-based, Fear & Greed is market-wide.
 - **CDR data gaps** — Some `.NE` symbols have spotty yfinance data. US fallback mitigates this.

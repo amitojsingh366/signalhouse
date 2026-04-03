@@ -4,7 +4,7 @@ Trading signal system for Canadian investors. Scans ~333 TSX stocks, CBOE Canada
 
 **Not an auto-trader** — it tells you what to trade and why. You execute manually through your brokerage, then report back.
 
-Built for a Canadian TFSA account. Live at [yourdomain.com](https://yourdomain.com).
+Built for Canadian TFSA accounts of any size, targeting safe aggressive growth. Live at [yourdomain.com](https://yourdomain.com).
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
@@ -98,7 +98,7 @@ All services share one PostgreSQL database.
 - ATR-based position sizing (2% risk per trade)
 - Hard stops (5% below entry) and trailing stops (3% below peak)
 - Circuit breakers: 8% daily drawdown or 20% total drawdown halts all signals
-- Max 2 positions, 50% per position, 40% per sector
+- Max 5 positions, 30% per position, 40% per sector
 
 ### Notifications
 - **VoIP push** (CallKit) — strong signals (≥40% strength) bypass Do Not Disturb on iOS

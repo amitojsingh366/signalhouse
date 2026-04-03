@@ -62,7 +62,6 @@ _Check off items as they're completed. Break large items into sub-items as neede
 - [ ] VIX-based market regime detection
 
 ### Scale Up
-- [ ] Increase capital → lower commission drag, more positions (3–4), more sector diversity
 - [ ] Multi-strategy — add mean-reversion-only alongside momentum
 - [ ] ML signals — gradient boosting on historical indicator data
 - [ ] Covered calls on held positions for income

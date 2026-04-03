@@ -1,6 +1,6 @@
 # Trading Strategy
 
-Swing trading recommendation system for TSX-listed stocks, CBOE Canada CDRs, and CAD-hedged ETFs. Designed for a Canadian TFSA account with ~$2,000 CAD portfolio and 2-7 day holding periods. Scans ~333 symbols every 15 minutes during market hours.
+Swing trading recommendation system for TSX-listed stocks, CBOE Canada CDRs, and CAD-hedged ETFs. Designed for Canadian TFSA accounts of any size, targeting safe aggressive growth with 2-7 day holding periods. Scans ~333 symbols every 15 minutes during market hours.
 
 **This is recommendation-only** — no automated execution. The user trades manually via their brokerage (Wealthsimple, IBKR, etc.) and reports trades back.
 
@@ -213,7 +213,7 @@ shares = risk_per_trade / (2 × ATR)
 
 Constrained by max position size (50% of portfolio) and minimum 1 share.
 
-**Example**: $2,000 portfolio, stock at $50, ATR = $1.50 → risk = $40 → 13 shares ($650, 32.5%)
+**Example**: $10,000 portfolio, stock at $50, ATR = $1.50 → risk = $200 → 66 shares ($3,300, 33%)
 
 ---
 
@@ -237,8 +237,8 @@ Constrained by max position size (50% of portfolio) and minimum 1 share.
 
 | Limit | Value |
 |-------|-------|
-| Max simultaneous positions | 2 |
-| Max % in one position | 50% |
+| Max simultaneous positions | 5 |
+| Max % in one position | 30% |
 | Max % in one sector | 40% |
 | Holding period | 2–7 days (alerts after 7) |
 

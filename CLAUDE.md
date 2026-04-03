@@ -4,7 +4,7 @@
 
 Trading recommendation + portfolio tracking system for TSX stocks, CBOE Canada CDRs, and CAD-hedged ETFs. **Not an auto-trading bot** — provides buy/sell/swap signals and the user trades manually via their brokerage, then reports back.
 
-Designed for a Canadian TFSA account with ~$2,000 CAD portfolio. Scans ~333 symbols every 15 min during market hours.
+Designed for Canadian TFSA accounts of any size, targeting safe aggressive growth. Scans ~333 symbols every 15 min during market hours.
 
 ## Components
 

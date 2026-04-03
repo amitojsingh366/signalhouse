@@ -487,8 +487,8 @@ strategy:
   max_hold_days: 7
 
 risk:
-  max_position_pct: 0.50      # Max 50% of portfolio in one position
-  max_positions: 2             # Max simultaneous positions
+  max_position_pct: 0.30      # Max 30% of portfolio in one position
+  max_positions: 5             # Max simultaneous positions
   stop_loss_pct: 0.05          # 5% hard stop loss
   trailing_stop_pct: 0.03      # 3% trailing stop
   max_daily_loss_pct: 0.08     # 8% max daily drawdown, halt trading

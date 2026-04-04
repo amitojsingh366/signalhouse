@@ -1,0 +1,14 @@
+# Local development override — no Caddy, ports exposed to localhost.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+services:
+  api:
+    ports:
+      - "8000:8000"
+
+  web:
+    ports:
+      - "3000:3000"
+
+  caddy:
+    profiles:
+      - disabled

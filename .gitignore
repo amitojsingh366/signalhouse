@@ -28,6 +28,9 @@ node_modules/
 web/.next/
 web/node_modules/
 
+# Xcode user data
+*.xcuserstate
+
 # Claude Code
 .claude/
 

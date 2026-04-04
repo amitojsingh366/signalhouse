@@ -31,9 +31,12 @@ cd web && bun install
 bun run dev
 bun run build          # verify before deploying
 
-# Docker (all 5 services: postgres, api, bot, web, caddy)
+# Docker — production (all 5 services: postgres, api, bot, web, caddy)
 docker compose up -d --build
 docker compose logs -f
+
+# Docker — local (no Caddy, ports exposed to localhost)
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 
 # Tests & lint
 pytest

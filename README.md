@@ -157,6 +157,16 @@ docker compose up -d --build    # postgres, api, bot, web, caddy
 docker compose logs -f
 ```
 
+### Docker (Local / Self-Hosted)
+
+For running on your own machine without a domain or Caddy — exposes API on `:8000` and web on `:3000` directly:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+```
+
+When `NEXT_PUBLIC_API_URL` is not set, the web dashboard defaults to `http://localhost:8000`. No extra configuration needed.
+
 ### iOS App
 
 Open `app/Trader.xcodeproj` in Xcode. Configure API URL during onboarding. Requires an Apple Developer account for push notifications.

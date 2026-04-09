@@ -7,8 +7,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from trader_api.auth import require_auth
 from trader_api.database import get_db
-from trader_api.deps import get_commodity, get_market_data, get_risk, make_portfolio, make_strategy
-from trader_api.schemas import ExitAlertOut, InsightsOut, RecommendationOut, SignalOut
+from trader_api.deps import get_commodity, get_market_data, make_portfolio, make_strategy
+from trader_api.schemas import (
+    ActionOut,
+    ActionPlanOut,
+    ExitAlertOut,
+    InsightsOut,
+    RecommendationOut,
+    SignalOut,
+)
 
 router = APIRouter(prefix="/api/signals", tags=["signals"], dependencies=[Depends(require_auth)])
 
@@ -68,6 +75,9 @@ async def get_recommendations(n: int = 5, db: AsyncSession = Depends(get_db)):
                 current_price=a["current_price"],
                 entry_price=a["entry_price"],
                 pnl_pct=a["pnl_pct"],
+                quantity=a.get("quantity"),
+                action=a.get("action"),
+                action_detail=a.get("action_detail"),
             )
             for a in raw_alerts
         ]
@@ -93,6 +103,27 @@ async def get_recommendations(n: int = 5, db: AsyncSession = Depends(get_db)):
         watchlist_sells=watchlist_sells,
         funding=recs.get("funding", []),
         sector_exposure=recs.get("sector_exposure", {}),
+    )
+
+
+@router.get("/actions", response_model=ActionPlanOut)
+async def get_action_plan(db: AsyncSession = Depends(get_db)):
+    """Get today's prioritized, position-sized action plan."""
+    portfolio = make_portfolio(db)
+    strategy = make_strategy(portfolio)
+
+    plan = await strategy.get_action_plan()
+
+    return ActionPlanOut(
+        actions=[ActionOut(**a) for a in plan["actions"]],
+        portfolio_value=plan["portfolio_value"],
+        cash=plan["cash"],
+        num_positions=plan["num_positions"],
+        max_positions=plan["max_positions"],
+        sells_count=plan["sells_count"],
+        buys_count=plan["buys_count"],
+        swaps_count=plan["swaps_count"],
+        sector_exposure=plan.get("sector_exposure", {}),
     )
 
 

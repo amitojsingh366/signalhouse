@@ -11,7 +11,7 @@ import discord
 from discord.ext import commands, tasks
 
 from trader_bot.bot import TraderBot, is_market_hours
-from trader_bot.cogs.signals import RecheckView, _build_buy_embed, _build_sell_embed
+from trader_bot.cogs.signals import RecheckView, _build_action_embed
 
 logger = logging.getLogger(__name__)
 
@@ -199,45 +199,39 @@ class TasksCog(commands.Cog):
         try:
             strategy = await self.bot.get_fresh_strategy()
             portfolio = await self.bot.get_fresh_portfolio()
-            holdings = await portfolio.get_holdings_dict()
 
-            # Check exit alerts for current holdings
-            if holdings:
-                held_symbols = list(holdings.keys())
-                prices = await self.bot.market_data.get_batch_prices(held_symbols)
-                alerts = await strategy.get_exit_alerts(prices)
-                for alert in alerts:
-                    embed = discord.Embed(
-                        title=f"\u26A0 {alert['symbol']} \u2014 {alert['reason']}",
-                        description=alert["detail"],
-                        color=0xE74C3C if alert["severity"] == "high" else 0xF39C12,
-                    )
-                    embed.add_field(
-                        name="Current",
-                        value=f"${alert['current_price']:.2f}",
-                        inline=True,
-                    )
-                    embed.add_field(
-                        name="Entry",
-                        value=f"${alert['entry_price']:.2f}",
-                        inline=True,
-                    )
-                    embed.add_field(
-                        name="P&L",
-                        value=f"{alert['pnl_pct']:+.1f}%",
-                        inline=True,
-                    )
-                    await channel.send(embed=embed)
+            plan = await strategy.get_action_plan()
+            actions = plan["actions"]
 
-            # Scan for new signals and post to Discord
-            recs = await strategy.get_top_recommendations(n=3)
-            funding = recs.get("funding", [])
-            for sig in recs["buys"]:
-                embed = _build_buy_embed(sig, funding)
-                await channel.send(embed=embed, view=RecheckView())
+            if not actions:
+                return  # Nothing to do — quiet scan
 
-            for sig in recs["sells"]:
-                embed = _build_sell_embed(sig)
+            # Post action plan header for non-trivial scans
+            if len(actions) > 0:
+                header = discord.Embed(
+                    title="\U0001f4CB Action Plan Update",
+                    description=(
+                        f"**{len(actions)} trade(s):** "
+                        f"{plan['sells_count']} sell, "
+                        f"{plan['swaps_count']} swap, "
+                        f"{plan['buys_count']} buy"
+                    ),
+                    color=0x8B5CF6,
+                )
+                header.add_field(
+                    name="Positions",
+                    value=f"{plan['num_positions']}/{plan['max_positions']}",
+                    inline=True,
+                )
+                header.add_field(
+                    name="Cash",
+                    value=f"${plan['cash']:,.2f}",
+                    inline=True,
+                )
+                await channel.send(embed=header)
+
+            for action in actions:
+                embed = _build_action_embed(action)
                 await channel.send(embed=embed, view=RecheckView())
 
         except Exception:

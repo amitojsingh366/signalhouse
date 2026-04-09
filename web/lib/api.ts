@@ -112,6 +112,9 @@ export interface ExitAlert {
   current_price: number;
   entry_price: number;
   pnl_pct: number;
+  quantity: number | null;
+  action: string | null;
+  action_detail: string | null;
 }
 
 export interface RecommendationOut {
@@ -121,6 +124,47 @@ export interface RecommendationOut {
   watchlist_sells: SignalOut[];
   funding: Record<string, unknown>[];
   sector_exposure: Record<string, number>;
+}
+
+export interface ActionItem {
+  type: "BUY" | "SELL" | "SWAP";
+  urgency: "urgent" | "normal" | "low";
+  symbol?: string;
+  shares?: number;
+  price?: number;
+  dollar_amount?: number;
+  pct_of_portfolio?: number;
+  pnl_pct?: number;
+  entry_price?: number;
+  strength?: number;
+  score?: number;
+  reason: string;
+  detail: string;
+  sector?: string;
+  reasons?: string[];
+  // SWAP fields
+  sell_symbol?: string;
+  sell_shares?: number;
+  sell_price?: number;
+  sell_amount?: number;
+  sell_pnl_pct?: number;
+  buy_symbol?: string;
+  buy_shares?: number;
+  buy_price?: number;
+  buy_amount?: number;
+  buy_strength?: number;
+}
+
+export interface ActionPlanOut {
+  actions: ActionItem[];
+  portfolio_value: number;
+  cash: number;
+  num_positions: number;
+  max_positions: number;
+  sells_count: number;
+  buys_count: number;
+  swaps_count: number;
+  sector_exposure: Record<string, unknown>;
 }
 
 export interface SnapshotOut {
@@ -248,6 +292,8 @@ export const api = {
     fetchAPI<{ symbol: string; price: number | null }>(`/api/signals/price/${encodeURIComponent(symbol)}`),
   getRecommendations: (n = 5) =>
     fetchAPI<RecommendationOut>(`/api/signals/recommend?n=${n}`),
+  getActionPlan: () =>
+    fetchAPI<ActionPlanOut>("/api/signals/actions"),
   getPriceHistory: (symbol: string, period = "60d") =>
     fetchAPI<PriceHistory>(`/api/signals/history/${encodeURIComponent(symbol)}?period=${period}`),
   getInsights: () => fetchAPI<InsightsOut>("/api/signals/insights"),

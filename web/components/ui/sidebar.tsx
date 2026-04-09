@@ -41,7 +41,7 @@ function touchDebugVisit() {
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: Home },
   { href: "/portfolio", label: "Portfolio", icon: Briefcase },
-  { href: "/signals", label: "Signals", icon: Zap },
+  { href: "/signals", label: "Action Plan", icon: Zap },
   { href: "/premarket", label: "Pre-Market", icon: Sunrise },
   { href: "/trades", label: "Trades", icon: ArrowLeftRight },
   { href: "/upload", label: "Upload", icon: Upload },

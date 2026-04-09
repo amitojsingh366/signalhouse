@@ -81,6 +81,9 @@ struct ExitAlert: Codable, Identifiable {
     let currentPrice: Double
     let entryPrice: Double
     let pnlPct: Double
+    let quantity: Double?
+    let action: String?
+    let actionDetail: String?
 }
 
 struct RecommendationOut: Codable {
@@ -89,6 +92,52 @@ struct RecommendationOut: Codable {
     let sells: [SignalOut]
     let watchlistSells: [SignalOut]
     let funding: [[String: AnyCodable]]
+    let sectorExposure: [String: AnyCodable]
+}
+
+// MARK: - Action Plan
+
+struct ActionItem: Codable, Identifiable {
+    var id: String {
+        "\(type)-\(symbol ?? "")-\(sellSymbol ?? "")-\(buySymbol ?? "")"
+    }
+    let type: String  // "BUY", "SELL", "SWAP"
+    let urgency: String  // "urgent", "normal", "low"
+    let symbol: String?
+    let shares: Double?
+    let price: Double?
+    let dollarAmount: Double?
+    let pctOfPortfolio: Double?
+    let pnlPct: Double?
+    let entryPrice: Double?
+    let strength: Double?
+    let score: Double?
+    let reason: String
+    let detail: String
+    let sector: String?
+    let reasons: [String]?
+    // SWAP fields
+    let sellSymbol: String?
+    let sellShares: Double?
+    let sellPrice: Double?
+    let sellAmount: Double?
+    let sellPnlPct: Double?
+    let buySymbol: String?
+    let buyShares: Double?
+    let buyPrice: Double?
+    let buyAmount: Double?
+    let buyStrength: Double?
+}
+
+struct ActionPlanOut: Codable {
+    let actions: [ActionItem]
+    let portfolioValue: Double
+    let cash: Double
+    let numPositions: Int
+    let maxPositions: Int
+    let sellsCount: Int
+    let buysCount: Int
+    let swapsCount: Int
     let sectorExposure: [String: AnyCodable]
 }
 

@@ -186,6 +186,7 @@ ORM models in `api/src/trader_api/models.py`:
 |--------|------|-------------|
 | GET | `/api/signals/check/{symbol}` | Signal + sentiment for one symbol |
 | GET | `/api/signals/recommend` | Top N buy/sell/watchlist signals + exit alerts + funding pairs |
+| GET | `/api/signals/actions` | Prioritized, position-sized action plan (sells → swaps → buys) |
 | GET | `/api/signals/price/{symbol}` | Current market price |
 | GET | `/api/signals/history/{symbol}` | OHLCV price history (60d default) |
 | GET | `/api/signals/insights` | Daily insights (all holdings, movers, sectors) |

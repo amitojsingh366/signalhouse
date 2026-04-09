@@ -104,7 +104,16 @@ class RiskManager:
 
         if current_price > trade.highest_price:
             trade.highest_price = current_price
-            new_stop = current_price * (1 - self.risk["trailing_stop_pct"])
+            # Tighten trailing stop once gain exceeds threshold
+            tighten_at = self.risk.get("tighten_stop_at_pct", 0.05)
+            gain_from_entry = (
+                (trade.highest_price - trade.entry_price) / trade.entry_price
+            )
+            if gain_from_entry >= tighten_at:
+                trail_pct = self.risk.get("tightened_trail_pct", 0.015)
+            else:
+                trail_pct = self.risk["trailing_stop_pct"]
+            new_stop = current_price * (1 - trail_pct)
             if new_stop > trade.stop_price:
                 trade.stop_price = new_stop
 
@@ -116,6 +125,22 @@ class RiskManager:
             return trade.stop_price
 
         return None
+
+    def should_take_profit(self, symbol: str, current_price: float) -> bool:
+        """Check if a position has hit the take-profit threshold."""
+        trade = self.open_trades.get(symbol)
+        if trade is None:
+            return False
+        take_profit_pct = self.risk.get("take_profit_pct", 0.08)
+        gain = (current_price - trade.entry_price) / trade.entry_price
+        return gain >= take_profit_pct
+
+    def get_gain_pct(self, symbol: str, current_price: float) -> float | None:
+        """Return current gain % from entry, or None if not tracked."""
+        trade = self.open_trades.get(symbol)
+        if trade is None:
+            return None
+        return (current_price - trade.entry_price) / trade.entry_price
 
     def should_exit_time(self, symbol: str) -> bool:
         trade = self.open_trades.get(symbol)

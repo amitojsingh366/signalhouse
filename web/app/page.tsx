@@ -4,21 +4,22 @@ import Link from "next/link";
 import {
   DollarSign,
   TrendingUp,
+  TrendingDown,
   Wallet,
   Zap,
   ArrowLeftRight,
+  ArrowRight,
   Briefcase,
   Upload,
   RefreshCw,
   AlertTriangle,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useHoldings, usePnl, useSnapshots, useRecommendations, queryKeys } from "@/lib/hooks";
+import { useHoldings, usePnl, useSnapshots, useActionPlan, queryKeys } from "@/lib/hooks";
 import { formatCurrency, cn } from "@/lib/utils";
 import { usePrivacy } from "@/lib/privacy";
 import { StatCard } from "@/components/ui/stat-card";
 import { EquityChart } from "@/components/ui/equity-chart";
-import { SignalBadge } from "@/components/ui/signal-badge";
 import { SectorChart } from "@/components/ui/sector-chart";
 import { CardSkeleton, ChartSkeleton, SectorChartSkeleton, SignalsSkeleton } from "@/components/ui/loading";
 import { SearchTrigger } from "@/components/ui/search-trigger";
@@ -28,18 +29,18 @@ export default function DashboardPage() {
   const { data: portfolio, isLoading: portfolioLoading } = useHoldings();
   const { data: pnl, isLoading: pnlLoading } = usePnl();
   const { data: snapshots, isLoading: snapshotsLoading } = useSnapshots();
-  const { data: signals, isLoading: signalsLoading, isFetching: refreshing } = useRecommendations();
+  const { data: plan, isLoading: planLoading, isFetching: refreshing } = useActionPlan();
 
   const { mask } = usePrivacy();
   const statsLoading = portfolioLoading && pnlLoading;
-  const chartsLoading = snapshotsLoading || signalsLoading;
+  const chartsLoading = snapshotsLoading || planLoading;
   const hasStats = portfolio || pnl;
 
   function refresh() {
     qc.invalidateQueries({ queryKey: queryKeys.holdings });
     qc.invalidateQueries({ queryKey: queryKeys.pnl });
     qc.invalidateQueries({ queryKey: queryKeys.snapshots });
-    qc.invalidateQueries({ queryKey: queryKeys.recommendations });
+    qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
   }
 
   return (
@@ -140,81 +141,100 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Latest signals preview */}
-      {signals && (signals.buys.length > 0 || signals.sells.length > 0 || (signals.exit_alerts && signals.exit_alerts.length > 0) || (signals.watchlist_sells && signals.watchlist_sells.length > 0)) ? (
+      {/* Action plan preview */}
+      {plan && plan.actions.length > 0 ? (
         <div className="glass-card p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-medium text-slate-400">Latest Signals</h3>
+            <h3 className="text-sm font-medium text-slate-400">Action Plan</h3>
             <Link
               href="/signals"
               className="text-xs text-brand-400 hover:underline"
             >
-              View all
+              View full plan
             </Link>
           </div>
 
-          {(() => {
-            // Collect all signals into a single list, exit alerts first, capped at 3
-            const exitCards = (signals.exit_alerts ?? []).map((a) => (
-              <Link
-                key={`exit-${a.symbol}`}
-                href={`/signals?check=${encodeURIComponent(a.symbol)}`}
-                className={cn(
-                  "flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-white/[0.08]",
-                  a.severity === "high"
-                    ? "border-red-500/30 bg-red-500/[0.05]"
-                    : "border-amber-500/20 bg-amber-500/[0.03]"
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className={cn("h-4 w-4", a.severity === "high" ? "text-red-400" : "text-amber-400")} />
-                  <div>
-                    <p className="font-medium">{a.symbol}</p>
-                    <p className="text-xs text-slate-500">{a.reason}</p>
-                  </div>
-                </div>
-                <span className={cn(
-                  "text-sm font-medium",
-                  a.pnl_pct >= 0 ? "text-emerald-400" : "text-red-400"
-                )}>
-                  {mask(`${a.pnl_pct >= 0 ? "+" : ""}${a.pnl_pct.toFixed(1)}%`)}
-                </span>
-              </Link>
-            ));
-            const remaining = 3 - exitCards.length;
-            const signalCards = remaining > 0
-              ? [...signals.buys, ...signals.sells, ...(signals.watchlist_sells ?? [])].slice(0, remaining).map((s) => (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {plan.actions.slice(0, 3).map((a, i) => {
+              if (a.type === "SELL") {
+                const isUrgent = a.urgency === "urgent";
+                return (
                   <Link
-                    key={s.symbol}
-                    href={`/signals?check=${encodeURIComponent(s.symbol)}`}
-                    className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-4 py-3 transition-colors hover:bg-white/[0.08]"
+                    key={`action-${i}`}
+                    href="/signals"
+                    className={cn(
+                      "flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-white/[0.08]",
+                      isUrgent
+                        ? "border-red-500/30 bg-red-500/[0.05]"
+                        : "border-amber-500/20 bg-amber-500/[0.03]"
+                    )}
                   >
-                    <div>
-                      <p className="font-medium">{s.symbol}</p>
-                      <p className="text-xs text-slate-500">
-                        {s.sector}
-                        {s.price && ` \u00B7 ${formatCurrency(s.price)}`}
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <TrendingDown className={cn("h-4 w-4", isUrgent ? "text-red-400" : "text-amber-400")} />
+                      <div>
+                        <p className="font-medium">SELL {a.symbol}</p>
+                        <p className="text-xs text-slate-500">{a.reason}</p>
+                      </div>
                     </div>
-                    <SignalBadge signal={s.signal} strength={s.strength} />
+                    {a.pnl_pct != null && (
+                      <span className={cn(
+                        "text-sm font-medium",
+                        a.pnl_pct >= 0 ? "text-emerald-400" : "text-red-400"
+                      )}>
+                        {mask(`${a.pnl_pct >= 0 ? "+" : ""}${a.pnl_pct.toFixed(1)}%`)}
+                      </span>
+                    )}
                   </Link>
-                ))
-              : [];
-            return (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {exitCards.slice(0, 3)}
-                {signalCards}
-              </div>
-            );
-          })()}
+                );
+              }
+              if (a.type === "SWAP") {
+                return (
+                  <Link
+                    key={`action-${i}`}
+                    href="/signals"
+                    className="flex items-center justify-between rounded-lg border border-brand-500/20 bg-brand-500/[0.03] px-4 py-3 transition-colors hover:bg-white/[0.08]"
+                  >
+                    <div className="flex items-center gap-2">
+                      <ArrowRight className="h-4 w-4 text-brand-400" />
+                      <div>
+                        <p className="font-medium">{a.sell_symbol} &rarr; {a.buy_symbol}</p>
+                        <p className="text-xs text-slate-500">Swap</p>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              }
+              // BUY
+              return (
+                <Link
+                  key={`action-${i}`}
+                  href="/signals"
+                  className="flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/[0.03] px-4 py-3 transition-colors hover:bg-white/[0.08]"
+                >
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-emerald-400" />
+                    <div>
+                      <p className="font-medium">BUY {a.symbol}</p>
+                      <p className="text-xs text-slate-500">{a.shares} sh @ ~{formatCurrency(a.price ?? 0)}</p>
+                    </div>
+                  </div>
+                  {a.strength != null && (
+                    <span className="text-sm font-medium text-emerald-400">
+                      {(a.strength * 100).toFixed(0)}%
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
         </div>
       ) : chartsLoading ? (
         <SignalsSkeleton />
       ) : (
         <div className="glass-card flex flex-col items-center gap-2 py-12">
           <Zap className="h-8 w-8 text-slate-600" />
-          <p className="text-sm text-slate-500">No active signals right now</p>
-          <p className="text-xs text-slate-600">Try checking a specific symbol on the signals page</p>
+          <p className="text-sm text-slate-500">No trades needed right now</p>
+          <p className="text-xs text-slate-600">Portfolio is on track</p>
         </div>
       )}
 
@@ -232,8 +252,8 @@ export default function DashboardPage() {
       )}
 
       {/* Sector exposure chart */}
-      {signals && Object.keys(signals.sector_exposure).length > 0 ? (
-        <SectorChart exposure={signals.sector_exposure} />
+      {plan && Object.keys(plan.sector_exposure).length > 0 ? (
+        <SectorChart exposure={plan.sector_exposure as Record<string, number>} />
       ) : chartsLoading ? (
         <SectorChartSkeleton />
       ) : (

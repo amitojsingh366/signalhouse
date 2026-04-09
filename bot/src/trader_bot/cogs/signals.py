@@ -9,9 +9,9 @@ from zoneinfo import ZoneInfo
 import discord
 from discord import app_commands
 from discord.ext import commands
+from trader_api.services.signals import Signal, SignalResult
 
 from trader_bot.bot import TraderBot
-from trader_api.services.signals import Signal, SignalResult
 
 ET = ZoneInfo("America/New_York")
 
@@ -84,6 +84,87 @@ def _build_sell_embed(sig: SignalResult) -> discord.Embed:
     return embed
 
 
+def _build_action_embed(action: dict[str, Any]) -> discord.Embed:
+    """Build an embed for an action plan trade instruction."""
+    action_type = action["type"]
+    urgency = action.get("urgency", "normal")
+
+    if action_type == "SELL":
+        urgency_label = "\U0001f6a8 URGENT" if urgency == "urgent" else (
+            "\u26A0\uFE0F" if urgency == "normal" else "\U0001f4AD"
+        )
+        embed = discord.Embed(
+            title=f"{urgency_label} SELL {action['symbol']}",
+            description=action.get("detail", ""),
+            color=0xE74C3C,
+        )
+        embed.add_field(name="Shares", value=f"{action['shares']:.4f}", inline=True)
+        embed.add_field(name="Price", value=f"${action['price']:.2f}", inline=True)
+        embed.add_field(name="Value", value=f"${action['dollar_amount']:,.2f}", inline=True)
+        if action.get("pnl_pct") is not None:
+            pnl_emoji = "\U0001f7e2" if action["pnl_pct"] >= 0 else "\U0001f534"
+            embed.add_field(
+                name="P&L",
+                value=f"{pnl_emoji} {action['pnl_pct']:+.1f}%",
+                inline=True,
+            )
+        embed.add_field(name="Reason", value=action.get("reason", ""), inline=False)
+
+    elif action_type == "BUY":
+        embed = discord.Embed(
+            title=f"\U0001f4B0 BUY {action['symbol']}",
+            description=action.get("detail", ""),
+            color=0x2ECC71,
+        )
+        embed.add_field(name="Shares", value=str(action["shares"]), inline=True)
+        embed.add_field(name="Price", value=f"~${action['price']:.2f}", inline=True)
+        embed.add_field(name="Cost", value=f"${action['dollar_amount']:,.2f}", inline=True)
+        if action.get("pct_of_portfolio"):
+            embed.add_field(
+                name="% Portfolio", value=f"{action['pct_of_portfolio']:.1f}%", inline=True
+            )
+        if action.get("strength"):
+            embed.add_field(
+                name="Strength", value=f"{action['strength']:.0%}", inline=True
+            )
+        sector = action.get("sector")
+        if sector:
+            embed.add_field(name="Sector", value=sector, inline=True)
+
+    elif action_type == "SWAP":
+        embed = discord.Embed(
+            title=(
+                f"\U0001f504 SWAP {action.get('sell_symbol', '')} "
+                f"\u2192 {action.get('buy_symbol', '')}"
+            ),
+            description=action.get("detail", ""),
+            color=0x3498DB,
+        )
+        sell_pnl = action.get("sell_pnl_pct", 0)
+        pnl_emoji = "\U0001f7e2" if sell_pnl >= 0 else "\U0001f534"
+        embed.add_field(
+            name=f"Sell {action.get('sell_symbol', '')}",
+            value=(
+                f"{action.get('sell_shares', 0):.4f} sh @ ${action.get('sell_price', 0):.2f}\n"
+                f"${action.get('sell_amount', 0):,.2f} {pnl_emoji} {sell_pnl:+.1f}%"
+            ),
+            inline=True,
+        )
+        embed.add_field(
+            name=f"Buy {action.get('buy_symbol', '')}",
+            value=(
+                f"{action.get('buy_shares', 0)} sh @ ~${action.get('buy_price', 0):.2f}\n"
+                f"${action.get('buy_amount', 0):,.2f} ({action.get('buy_strength', 0):.0%} signal)"
+            ),
+            inline=True,
+        )
+    else:
+        embed = discord.Embed(title=action_type, description=action.get("detail", ""))
+
+    embed.set_footer(text=datetime.now(ET).strftime("%H:%M ET"))
+    return embed
+
+
 # ---------------------------------------------------------------------------
 # Persistent Recheck Button
 # ---------------------------------------------------------------------------
@@ -134,9 +215,8 @@ class RecheckView(discord.ui.View):
             new_embed.add_field(
                 name="Strength", value=f"{result.strength:.0%}", inline=True
             )
-            new_embed.add_field(
-                name="Signal", value=f"{signal_emoji(result.signal)} {result.signal.value}", inline=True
-            )
+            sig_val = f"{signal_emoji(result.signal)} {result.signal.value}"
+            new_embed.add_field(name="Signal", value=sig_val, inline=True)
             new_embed.set_footer(text=f"Rechecked at {datetime.now(ET).strftime('%H:%M ET')}")
 
             await interaction.followup.send(embed=new_embed, view=RecheckView())
@@ -202,7 +282,8 @@ class SignalsCog(commands.Cog):
             if h:
                 prices = await self.bot.market_data.get_batch_prices([symbol])
                 price = prices.get(symbol, h["avg_cost"])
-                pnl_pct = (price - h["avg_cost"]) / h["avg_cost"] * 100 if h["avg_cost"] > 0 else 0.0
+                avg = h["avg_cost"]
+                pnl_pct = (price - avg) / avg * 100 if avg > 0 else 0.0
                 pnl_emoji = "\U0001f7e2" if pnl_pct >= 0 else "\U0001f534"
 
                 embed.add_field(
@@ -286,74 +367,54 @@ class SignalsCog(commands.Cog):
 
         return choices[:25]
 
-    @app_commands.command(name="recommend", description="Get current buy/sell recommendations")
+    @app_commands.command(
+        name="recommend",
+        description="Get today's action plan",
+    )
     async def recommend(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(thinking=True)
 
         strategy = await self.bot.get_fresh_strategy()
         portfolio = await self.bot.get_fresh_portfolio()
         try:
-            recs = await strategy.get_top_recommendations(n=5)
+            plan = await strategy.get_action_plan()
+            actions = plan["actions"]
 
-            if not recs["buys"] and not recs["sells"]:
-                await interaction.followup.send("No actionable signals right now. Market may be quiet.")
+            if not actions:
+                await interaction.followup.send(
+                    "\u2705 No trades needed right now. Portfolio is on track."
+                )
                 return
 
-            meta = await portfolio._get_meta()
+            # Summary header
+            summary_embed = discord.Embed(
+                title="\U0001f4CB Today's Action Plan",
+                description=(
+                    f"**{len(actions)} trade(s)** to execute"
+                    f" \u2014 {plan['sells_count']} sell(s),"
+                    f" {plan['swaps_count']} swap(s),"
+                    f" {plan['buys_count']} buy(s)"
+                ),
+                color=0x8B5CF6,
+            )
+            summary_embed.add_field(
+                name="Portfolio", value=f"${plan['portfolio_value']:,.2f}", inline=True
+            )
+            summary_embed.add_field(
+                name="Cash", value=f"${plan['cash']:,.2f}", inline=True
+            )
+            summary_embed.add_field(
+                name="Positions",
+                value=f"{plan['num_positions']}/{plan['max_positions']}",
+                inline=True,
+            )
+            await interaction.followup.send(embed=summary_embed)
 
-            exposure = recs.get("sector_exposure", {})
-            if exposure:
-                lines = []
-                for sector, data in sorted(
-                    exposure.items(), key=lambda x: x[1]["pct"], reverse=True
-                ):
-                    bar_len = int(data["pct"] * 20)
-                    bar = "\u2588" * bar_len + "\u2591" * (20 - bar_len)
-                    syms = ", ".join(data["symbols"])
-                    lines.append(f"`{bar}` **{sector}** {data['pct']:.0%} ({syms})")
-                exp_embed = discord.Embed(
-                    title="Portfolio Sector Exposure",
-                    description="\n".join(lines),
-                    color=0x3498DB,
-                )
-                exp_embed.add_field(
-                    name="Cash", value=f"${meta.cash:.2f}", inline=True
-                )
-                await interaction.followup.send(embed=exp_embed)
-
-            funding = recs.get("funding", [])
-            for sig in recs["buys"]:
-                embed = _build_buy_embed(sig, funding)
+            # Individual action embeds
+            for action in actions:
+                embed = _build_action_embed(action)
                 await interaction.followup.send(embed=embed, view=RecheckView())
 
-            for sig in recs["sells"]:
-                embed = _build_sell_embed(sig)
-                await interaction.followup.send(embed=embed, view=RecheckView())
-
-            watchlist = recs.get("watchlist_sells", [])
-            if watchlist:
-                lines = []
-                for sig in watchlist:
-                    price_str = ""
-                    for r in sig.reasons:
-                        if r.startswith("Price: $"):
-                            try:
-                                price_str = f" @ ${float(r.split('$')[1]):.2f}"
-                            except (ValueError, IndexError):
-                                pass
-                            break
-                    lines.append(
-                        f"\U0001f534 **{sig.symbol}**{price_str} — {sig.strength:.0%} strength"
-                    )
-                watchlist_embed = discord.Embed(
-                    title="\U000026A0 Watchlist Sell Alerts",
-                    description=(
-                        "Sell signals for symbols you don't hold — avoid buying these\n\n"
-                        + "\n".join(lines)
-                    ),
-                    color=0xF39C12,
-                )
-                await interaction.followup.send(embed=watchlist_embed)
         finally:
             await portfolio.close()
             await strategy.portfolio.close()

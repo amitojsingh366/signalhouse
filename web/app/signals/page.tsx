@@ -2,11 +2,11 @@
 
 import { Suspense, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Zap, RefreshCw, AlertTriangle } from "lucide-react";
+import { Zap, RefreshCw, AlertTriangle, ArrowRight, TrendingDown, TrendingUp } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRecommendations, useSymbols, useSignalCheck, queryKeys } from "@/lib/hooks";
-import type { ExitAlert, SignalOut } from "@/lib/api";
-import { formatCurrency, formatPercent, cn, pnlColor } from "@/lib/utils";
+import { useActionPlan, useSymbols, useSignalCheck, queryKeys } from "@/lib/hooks";
+import type { ActionItem } from "@/lib/api";
+import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import { usePrivacy } from "@/lib/privacy";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { SearchBar } from "@/components/ui/search-bar";
@@ -27,76 +27,123 @@ function ScoreTag({ text }: { text: string }) {
   );
 }
 
-function SignalCard({ signal, expanded, onToggle }: { signal: SignalOut; expanded: boolean; onToggle: () => void }) {
+function ActionCard({ action }: { action: ActionItem }) {
   const { mask } = usePrivacy();
-  return (
-    <div className="glass-card p-4 cursor-pointer transition-colors hover:bg-white/[0.05]" onClick={onToggle}>
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-lg font-semibold">{signal.symbol}</span>
-        <div className="flex items-center gap-2">
-          {signal.score !== undefined && signal.score !== 0 && (
-            <span className="text-xs font-mono text-slate-500">
-              {signal.score > 0 ? "+" : ""}{signal.score}/9
+
+  if (action.type === "SELL") {
+    const isUrgent = action.urgency === "urgent";
+    const isLow = action.urgency === "low";
+    return (
+      <div className={cn(
+        "glass-card p-4 border",
+        isUrgent ? "border-red-500/30 bg-red-500/[0.05]"
+          : isLow ? "border-slate-500/20 bg-white/[0.02]"
+          : "border-amber-500/20 bg-amber-500/[0.03]"
+      )}>
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <TrendingDown className={cn("h-4 w-4", isUrgent ? "text-red-400" : isLow ? "text-slate-400" : "text-amber-400")} />
+            <span className="text-lg font-semibold">{action.symbol}</span>
+          </div>
+          <span className={cn(
+            "rounded-full px-2 py-0.5 text-xs font-medium",
+            isUrgent ? "bg-red-500/20 text-red-400" : isLow ? "bg-slate-500/20 text-slate-400" : "bg-amber-500/20 text-amber-400"
+          )}>
+            {isUrgent ? "URGENT" : action.reason}
+          </span>
+        </div>
+        <p className="mb-3 text-sm font-medium text-white">{action.detail}</p>
+        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+          <span>Shares: {mask(String(action.shares?.toFixed(4) ?? ""))}</span>
+          <span>Price: {formatCurrency(action.price ?? 0)}</span>
+          <span>Value: {mask(formatCurrency(action.dollar_amount ?? 0))}</span>
+          {action.pnl_pct != null && (
+            <span className={cn("font-medium", action.pnl_pct >= 0 ? "text-emerald-400" : "text-red-400")}>
+              {mask(formatPercent(action.pnl_pct))}
             </span>
           )}
-          <SignalBadge signal={signal.signal} strength={signal.strength} />
+        </div>
+        {action.reason && (
+          <p className="mt-2 text-xs text-slate-500">{action.reason}</p>
+        )}
+      </div>
+    );
+  }
+
+  if (action.type === "SWAP") {
+    return (
+      <div className="glass-card p-4 border border-brand-500/20 bg-brand-500/[0.03]">
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ArrowRight className="h-4 w-4 text-brand-400" />
+            <span className="text-lg font-semibold">
+              {action.sell_symbol} <span className="text-slate-500 mx-1">&rarr;</span> {action.buy_symbol}
+            </span>
+          </div>
+          <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-brand-500/20 text-brand-400">
+            SWAP
+          </span>
+        </div>
+        <p className="mb-3 text-sm font-medium text-white">{action.detail}</p>
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="rounded-lg bg-red-500/[0.05] border border-red-500/10 p-2">
+            <p className="font-medium text-red-400 mb-1">Sell {action.sell_symbol}</p>
+            <p className="text-slate-400">{mask(String(action.sell_shares?.toFixed(4) ?? ""))} shares @ {formatCurrency(action.sell_price ?? 0)}</p>
+            <p className="text-slate-400">{mask(formatCurrency(action.sell_amount ?? 0))}
+              {action.sell_pnl_pct != null && (
+                <span className={cn("ml-1", action.sell_pnl_pct >= 0 ? "text-emerald-400" : "text-red-400")}>
+                  {mask(formatPercent(action.sell_pnl_pct))}
+                </span>
+              )}
+            </p>
+          </div>
+          <div className="rounded-lg bg-emerald-500/[0.05] border border-emerald-500/10 p-2">
+            <p className="font-medium text-emerald-400 mb-1">Buy {action.buy_symbol}</p>
+            <p className="text-slate-400">{action.buy_shares} shares @ ~{formatCurrency(action.buy_price ?? 0)}</p>
+            <p className="text-slate-400">{mask(formatCurrency(action.buy_amount ?? 0))}
+              {action.buy_strength != null && (
+                <span className="ml-1 text-emerald-400">{(action.buy_strength * 100).toFixed(0)}% signal</span>
+              )}
+            </p>
+          </div>
         </div>
       </div>
-      {signal.price && (
-        <p className="mb-2 text-sm text-slate-400">
-          Price: {formatCurrency(signal.price)}
-        </p>
-      )}
-      {signal.sector && (
-        <p className="mb-2 text-xs text-slate-500">{signal.sector}</p>
-      )}
-      <ul className="space-y-1">
-        {signal.reasons.map((r, i) => (
-          <li key={i} className="text-xs text-slate-400">
-            <ScoreTag text={r} />
-          </li>
-        ))}
-      </ul>
-      {expanded && (
-        <div className="mt-4" onClick={(e) => e.stopPropagation()}>
-          <PriceChart symbol={signal.symbol} />
-        </div>
-      )}
-    </div>
-  );
-}
+    );
+  }
 
-function ExitAlertCard({ alert, onClick }: { alert: ExitAlert; onClick: () => void }) {
-  const { mask } = usePrivacy();
-  const isHigh = alert.severity === "high";
+  // BUY
   return (
-    <div
-      className={cn(
-        "glass-card p-4 border cursor-pointer transition-colors hover:bg-white/[0.05]",
-        isHigh ? "border-red-500/30 bg-red-500/[0.05]" : "border-amber-500/20 bg-amber-500/[0.03]"
-      )}
-      onClick={onClick}
-    >
+    <div className="glass-card p-4 border border-emerald-500/20 bg-emerald-500/[0.03]">
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <AlertTriangle className={cn("h-4 w-4", isHigh ? "text-red-400" : "text-amber-400")} />
-          <span className="text-lg font-semibold">{alert.symbol}</span>
+          <TrendingUp className="h-4 w-4 text-emerald-400" />
+          <span className="text-lg font-semibold">{action.symbol}</span>
         </div>
-        <span className={cn(
-          "rounded-full px-2 py-0.5 text-xs font-medium",
-          isHigh ? "bg-red-500/20 text-red-400" : "bg-amber-500/20 text-amber-400"
-        )}>
-          {alert.reason}
-        </span>
+        <div className="flex items-center gap-2">
+          {action.strength != null && (
+            <SignalBadge signal="BUY" strength={action.strength} />
+          )}
+        </div>
       </div>
-      <p className="mb-2 text-sm text-slate-400">{alert.detail}</p>
-      <div className="flex items-center gap-4 text-xs text-slate-500">
-        <span>Entry: {mask(formatCurrency(alert.entry_price))}</span>
-        <span>Current: {formatCurrency(alert.current_price)}</span>
-        <span className={cn("font-medium", alert.pnl_pct >= 0 ? "text-emerald-400" : "text-red-400")}>
-          {mask(formatPercent(alert.pnl_pct))}
-        </span>
+      <p className="mb-3 text-sm font-medium text-white">{action.detail}</p>
+      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+        <span>Shares: {action.shares}</span>
+        <span>Price: ~{formatCurrency(action.price ?? 0)}</span>
+        <span>Cost: {mask(formatCurrency(action.dollar_amount ?? 0))}</span>
+        {action.pct_of_portfolio != null && (
+          <span>{mask(`${action.pct_of_portfolio.toFixed(1)}%`)} of portfolio</span>
+        )}
+        {action.sector && <span className="text-slate-500">{action.sector}</span>}
       </div>
+      {action.reasons && action.reasons.length > 0 && (
+        <ul className="mt-2 space-y-0.5">
+          {action.reasons.filter(r => !r.startsWith("Price:") && !r.startsWith("ATR:")).slice(0, 4).map((r, i) => (
+            <li key={i} className="text-xs text-slate-500">
+              <ScoreTag text={r} />
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -113,31 +160,33 @@ function SignalsContent() {
   const searchParams = useSearchParams();
   const qc = useQueryClient();
 
-  // Checked symbol state — driven by search bar or ?check= param
   const [checkedSymbol, setCheckedSymbol] = useState<string | null>(
     () => searchParams.get("check")
   );
-  const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
 
   const { mask } = usePrivacy();
   const { data: symbols = [] } = useSymbols();
-  const { data: recs, isLoading: recsLoading, isFetching: refreshing } = useRecommendations();
+  const { data: plan, isLoading: planLoading, isFetching: refreshing } = useActionPlan();
   const { data: checked, isLoading: checkLoading } = useSignalCheck(checkedSymbol);
 
   const refresh = useCallback(() => {
-    qc.invalidateQueries({ queryKey: queryKeys.recommendations });
+    qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
   }, [qc]);
 
   function checkSymbol(symbol: string) {
     setCheckedSymbol(symbol);
-    // Invalidate so it refetches even if we checked this symbol before
     qc.invalidateQueries({ queryKey: queryKeys.signal(symbol) });
   }
+
+  const sells = plan?.actions.filter(a => a.type === "SELL") ?? [];
+  const swaps = plan?.actions.filter(a => a.type === "SWAP") ?? [];
+  const buys = plan?.actions.filter(a => a.type === "BUY") ?? [];
+  const hasActions = sells.length > 0 || swaps.length > 0 || buys.length > 0;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Signals</h1>
+        <h1 className="text-2xl font-bold">Action Plan</h1>
         <button
           onClick={refresh}
           disabled={refreshing}
@@ -148,7 +197,44 @@ function SignalsContent() {
         </button>
       </div>
 
-      {/* Symbol search — always visible immediately */}
+      {/* Portfolio summary bar */}
+      {plan && (
+        <div className="glass-card flex flex-wrap items-center gap-4 px-5 py-3 text-sm">
+          <div>
+            <span className="text-slate-500 mr-1">Portfolio:</span>
+            <span className="font-medium">{mask(formatCurrency(plan.portfolio_value))}</span>
+          </div>
+          <div>
+            <span className="text-slate-500 mr-1">Cash:</span>
+            <span className="font-medium">{mask(formatCurrency(plan.cash))}</span>
+          </div>
+          <div>
+            <span className="text-slate-500 mr-1">Positions:</span>
+            <span className="font-medium">{plan.num_positions}/{plan.max_positions}</span>
+          </div>
+          {hasActions && (
+            <div className="ml-auto flex items-center gap-2">
+              {sells.length > 0 && (
+                <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-xs text-red-400">
+                  {sells.length} sell{sells.length > 1 ? "s" : ""}
+                </span>
+              )}
+              {swaps.length > 0 && (
+                <span className="rounded-full bg-brand-500/20 px-2 py-0.5 text-xs text-brand-400">
+                  {swaps.length} swap{swaps.length > 1 ? "s" : ""}
+                </span>
+              )}
+              {buys.length > 0 && (
+                <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-400">
+                  {buys.length} buy{buys.length > 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Symbol search */}
       <SearchBar
         symbols={symbols}
         onSelect={checkSymbol}
@@ -170,22 +256,12 @@ function SignalsContent() {
             </div>
           </div>
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-3.5 w-[44%]" />
-              <Skeleton className="h-3 w-8" />
-            </div>
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-3.5 w-[36%]" />
-              <Skeleton className="h-3 w-8" />
-            </div>
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-3.5 w-[40%]" />
-              <Skeleton className="h-3 w-8" />
-            </div>
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-3.5 w-[32%]" />
-              <Skeleton className="h-3 w-8" />
-            </div>
+            {[44, 36, 40, 32].map((w, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <Skeleton className={`h-3.5 w-[${w}%]`} />
+                <Skeleton className="h-3 w-8" />
+              </div>
+            ))}
           </div>
           <Skeleton className="mt-3 h-3 w-14" />
         </div>
@@ -228,14 +304,12 @@ function SignalsContent() {
           </button>
         </div>
       )}
-
-      {/* Price chart for checked symbol */}
       {checked && !checkLoading && (
         <PriceChart symbol={checked.symbol} />
       )}
 
-      {/* Signal cards — show cached data or loading state */}
-      {recsLoading ? (
+      {/* Action plan */}
+      {planLoading ? (
         <div className="space-y-6">
           <div>
             <div className="mb-3 flex items-center gap-2">
@@ -247,118 +321,54 @@ function SignalsContent() {
         </div>
       ) : (
         <>
-          {/* Exit alerts — shown first (stop losses, max hold, sell signals for holdings) */}
-          {recs && recs.exit_alerts && recs.exit_alerts.length > 0 && (
+          {/* Sells */}
+          {sells.length > 0 && (
             <div>
               <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
                 <AlertTriangle className="h-4 w-4 text-red-400" />
-                Exit Alerts
+                Sells
               </h2>
-              <p className="mb-3 text-xs text-slate-500">Stop losses, time exits, and sell signals for your holdings — act on these first</p>
+              <p className="mb-3 text-xs text-slate-500">Execute these first — stops, profit-taking, and exit signals</p>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {recs.exit_alerts.map((a) => (
-                  <ExitAlertCard key={a.symbol} alert={a} onClick={() => checkSymbol(a.symbol)} />
-                ))}
+                {sells.map((a, i) => <ActionCard key={`sell-${i}`} action={a} />)}
               </div>
             </div>
           )}
 
-          {/* Buy signals */}
-          {recs && recs.buys.length > 0 && (
+          {/* Swaps */}
+          {swaps.length > 0 && (
             <div>
               <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-                <span className="h-2 w-2 rounded-full bg-brand-400" />
-                Buy Signals
+                <ArrowRight className="h-4 w-4 text-brand-400" />
+                Swaps
               </h2>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {recs.buys.map((s) => (
-                  <SignalCard
-                    key={s.symbol}
-                    signal={s}
-                    expanded={expandedSymbol === s.symbol}
-                    onToggle={() => setExpandedSymbol(expandedSymbol === s.symbol ? null : s.symbol)}
-                  />
-                ))}
+              <p className="mb-3 text-xs text-slate-500">Replace weaker holdings with stronger opportunities</p>
+              <div className="grid gap-4 lg:grid-cols-2">
+                {swaps.map((a, i) => <ActionCard key={`swap-${i}`} action={a} />)}
               </div>
             </div>
           )}
 
-          {/* Sell signals */}
-          {recs && recs.sells.length > 0 && (
+          {/* Buys */}
+          {buys.length > 0 && (
             <div>
               <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-                <span className="h-2 w-2 rounded-full bg-red-400" />
-                Sell Signals
+                <TrendingUp className="h-4 w-4 text-emerald-400" />
+                Buys
               </h2>
+              <p className="mb-3 text-xs text-slate-500">New positions — only if you have available slots and cash</p>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {recs.sells.map((s) => (
-                  <SignalCard
-                    key={s.symbol}
-                    signal={s}
-                    expanded={expandedSymbol === s.symbol}
-                    onToggle={() => setExpandedSymbol(expandedSymbol === s.symbol ? null : s.symbol)}
-                  />
-                ))}
+                {buys.map((a, i) => <ActionCard key={`buy-${i}`} action={a} />)}
               </div>
             </div>
           )}
 
-          {/* Funding suggestions */}
-          {recs && recs.funding.length > 0 && (
-            <div className="glass-card p-5">
-              <h3 className="mb-3 text-sm font-medium text-slate-400">
-                Sell-to-Fund Suggestions
-              </h3>
-              <div className="space-y-2">
-                {recs.funding.map((f, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-4 py-2 text-sm"
-                  >
-                    <span>
-                      Sell{" "}
-                      <span className="font-medium">{String(f.sell ?? "")}</span> to
-                      buy{" "}
-                      <span className="font-medium">{String(f.buy ?? "")}</span>
-                    </span>
-                    {f.reason ? (
-                      <span className="text-xs text-slate-500">
-                        {String(f.reason)}
-                      </span>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Watchlist sell signals (not held) */}
-          {recs && recs.watchlist_sells && recs.watchlist_sells.length > 0 && (
-            <div>
-              <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-                <span className="h-2 w-2 rounded-full bg-amber-400" />
-                Watchlist Alerts
-              </h2>
-              <p className="mb-3 text-xs text-slate-500">Sell signals for symbols you don&apos;t hold — avoid buying these</p>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {recs.watchlist_sells.map((s) => (
-                  <SignalCard
-                    key={s.symbol}
-                    signal={s}
-                    expanded={expandedSymbol === s.symbol}
-                    onToggle={() => setExpandedSymbol(expandedSymbol === s.symbol ? null : s.symbol)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* No signals message */}
-          {recs && recs.buys.length === 0 && recs.sells.length === 0 && (!recs.exit_alerts || recs.exit_alerts.length === 0) && (!recs.watchlist_sells || recs.watchlist_sells.length === 0) && (
+          {/* No actions */}
+          {!hasActions && (
             <div className="glass-card flex flex-col items-center gap-2 py-12">
               <Zap className="h-8 w-8 text-slate-600" />
-              <p className="text-sm text-slate-500">No active signals right now</p>
-              <p className="text-xs text-slate-600">Try refreshing or check a specific symbol above</p>
+              <p className="text-sm text-slate-500">No trades needed right now</p>
+              <p className="text-xs text-slate-600">Portfolio is on track. Check back later or search a symbol above.</p>
             </div>
           )}
         </>

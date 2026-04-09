@@ -169,6 +169,8 @@ class Strategy:
             if current_price is None:
                 continue
 
+            pnl_pct = (current_price - h["avg_cost"]) / h["avg_cost"] * 100
+
             stop_hit = self.risk.update_stops(symbol, current_price)
             if stop_hit is not None:
                 alerts.append({
@@ -178,7 +180,33 @@ class Strategy:
                     "severity": "high",
                     "current_price": current_price,
                     "entry_price": h["avg_cost"],
-                    "pnl_pct": (current_price - h["avg_cost"]) / h["avg_cost"] * 100,
+                    "pnl_pct": pnl_pct,
+                    "quantity": h["quantity"],
+                    "action": "SELL",
+                    "action_detail": f"Sell all {h['quantity']:.4f} shares — stop loss triggered",
+                })
+                continue
+
+            # Take profit — sell winners at configurable threshold
+            if self.risk.should_take_profit(symbol, current_price):
+                tp_pct = self.config["risk"].get("take_profit_pct", 0.08) * 100
+                alerts.append({
+                    "symbol": symbol,
+                    "reason": "Take profit",
+                    "detail": (
+                        f"Gain {pnl_pct:+.1f}% exceeds {tp_pct:.0f}% "
+                        f"target — lock in profits"
+                    ),
+                    "severity": "high",
+                    "current_price": current_price,
+                    "entry_price": h["avg_cost"],
+                    "pnl_pct": pnl_pct,
+                    "quantity": h["quantity"],
+                    "action": "SELL",
+                    "action_detail": (
+                        f"Sell all {h['quantity']:.4f} shares "
+                        f"— take profit at {pnl_pct:+.1f}%"
+                    ),
                 })
                 continue
 
@@ -190,7 +218,10 @@ class Strategy:
                     "severity": "medium",
                     "current_price": current_price,
                     "entry_price": h["avg_cost"],
-                    "pnl_pct": (current_price - h["avg_cost"]) / h["avg_cost"] * 100,
+                    "pnl_pct": pnl_pct,
+                    "quantity": h["quantity"],
+                    "action": "SELL",
+                    "action_detail": f"Sell all {h['quantity']:.4f} shares — exceeded hold window",
                 })
                 continue
 
@@ -211,9 +242,33 @@ class Strategy:
                             "severity": "medium",
                             "current_price": current_price,
                             "entry_price": h["avg_cost"],
-                            "pnl_pct": (
-                                (current_price - h["avg_cost"]) / h["avg_cost"] * 100
+                            "pnl_pct": pnl_pct,
+                            "quantity": h["quantity"],
+                            "action": "SELL",
+                            "action_detail": (
+                                f"Sell all {h['quantity']:.4f} shares "
+                                f"— technical sell signal"
                             ),
+                        })
+                    elif result.signal == Signal.HOLD and pnl_pct < 0:
+                        # Momentum decay — holding is flat/negative with no buy signal
+                        alerts.append({
+                            "symbol": symbol,
+                            "reason": "Momentum lost",
+                            "detail": (
+                            f"Signal weakened to HOLD while at "
+                            f"{pnl_pct:+.1f}% — consider exiting"
+                        ),
+                            "severity": "low",
+                            "current_price": current_price,
+                            "entry_price": h["avg_cost"],
+                            "pnl_pct": pnl_pct,
+                            "quantity": h["quantity"],
+                            "action": "SELL",
+                            "action_detail": (
+                            f"Sell all {h['quantity']:.4f} shares "
+                            f"— no momentum, cutting loss"
+                        ),
                         })
             except Exception:
                 logger.exception("Error checking sell signal for %s", symbol)
@@ -399,6 +454,187 @@ class Strategy:
         }
         self._cached_recommendations = result
         return result
+
+    async def get_action_plan(self) -> dict[str, Any]:
+        """Build a prioritized, position-sized action plan.
+
+        Returns specific trade instructions ordered by urgency:
+        1. Stop-loss / take-profit sells (urgent)
+        2. Signal-based sells + time exits
+        3. Momentum-decay sells (low urgency)
+        4. Swaps (sell A, buy B)
+        5. New buys (only if under max positions)
+        """
+        holdings = await self.portfolio.get_holdings_dict()
+        held_symbols = list(holdings.keys())
+        prices = (
+            await self.market_data.get_batch_prices(held_symbols)
+            if held_symbols else {}
+        )
+        meta = await self.portfolio._get_meta()
+        cash = meta.cash
+        portfolio_value = await self.portfolio.get_portfolio_value(prices)
+        num_positions = len(holdings)
+        max_positions = self.config["risk"]["max_positions"]
+
+        actions: list[dict[str, Any]] = []
+
+        # --- Phase 1: Exit alerts (sells) ---
+        exit_alerts = await self.get_exit_alerts(prices) if holdings else []
+        sell_symbols: set[str] = set()
+        for alert in exit_alerts:
+            sym = alert["symbol"]
+            sell_symbols.add(sym)
+            h = holdings[sym]
+            value = h["quantity"] * alert["current_price"]
+            urgency = "urgent" if alert["severity"] == "high" else (
+                "normal" if alert["severity"] == "medium" else "low"
+            )
+            actions.append({
+                "type": "SELL",
+                "urgency": urgency,
+                "symbol": sym,
+                "shares": h["quantity"],
+                "price": alert["current_price"],
+                "dollar_amount": round(value, 2),
+                "reason": alert["reason"],
+                "detail": alert.get("action_detail", alert["detail"]),
+                "pnl_pct": alert["pnl_pct"],
+                "entry_price": h["avg_cost"],
+            })
+
+        # --- Phase 2: Buys (only if room for positions, or as swaps) ---
+        recs = await self.get_top_recommendations(n=5)
+        available_slots = max_positions - (num_positions - len(sell_symbols))
+        cash_after_sells = cash + sum(
+            a["dollar_amount"] for a in actions if a["type"] == "SELL"
+        )
+
+        # Add swap suggestions from funding pairs
+        for fund in recs.get("funding", []):
+            buy_sym = fund["buy"]
+            sell_info = fund["sell"]
+            sell_sym = sell_info["symbol"]
+            if sell_sym in sell_symbols:
+                continue  # Already selling this one
+
+            buy_sig = next(
+                (b for b in recs["buys"] if b.symbol == buy_sym), None
+            )
+            if not buy_sig:
+                continue
+
+            buy_price = self._extract_price(buy_sig)
+            if not buy_price:
+                continue
+
+            sell_value = sell_info["quantity"] * sell_info["price"]
+            shares_to_buy = self._calculate_buy_shares(
+                buy_price, portfolio_value, sell_value
+            )
+            if shares_to_buy <= 0:
+                continue
+
+            sell_symbols.add(sell_sym)
+            actions.append({
+                "type": "SWAP",
+                "urgency": "normal",
+                "sell_symbol": sell_sym,
+                "sell_shares": sell_info["quantity"],
+                "sell_price": sell_info["price"],
+                "sell_amount": round(sell_value, 2),
+                "sell_pnl_pct": sell_info["pnl_pct"],
+                "buy_symbol": buy_sym,
+                "buy_shares": shares_to_buy,
+                "buy_price": buy_price,
+                "buy_amount": round(shares_to_buy * buy_price, 2),
+                "buy_strength": buy_sig.strength,
+                "reason": f"Swap: stronger opportunity ({buy_sig.strength:.0%} vs current)",
+                "detail": (
+                    f"Sell {sell_info['quantity']:.4f} sh of {sell_sym} "
+                    f"→ buy {shares_to_buy} sh of {buy_sym}"
+                ),
+            })
+
+        # New buys — only if under max positions and have cash
+        buy_symbols_added: set[str] = set()
+        for sig in recs.get("buys", []):
+            if sig.symbol in held_symbols or sig.symbol in buy_symbols_added:
+                continue
+            # Check if this buy is part of a swap already
+            if any(
+                a.get("buy_symbol") == sig.symbol
+                for a in actions if a["type"] == "SWAP"
+            ):
+                continue
+
+            if available_slots <= 0:
+                break
+
+            price = self._extract_price(sig)
+            if not price:
+                continue
+
+            shares = self._calculate_buy_shares(
+                price, portfolio_value, cash_after_sells
+            )
+            if shares <= 0:
+                continue
+
+            cost = shares * price
+            if cost > cash_after_sells:
+                continue
+
+            pct_of_portfolio = (cost / portfolio_value * 100) if portfolio_value > 0 else 0
+
+            actions.append({
+                "type": "BUY",
+                "urgency": "normal",
+                "symbol": sig.symbol,
+                "shares": shares,
+                "price": price,
+                "dollar_amount": round(cost, 2),
+                "pct_of_portfolio": round(pct_of_portfolio, 1),
+                "strength": sig.strength,
+                "score": sig.score,
+                "reason": f"BUY signal ({sig.strength:.0%})",
+                "detail": f"Buy {shares} shares of {sig.symbol} at ~${price:.2f} (${cost:,.2f})",
+                "sector": self.get_sector(sig.symbol),
+                "reasons": sig.reasons,
+            })
+            buy_symbols_added.add(sig.symbol)
+            cash_after_sells -= cost
+            available_slots -= 1
+
+        # Sort: urgent first, then normal, then low
+        urgency_order = {"urgent": 0, "normal": 1, "low": 2}
+        actions.sort(key=lambda a: urgency_order.get(a.get("urgency", "low"), 3))
+
+        exposure = await self.get_sector_exposure(prices)
+
+        return {
+            "actions": actions,
+            "portfolio_value": round(portfolio_value, 2),
+            "cash": round(cash, 2),
+            "num_positions": num_positions,
+            "max_positions": max_positions,
+            "exit_alerts": exit_alerts,
+            "sells_count": sum(1 for a in actions if a["type"] == "SELL"),
+            "buys_count": sum(1 for a in actions if a["type"] == "BUY"),
+            "swaps_count": sum(1 for a in actions if a["type"] == "SWAP"),
+            "sector_exposure": exposure,
+        }
+
+    def _calculate_buy_shares(
+        self, price: float, portfolio_value: float, available_cash: float
+    ) -> int:
+        """Calculate how many shares to buy, respecting position limits."""
+        if price <= 0 or portfolio_value <= 0:
+            return 0
+        max_dollars = portfolio_value * self.config["risk"]["max_position_pct"]
+        max_dollars = min(max_dollars, available_cash)
+        shares = int(max_dollars / price)
+        return max(shares, 1) if max_dollars >= price else 0
 
     @staticmethod
     def _extract_price(sig: SignalResult) -> float | None:

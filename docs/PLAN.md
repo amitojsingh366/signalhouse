@@ -42,6 +42,7 @@ _Check off items as they're completed. Break large items into sub-items as neede
 - [x] Rebrand to signalhouse + README — Renamed user-facing brand from "Trader" to "signalhouse" across web, iOS, API, Docker. Added comprehensive README with architecture, signal pipeline, features, and setup.
 - [x] Privacy mask toggle — Eye icon in sidebar hides portfolio-sensitive numbers (value, cash, P&L, qty, avg cost, equity chart) while preserving signs/% symbols. Market-fact data (current prices, premarket, price charts) stays visible. Persists in localStorage.
 - [x] Local self-hosting mode — `NEXT_PUBLIC_API_URL` defaults to `http://localhost:8000` when unset (production sets it to empty for Caddy proxy), `docker-compose.local.yml` override (exposes ports, skips Caddy)
+- [x] Active portfolio manager mode — Replaced passive signal scanner with actionable trade instructions. New `GET /api/signals/actions` endpoint returns prioritized, position-sized action plan (sells first → swaps → buys). Added take-profit exits (8% gain), tightened trailing stops at 5% gain (3%→1.5%), momentum-decay sells (HOLD + negative P&L). Every action includes exact shares, price, dollar amount. Discord `/recommend` now shows action plan with per-trade embeds. Web "Signals" page → "Action Plan" with sell/swap/buy sections. iOS "Signals" tab → "Actions" with the same layout. Morning briefing push now summarizes today's trades. Limits new buys when at max positions.
 
 ---
 
@@ -59,7 +60,6 @@ _Check off items as they're completed. Break large items into sub-items as neede
 - [ ] Longer-term trend filter (50/200 EMA)
 - [ ] NLP-based news scoring (replace keyword matching)
 - [ ] Partial exits — sell half at 2% gain, trail the rest
-- [ ] Dynamic position sizing by signal strength
 - [ ] VIX-based market regime detection
 
 ### Scale Up

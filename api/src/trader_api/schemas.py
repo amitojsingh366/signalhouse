@@ -6,7 +6,6 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-
 # --- Portfolio ---
 
 class HoldingOut(BaseModel):
@@ -108,12 +107,15 @@ class SignalOut(BaseModel):
 
 class ExitAlertOut(BaseModel):
     symbol: str
-    reason: str  # "Stop loss hit", "Max hold time reached", "Sell signal"
+    reason: str  # Stop loss / Max hold / Sell signal / Take profit / Momentum lost
     detail: str
-    severity: str  # "high" or "medium"
+    severity: str  # "high", "medium", or "low"
     current_price: float
     entry_price: float
     pnl_pct: float
+    quantity: float | None = None
+    action: str | None = None
+    action_detail: str | None = None
 
 
 class RecommendationOut(BaseModel):
@@ -122,6 +124,47 @@ class RecommendationOut(BaseModel):
     sells: list[SignalOut]
     watchlist_sells: list[SignalOut] = []
     funding: list[dict] = []
+    sector_exposure: dict = {}
+
+
+class ActionOut(BaseModel):
+    type: str  # "BUY", "SELL", "SWAP"
+    urgency: str  # "urgent", "normal", "low"
+    symbol: str | None = None  # For BUY/SELL
+    shares: float | None = None
+    price: float | None = None
+    dollar_amount: float | None = None
+    pct_of_portfolio: float | None = None
+    pnl_pct: float | None = None
+    entry_price: float | None = None
+    strength: float | None = None
+    score: float | None = None
+    reason: str = ""
+    detail: str = ""
+    sector: str | None = None
+    reasons: list[str] = []
+    # SWAP-specific
+    sell_symbol: str | None = None
+    sell_shares: float | None = None
+    sell_price: float | None = None
+    sell_amount: float | None = None
+    sell_pnl_pct: float | None = None
+    buy_symbol: str | None = None
+    buy_shares: float | None = None
+    buy_price: float | None = None
+    buy_amount: float | None = None
+    buy_strength: float | None = None
+
+
+class ActionPlanOut(BaseModel):
+    actions: list[ActionOut]
+    portfolio_value: float
+    cash: float
+    num_positions: int
+    max_positions: int
+    sells_count: int = 0
+    buys_count: int = 0
+    swaps_count: int = 0
     sector_exposure: dict = {}
 
 

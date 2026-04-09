@@ -100,11 +100,16 @@ async def _run_scan(config: dict[str, Any]) -> None:
     """Scan universe, send VoIP pushes for high-confidence signals."""
     strategy = await _make_strategy()
     try:
-        recs = await strategy.get_top_recommendations(n=5)
-        await strategy.notify_high_confidence_signals(recs)
-        n_buys = len(recs.get("buys", []))
-        n_sells = len(recs.get("sells", []))
-        logger.info("Scheduler scan: %d buy(s), %d sell(s)", n_buys, n_sells)
+        plan = await strategy.get_action_plan()
+        # Still use top_recommendations for VoIP notification dedup logic
+        recs = strategy._cached_recommendations
+        if recs:
+            await strategy.notify_high_confidence_signals(recs)
+        n_actions = len(plan.get("actions", []))
+        logger.info(
+            "Scheduler scan: %d action(s) — %d sell, %d swap, %d buy",
+            n_actions, plan["sells_count"], plan["swaps_count"], plan["buys_count"],
+        )
     except Exception:
         logger.exception("Scheduler: scan task failed")
     finally:
@@ -131,19 +136,43 @@ async def _run_premarket() -> None:
 
 
 async def _run_briefing() -> None:
-    """Morning briefing — portfolio summary push."""
+    """Morning briefing — action plan summary push."""
     strategy = await _make_strategy()
     try:
-        insights = await strategy.get_daily_insights()
-        pv = insights["portfolio_value"]
-        pnl = insights["total_pnl"]
-        pnl_pct = insights["total_pnl_pct"]
-        n = len(insights["holdings"])
-        await _send_push(
-            "briefing",
-            "Morning Briefing",
-            f"Portfolio: ${pv:,.2f} ({pnl:+.2f}, {pnl_pct:+.1f}%) · {n} holding(s)",
-        )
+        plan = await strategy.get_action_plan()
+        actions = plan["actions"]
+        pv = plan["portfolio_value"]
+
+        if actions:
+            sells = plan["sells_count"]
+            buys = plan["buys_count"]
+            swaps = plan["swaps_count"]
+            parts = []
+            if sells:
+                parts.append(f"{sells} sell{'s' if sells > 1 else ''}")
+            if swaps:
+                parts.append(f"{swaps} swap{'s' if swaps > 1 else ''}")
+            if buys:
+                parts.append(f"{buys} buy{'s' if buys > 1 else ''}")
+            summary = ", ".join(parts)
+            # Show first urgent action detail
+            urgent = [a for a in actions if a.get("urgency") == "urgent"]
+            if urgent:
+                first = urgent[0]
+                detail = f" | {first['type']} {first.get('symbol', '')}: {first.get('reason', '')}"
+            else:
+                detail = ""
+            await _send_push(
+                "briefing",
+                "Action Plan",
+                f"{len(actions)} trade(s): {summary}{detail} · ${pv:,.0f}",
+            )
+        else:
+            await _send_push(
+                "briefing",
+                "Morning Briefing",
+                f"No trades needed · Portfolio: ${pv:,.0f}",
+            )
     except Exception:
         logger.exception("Scheduler: briefing task failed")
     finally:

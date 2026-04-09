@@ -195,12 +195,24 @@ For each held position:
 
 ### Exit Alerts
 
-Checked every 15 minutes for held positions only:
-1. **Stop loss hit** — price below trailing/hard stop (high severity)
-2. **Max hold time** — held 7+ days (medium severity)
-3. **Sell signal** — technical SELL (≥ 30% strength) for a held position (medium severity)
+Checked every 15 minutes for held positions only (priority order):
+1. **Stop loss hit** — price below trailing/hard stop (high severity, urgent)
+2. **Take profit** — gain ≥ 8% from entry (high severity, urgent) — lock in winners
+3. **Max hold time** — held 7+ days (medium severity)
+4. **Sell signal** — technical SELL (≥ 30% strength) for a held position (medium severity)
+5. **Momentum lost** — signal weakened to HOLD while position is at a loss (low severity)
 
 Exit alerts use 60 days of price history (same as universe scan) to ensure all indicators have enough data.
+
+### Action Plan
+
+The system generates a prioritized, position-sized action plan that tells you exactly what trades to execute:
+
+1. **Sells first** — stop losses, profit-taking, time exits (urgent actions)
+2. **Swaps** — replace weak holdings with stronger opportunities
+3. **Buys** — new positions only if under max position count and have cash
+
+Every action includes exact share count, price, and dollar amount. New buys are limited by `max_positions` (5) — the system won't recommend accumulating positions indefinitely.
 
 ---
 
@@ -225,6 +237,8 @@ Constrained by max position size (50% of portfolio) and minimum 1 share.
 |-----------|-----------|----------|
 | **Hard stop** | 5% below entry | Set on entry, never moves down |
 | **Trailing stop** | 3% below peak | Ratchets up, never moves down |
+| **Tightened trail** | 1.5% below peak (when gain ≥ 5%) | Automatically tightens to protect profits |
+| **Take profit** | 8% above entry | Full sell — lock in gains |
 
 ### Portfolio Circuit Breakers
 

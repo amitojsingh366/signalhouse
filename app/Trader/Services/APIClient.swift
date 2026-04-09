@@ -133,6 +133,10 @@ final class APIClient: ObservableObject {
         try await fetch("/api/signals/recommend?n=\(n)")
     }
 
+    func getActionPlan() async throws -> ActionPlanOut {
+        try await fetch("/api/signals/actions")
+    }
+
     func getPriceHistory(symbol: String, period: String = "60d") async throws -> PriceHistory {
         let encoded = symbol.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? symbol
         return try await fetch("/api/signals/history/\(encoded)?period=\(period)")

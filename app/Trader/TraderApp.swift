@@ -146,7 +146,7 @@ struct MainTabView: View {
 
             SignalsView()
                 .tabItem {
-                    Label("Signals", systemImage: "bolt")
+                    Label("Actions", systemImage: "bolt")
                 }
                 .tag(2)
 

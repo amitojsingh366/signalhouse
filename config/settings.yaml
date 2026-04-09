@@ -491,6 +491,9 @@ risk:
   max_positions: 5             # Max simultaneous positions
   stop_loss_pct: 0.05          # 5% hard stop loss
   trailing_stop_pct: 0.03      # 3% trailing stop
+  take_profit_pct: 0.08        # 8% gain → take profit (full sell)
+  tighten_stop_at_pct: 0.05    # 5% gain → tighten trailing stop to 1.5%
+  tightened_trail_pct: 0.015   # Trailing stop after tighten threshold
   max_daily_loss_pct: 0.08     # 8% max daily drawdown, halt trading
   max_total_drawdown_pct: 0.20 # 20% max total drawdown, halt all trading
 

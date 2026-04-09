@@ -5,6 +5,7 @@ import type {
   PnlSummary,
   SnapshotOut,
   RecommendationOut,
+  ActionPlanOut,
   StatusOut,
   TradeOut,
   SignalOut,
@@ -21,6 +22,7 @@ export const queryKeys = {
   pnl: ["pnl"] as const,
   snapshots: ["snapshots"] as const,
   recommendations: ["recommendations"] as const,
+  actionPlan: ["actionPlan"] as const,
   status: ["status"] as const,
   tradeHistory: (limit: number) => ["tradeHistory", limit] as const,
   symbols: ["symbols"] as const,
@@ -61,6 +63,14 @@ export function useRecommendations() {
   return useQuery<RecommendationOut>({
     queryKey: queryKeys.recommendations,
     queryFn: () => api.getRecommendations(5),
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useActionPlan() {
+  return useQuery<ActionPlanOut>({
+    queryKey: queryKeys.actionPlan,
+    queryFn: () => api.getActionPlan(),
     staleTime: 10 * 60 * 1000,
   });
 }

@@ -127,6 +127,14 @@ struct ActionItem: Codable, Identifiable {
     let buyPrice: Double?
     let buyAmount: Double?
     let buyStrength: Double?
+    let snoozed: Bool?
+}
+
+struct SnoozeOut: Codable {
+    let symbol: String
+    let snoozedAt: String
+    let expiresAt: String
+    let pnlPctAtSnooze: Double
 }
 
 struct ActionPlanOut: Codable {

@@ -11,6 +11,7 @@ struct SignalsView: View {
     @State private var checkedSignal: SignalOut?
     @State private var isChecking = false
     @State private var allSymbols: [SymbolInfo] = []
+    @State private var showSnoozed = false
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
@@ -25,14 +26,17 @@ struct SignalsView: View {
         }.prefix(8).map { $0 }
     }
 
-    private var sells: [ActionItem] {
-        actionPlan?.actions.filter { $0.type == "SELL" } ?? []
+    private var activeSells: [ActionItem] {
+        actionPlan?.actions.filter { $0.type == "SELL" && $0.snoozed != true } ?? []
     }
-    private var swaps: [ActionItem] {
-        actionPlan?.actions.filter { $0.type == "SWAP" } ?? []
+    private var activeSwaps: [ActionItem] {
+        actionPlan?.actions.filter { $0.type == "SWAP" && $0.snoozed != true } ?? []
     }
     private var buys: [ActionItem] {
         actionPlan?.actions.filter { $0.type == "BUY" } ?? []
+    }
+    private var snoozedActions: [ActionItem] {
+        actionPlan?.actions.filter { $0.snoozed == true } ?? []
     }
 
     var body: some View {
@@ -82,24 +86,48 @@ struct SignalsView: View {
                 }
 
                 // Sells
-                if !sells.isEmpty {
+                if !activeSells.isEmpty {
                     Section {
-                        ForEach(sells) { action in
-                            SellActionRow(action: action)
+                        ForEach(activeSells) { action in
+                            NavigationLink {
+                                ActionDetailView(action: action)
+                            } label: {
+                                SellActionRow(action: action)
+                            }
+                            .swipeActions(edge: .trailing) {
+                                Button {
+                                    Task { await snooze(action.symbol ?? "") }
+                                } label: {
+                                    Label("Snooze", systemImage: "bell.slash")
+                                }
+                                .tint(.gray)
+                            }
                         }
                     } header: {
                         Label("Sells", systemImage: "arrow.down.circle.fill")
                             .foregroundStyle(Theme.negative)
                     } footer: {
-                        Text("Execute these first — stops, profit-taking, and exit signals")
+                        Text("Execute these first — stops, profit-taking, and exit signals. Swipe left to snooze.")
                     }
                 }
 
                 // Swaps
-                if !swaps.isEmpty {
+                if !activeSwaps.isEmpty {
                     Section {
-                        ForEach(swaps) { action in
-                            SwapActionRow(action: action)
+                        ForEach(activeSwaps) { action in
+                            NavigationLink {
+                                ActionDetailView(action: action)
+                            } label: {
+                                SwapActionRow(action: action)
+                            }
+                            .swipeActions(edge: .trailing) {
+                                Button {
+                                    Task { await snooze(action.sellSymbol ?? "") }
+                                } label: {
+                                    Label("Snooze", systemImage: "bell.slash")
+                                }
+                                .tint(.gray)
+                            }
                         }
                     } header: {
                         Label("Swaps", systemImage: "arrow.left.arrow.right.circle.fill")
@@ -113,7 +141,11 @@ struct SignalsView: View {
                 if !buys.isEmpty {
                     Section {
                         ForEach(buys) { action in
-                            BuyActionRow(action: action)
+                            NavigationLink {
+                                ActionDetailView(action: action)
+                            } label: {
+                                BuyActionRow(action: action)
+                            }
                         }
                     } header: {
                         Label("Buys", systemImage: "arrow.up.circle.fill")
@@ -123,8 +155,36 @@ struct SignalsView: View {
                     }
                 }
 
+                // Snoozed actions
+                if !snoozedActions.isEmpty {
+                    Section {
+                        DisclosureGroup(isExpanded: $showSnoozed) {
+                            ForEach(snoozedActions) { action in
+                                NavigationLink {
+                                    ActionDetailView(action: action)
+                                } label: {
+                                    SnoozedActionRow(action: action)
+                                }
+                                .swipeActions(edge: .trailing) {
+                                    Button {
+                                        let sym = action.symbol ?? action.sellSymbol ?? ""
+                                        Task { await unsnooze(sym) }
+                                    } label: {
+                                        Label("Unsnooze", systemImage: "bell")
+                                    }
+                                    .tint(Theme.brand)
+                                }
+                            }
+                        } label: {
+                            Label("\(snoozedActions.count) snoozed signal\(snoozedActions.count > 1 ? "s" : "")",
+                                  systemImage: "bell.slash")
+                                .foregroundStyle(Theme.textDimmed)
+                        }
+                    }
+                }
+
                 // No actions
-                if !isLoading && actionPlan != nil && sells.isEmpty && swaps.isEmpty && buys.isEmpty {
+                if !isLoading && actionPlan != nil && activeSells.isEmpty && activeSwaps.isEmpty && buys.isEmpty && snoozedActions.isEmpty {
                     Section {
                         ContentUnavailableView {
                             Label("No Trades Needed", systemImage: "checkmark.circle")
@@ -175,6 +235,22 @@ struct SignalsView: View {
                 }
             }
         }
+    }
+
+    private func snooze(_ symbol: String) async {
+        guard !symbol.isEmpty else { return }
+        do {
+            _ = try await client.snoozeSignal(symbol: symbol)
+            await loadData()
+        } catch { /* ignore */ }
+    }
+
+    private func unsnooze(_ symbol: String) async {
+        guard !symbol.isEmpty else { return }
+        do {
+            try await client.unsnoozeSignal(symbol: symbol)
+            await loadData()
+        } catch { /* ignore */ }
     }
 
     private func checkSymbol(_ symbolOverride: String?) async {
@@ -377,6 +453,40 @@ private struct BuyActionRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Snoozed Action Row
+
+private struct SnoozedActionRow: View {
+    let action: ActionItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Image(systemName: "bell.slash")
+                    .foregroundStyle(Theme.textDimmed)
+                Text(action.symbol ?? action.sellSymbol ?? "")
+                    .font(.headline)
+                    .foregroundStyle(Theme.textMuted)
+                Spacer()
+                Text(action.type)
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Color.gray.opacity(0.2))
+                    .clipShape(Capsule())
+                    .foregroundStyle(Theme.textDimmed)
+            }
+            Text(action.detail)
+                .font(.caption)
+                .foregroundStyle(Theme.textDimmed)
+            Text("Swipe left to unsnooze")
+                .font(.caption2)
+                .foregroundStyle(Theme.textDimmed.opacity(0.6))
+        }
+        .padding(.vertical, 4)
+        .opacity(0.6)
     }
 }
 

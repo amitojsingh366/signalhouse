@@ -214,6 +214,16 @@ The system generates a prioritized, position-sized action plan that tells you ex
 
 Every action includes exact share count, price, and dollar amount. New buys are limited by `max_positions` (5) — the system won't recommend accumulating positions indefinitely.
 
+#### Signal Snoozing
+
+Sell and swap signals can be **snoozed** (default 4 hours) when the user believes a position will recover. Snoozed signals are hidden from the active action plan but still monitored:
+
+- **Auto-unsnooze:** If the position's loss worsens by **3%+ below the P&L at snooze time**, the signal is automatically restored (e.g., snoozed at -2%, if it drops to -5%, the sell reappears as "AUTO-UNSNOOZED").
+- **Expiry:** Snoozes expire after the configured duration (default 4h). The signal reappears on the next scan.
+- **Manual unsnooze:** Users can remove a snooze at any time via the web dashboard or iOS app.
+
+Snooze state is stored in the `signal_snoozes` DB table (symbol, expires_at, pnl_pct_at_snooze).
+
 ---
 
 ## Position Sizing (ATR-Based)

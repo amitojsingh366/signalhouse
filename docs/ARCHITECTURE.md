@@ -155,6 +155,7 @@ ORM models in `api/src/trader_api/models.py`:
 | `SignalHistory` | symbol, signal, strength, score, reasons | Signal audit trail |
 | `DeviceRegistration` | device_token (unique), platform, enabled, daily_disabled_date | Push notification devices |
 | `NotificationLog` | device_token, symbol, signal, strength, delivered, acknowledged | Push audit trail |
+| `SignalSnooze` | symbol (unique), snoozed_at, expires_at, pnl_pct_at_snooze | Snoozed sell signals (auto-unsnooze on 3%+ worsening) |
 | `WebAuthnCredential` | credential_id (unique), public_key, sign_count, name | Registered passkeys |
 
 ---
@@ -190,6 +191,9 @@ ORM models in `api/src/trader_api/models.py`:
 | GET | `/api/signals/price/{symbol}` | Current market price |
 | GET | `/api/signals/history/{symbol}` | OHLCV price history (60d default) |
 | GET | `/api/signals/insights` | Daily insights (all holdings, movers, sectors) |
+| POST | `/api/signals/snooze` | Snooze a sell signal (default 4h), auto-unsnoozes on worsening loss |
+| DELETE | `/api/signals/snooze/{symbol}` | Remove snooze for a symbol |
+| GET | `/api/signals/snoozed` | List all active (non-expired) snoozes |
 | GET | `/api/signals/commodities` | Live commodity/crypto prices and overnight moves |
 
 ### System

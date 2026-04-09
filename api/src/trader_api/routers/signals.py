@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from fastapi import APIRouter, Depends
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trader_api.auth import require_auth
 from trader_api.database import get_db
 from trader_api.deps import get_commodity, get_market_data, make_portfolio, make_strategy
+from trader_api.models import SignalSnooze
 from trader_api.schemas import (
     ActionOut,
     ActionPlanOut,
@@ -15,6 +19,8 @@ from trader_api.schemas import (
     InsightsOut,
     RecommendationOut,
     SignalOut,
+    SnoozeIn,
+    SnoozeOut,
 )
 
 router = APIRouter(prefix="/api/signals", tags=["signals"], dependencies=[Depends(require_auth)])
@@ -106,6 +112,65 @@ async def get_recommendations(n: int = 5, db: AsyncSession = Depends(get_db)):
     )
 
 
+@router.post("/snooze", response_model=SnoozeOut)
+async def snooze_signal(body: SnoozeIn, db: AsyncSession = Depends(get_db)):
+    """Snooze a sell signal for a symbol. Default 4 hours."""
+    symbol = body.symbol.upper().strip()
+    now = datetime.now(UTC)
+    expires = now + timedelta(hours=body.hours)
+
+    # Get current P&L for this symbol
+    portfolio = make_portfolio(db)
+    holdings = await portfolio.get_holdings_dict()
+    pnl_pct = 0.0
+    if symbol in holdings:
+        h = holdings[symbol]
+        md = get_market_data()
+        price = await md.get_current_price(symbol)
+        if price and h["avg_cost"] > 0:
+            pnl_pct = (price - h["avg_cost"]) / h["avg_cost"] * 100
+
+    # Upsert
+    existing = await db.execute(
+        select(SignalSnooze).where(SignalSnooze.symbol == symbol)
+    )
+    snooze = existing.scalar_one_or_none()
+    if snooze:
+        snooze.expires_at = expires
+        snooze.snoozed_at = now
+        snooze.pnl_pct_at_snooze = pnl_pct
+    else:
+        snooze = SignalSnooze(
+            symbol=symbol,
+            snoozed_at=now,
+            expires_at=expires,
+            pnl_pct_at_snooze=pnl_pct,
+        )
+        db.add(snooze)
+    await db.commit()
+    await db.refresh(snooze)
+    return snooze
+
+
+@router.delete("/snooze/{symbol}")
+async def unsnooze_signal(symbol: str, db: AsyncSession = Depends(get_db)):
+    """Remove a snooze for a symbol."""
+    symbol = symbol.upper().strip()
+    await db.execute(delete(SignalSnooze).where(SignalSnooze.symbol == symbol))
+    await db.commit()
+    return {"status": "ok", "symbol": symbol}
+
+
+@router.get("/snoozed", response_model=list[SnoozeOut])
+async def get_snoozed(db: AsyncSession = Depends(get_db)):
+    """List all active (non-expired) snoozes."""
+    now = datetime.now(UTC)
+    result = await db.execute(
+        select(SignalSnooze).where(SignalSnooze.expires_at > now)
+    )
+    return list(result.scalars().all())
+
+
 @router.get("/actions", response_model=ActionPlanOut)
 async def get_action_plan(db: AsyncSession = Depends(get_db)):
     """Get today's prioritized, position-sized action plan."""
@@ -114,15 +179,50 @@ async def get_action_plan(db: AsyncSession = Depends(get_db)):
 
     plan = await strategy.get_action_plan()
 
+    # Filter snoozed sells (auto-unsnooze if loss worsened by 3%+)
+    now = datetime.now(UTC)
+    result = await db.execute(
+        select(SignalSnooze).where(SignalSnooze.expires_at > now)
+    )
+    snoozed = {s.symbol: s for s in result.scalars().all()}
+
+    filtered_actions = []
+    snoozed_actions = []
+    for a in plan["actions"]:
+        sym = a.get("symbol") or a.get("sell_symbol")
+        if sym and sym in snoozed and a["type"] in ("SELL", "SWAP"):
+            snz = snoozed[sym]
+            current_pnl = a.get("pnl_pct") or a.get("sell_pnl_pct") or 0.0
+            # Auto-unsnooze if loss worsened by 3%+ from when snoozed
+            if current_pnl < snz.pnl_pct_at_snooze - 3.0:
+                # Loss worsened significantly — force unsnooze
+                await db.execute(
+                    delete(SignalSnooze).where(SignalSnooze.symbol == sym)
+                )
+                snz_pnl = snz.pnl_pct_at_snooze
+                a["reason"] = (
+                    f"AUTO-UNSNOOZED: loss worsened "
+                    f"({current_pnl:+.1f}% vs {snz_pnl:+.1f}%)"
+                )
+                filtered_actions.append(a)
+            else:
+                a["snoozed"] = True
+                snoozed_actions.append(a)
+        else:
+            filtered_actions.append(a)
+    await db.commit()
+
+    all_actions = filtered_actions + snoozed_actions
+
     return ActionPlanOut(
-        actions=[ActionOut(**a) for a in plan["actions"]],
+        actions=[ActionOut(**a) for a in all_actions],
         portfolio_value=plan["portfolio_value"],
         cash=plan["cash"],
         num_positions=plan["num_positions"],
         max_positions=plan["max_positions"],
-        sells_count=plan["sells_count"],
-        buys_count=plan["buys_count"],
-        swaps_count=plan["swaps_count"],
+        sells_count=sum(1 for a in filtered_actions if a["type"] == "SELL"),
+        buys_count=sum(1 for a in filtered_actions if a["type"] == "BUY"),
+        swaps_count=sum(1 for a in filtered_actions if a["type"] == "SWAP"),
         sector_exposure=plan.get("sector_exposure", {}),
     )
 

@@ -153,6 +153,7 @@ export interface ActionItem {
   buy_price?: number;
   buy_amount?: number;
   buy_strength?: number;
+  snoozed?: boolean;
 }
 
 export interface ActionPlanOut {
@@ -165,6 +166,13 @@ export interface ActionPlanOut {
   buys_count: number;
   swaps_count: number;
   sector_exposure: Record<string, unknown>;
+}
+
+export interface SnoozeOut {
+  symbol: string;
+  snoozed_at: string;
+  expires_at: string;
+  pnl_pct_at_snooze: number;
 }
 
 export interface SnapshotOut {
@@ -294,6 +302,17 @@ export const api = {
     fetchAPI<RecommendationOut>(`/api/signals/recommend?n=${n}`),
   getActionPlan: () =>
     fetchAPI<ActionPlanOut>("/api/signals/actions"),
+  snoozeSignal: (symbol: string, hours = 4) =>
+    fetchAPI<SnoozeOut>("/api/signals/snooze", {
+      method: "POST",
+      body: JSON.stringify({ symbol, hours }),
+    }),
+  unsnoozeSignal: (symbol: string) =>
+    fetchAPI<{ status: string; symbol: string }>(`/api/signals/snooze/${encodeURIComponent(symbol)}`, {
+      method: "DELETE",
+    }),
+  getSnoozed: () =>
+    fetchAPI<SnoozeOut[]>("/api/signals/snoozed"),
   getPriceHistory: (symbol: string, period = "60d") =>
     fetchAPI<PriceHistory>(`/api/signals/history/${encodeURIComponent(symbol)}?period=${period}`),
   getInsights: () => fetchAPI<InsightsOut>("/api/signals/insights"),

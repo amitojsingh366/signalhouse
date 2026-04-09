@@ -142,6 +142,21 @@ final class APIClient: ObservableObject {
         return try await fetch("/api/signals/history/\(encoded)?period=\(period)")
     }
 
+    func snoozeSignal(symbol: String, hours: Double = 4) async throws -> SnoozeOut {
+        struct Body: Encodable { let symbol: String; let hours: Double }
+        return try await fetch(
+            "/api/signals/snooze", method: "POST",
+            body: Body(symbol: symbol, hours: hours)
+        )
+    }
+
+    func unsnoozeSignal(symbol: String) async throws {
+        let encoded = symbol.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? symbol
+        let _: [String: AnyCodable] = try await fetch(
+            "/api/signals/snooze/\(encoded)", method: "DELETE"
+        )
+    }
+
     // MARK: - Insights
 
     func getInsights() async throws -> InsightsOut {

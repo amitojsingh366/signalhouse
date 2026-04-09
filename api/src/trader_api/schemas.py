@@ -154,6 +154,8 @@ class ActionOut(BaseModel):
     buy_price: float | None = None
     buy_amount: float | None = None
     buy_strength: float | None = None
+    # Snooze
+    snoozed: bool = False
 
 
 class ActionPlanOut(BaseModel):
@@ -166,6 +168,22 @@ class ActionPlanOut(BaseModel):
     buys_count: int = 0
     swaps_count: int = 0
     sector_exposure: dict = {}
+
+
+# --- Signal Snooze ---
+
+class SnoozeIn(BaseModel):
+    symbol: str
+    hours: float = 4.0  # Default 4 hours
+
+
+class SnoozeOut(BaseModel):
+    symbol: str
+    snoozed_at: datetime
+    expires_at: datetime
+    pnl_pct_at_snooze: float
+
+    model_config = {"from_attributes": True}
 
 
 # --- Daily Snapshots ---

@@ -118,6 +118,26 @@ class NotificationLog(Base):
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
+class SignalSnooze(Base):
+    """Snoozed sell/stop-loss signals — temporarily hidden from action plan."""
+
+    __tablename__ = "signal_snoozes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(
+        String(20), unique=True, nullable=False, index=True
+    )
+    snoozed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    pnl_pct_at_snooze: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0
+    )  # P&L % when snoozed — auto-unsnooze if loss worsens by 3%
+
+
 class WebAuthnCredential(Base):
     """Registered passkeys for authentication."""
 

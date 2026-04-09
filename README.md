@@ -87,6 +87,9 @@ All services share one PostgreSQL database.
 - Sentiment layer: analyst consensus per ticker, Fear & Greed contrarian index, news keyword scoring
 - Commodity correlation: live futures data adjusts scores for sector-correlated Canadian equities
 - Exit alerts for held positions: stop-loss hits, trailing stops, and swap-to-stronger suggestions
+- **Action plan** with prioritized, position-sized trade instructions (sells → swaps → buys)
+- **Signal snoozing** — temporarily silence sell signals (4h default), auto-unsnooze if loss worsens by 3%+
+- Click any action to view inline price chart (web) or navigate to chart detail (iOS)
 
 ### Portfolio Tracking
 - Record buys/sells via Discord, web, or iOS app

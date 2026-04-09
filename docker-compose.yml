@@ -78,6 +78,7 @@ services:
       - "443:443"
     environment:
       - APPLE_TEAM_ID=${APNS_TEAM_ID:-XXXXXXXXXX}
+      - DOMAIN=${DOMAIN:-localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

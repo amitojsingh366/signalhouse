@@ -118,6 +118,31 @@ class NotificationLog(Base):
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
+class NotificationDigest(Base):
+    """Tracks what was last sent per channel+symbol to avoid duplicate notifications.
+
+    A fingerprint (hash of key signal data) is stored so we only re-notify
+    when something meaningful changes — not on every scan cycle.
+    """
+
+    __tablename__ = "notification_digests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    channel: Mapped[str] = mapped_column(
+        String(20), nullable=False, index=True
+    )  # "push", "discord", future channels
+    symbol: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    fingerprint: Mapped[str] = mapped_column(
+        String(64), nullable=False
+    )  # SHA-256 hex of content
+    trading_day: Mapped[str] = mapped_column(
+        String(10), nullable=False, index=True
+    )  # "YYYY-MM-DD" in ET
+    sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class SignalSnooze(Base):
     """Snoozed sell/stop-loss signals — temporarily hidden from action plan."""
 

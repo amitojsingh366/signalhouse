@@ -98,13 +98,18 @@ async def _make_strategy() -> Any:
 
 async def _run_scan(config: dict[str, Any]) -> None:
     """Scan universe, send VoIP pushes for high-confidence signals."""
+    from trader_api.database import async_session
+    from trader_api.services.notifications import get_dispatcher
+
     strategy = await _make_strategy()
     try:
         plan = await strategy.get_action_plan()
-        # Still use top_recommendations for VoIP notification dedup logic
+        # Use central notification dispatcher for push dedup
         recs = strategy._cached_recommendations
         if recs:
-            await strategy.notify_high_confidence_signals(recs)
+            dispatcher = get_dispatcher()
+            async with async_session() as db:
+                await dispatcher.dispatch_push_signals(db, recs, config)
         n_actions = len(plan.get("actions", []))
         logger.info(
             "Scheduler scan: %d action(s) — %d sell, %d swap, %d buy",

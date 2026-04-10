@@ -197,6 +197,8 @@ class TasksCog(commands.Cog):
         strategy = None
         portfolio = None
         try:
+            from trader_api.services.notifications import get_dispatcher
+
             strategy = await self.bot.get_fresh_strategy()
             portfolio = await self.bot.get_fresh_portfolio()
 
@@ -206,15 +208,24 @@ class TasksCog(commands.Cog):
             if not actions:
                 return  # Nothing to do — quiet scan
 
-            # Post action plan header for non-trivial scans
-            if len(actions) > 0:
+            # Filter to only new/changed actions via central dedup
+            dispatcher = get_dispatcher()
+            async with self.bot.db_session_factory() as db:
+                new_actions = await dispatcher.filter_new_actions(
+                    db, "discord", actions,
+                )
+                if not new_actions:
+                    return  # All actions already sent today — skip
+
+                # Post action plan header
+                n_sells = sum(1 for a in new_actions if a["type"] == "SELL")
+                n_swaps = sum(1 for a in new_actions if a["type"] == "SWAP")
+                n_buys = sum(1 for a in new_actions if a["type"] == "BUY")
                 header = discord.Embed(
                     title="\U0001f4CB Action Plan Update",
                     description=(
-                        f"**{len(actions)} trade(s):** "
-                        f"{plan['sells_count']} sell, "
-                        f"{plan['swaps_count']} swap, "
-                        f"{plan['buys_count']} buy"
+                        f"**{len(new_actions)} new/changed trade(s):** "
+                        f"{n_sells} sell, {n_swaps} swap, {n_buys} buy"
                     ),
                     color=0x8B5CF6,
                 )
@@ -230,9 +241,12 @@ class TasksCog(commands.Cog):
                 )
                 await channel.send(embed=header)
 
-            for action in actions:
-                embed = _build_action_embed(action)
-                await channel.send(embed=embed, view=RecheckView())
+                for action in new_actions:
+                    embed = _build_action_embed(action)
+                    await channel.send(embed=embed, view=RecheckView())
+
+                # Record that we sent these
+                await dispatcher.record_actions(db, "discord", new_actions)
 
         except Exception:
             logger.exception("Error during scheduled scan")

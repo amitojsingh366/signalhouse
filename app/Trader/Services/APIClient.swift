@@ -142,11 +142,21 @@ final class APIClient: ObservableObject {
         return try await fetch("/api/signals/history/\(encoded)?period=\(period)")
     }
 
-    func snoozeSignal(symbol: String, hours: Double = 4) async throws -> SnoozeOut {
-        struct Body: Encodable { let symbol: String; let hours: Double }
+    func snoozeSignal(symbol: String, hours: Double = 4, indefinite: Bool = false, phantomTrailingStop: Bool = true) async throws -> SnoozeOut {
+        struct Body: Encodable {
+            let symbol: String
+            let hours: Double
+            let indefinite: Bool
+            let phantomTrailingStop: Bool
+
+            enum CodingKeys: String, CodingKey {
+                case symbol, hours, indefinite
+                case phantomTrailingStop = "phantom_trailing_stop"
+            }
+        }
         return try await fetch(
             "/api/signals/snooze", method: "POST",
-            body: Body(symbol: symbol, hours: hours)
+            body: Body(symbol: symbol, hours: hours, indefinite: indefinite, phantomTrailingStop: phantomTrailingStop)
         )
     }
 

@@ -173,6 +173,8 @@ export interface SnoozeOut {
   snoozed_at: string;
   expires_at: string;
   pnl_pct_at_snooze: number;
+  indefinite: boolean;
+  phantom_trailing_stop: boolean;
 }
 
 export interface SnapshotOut {
@@ -302,10 +304,10 @@ export const api = {
     fetchAPI<RecommendationOut>(`/api/signals/recommend?n=${n}`),
   getActionPlan: () =>
     fetchAPI<ActionPlanOut>("/api/signals/actions"),
-  snoozeSignal: (symbol: string, hours = 4) =>
+  snoozeSignal: (symbol: string, hours = 4, indefinite = false, phantomTrailingStop = true) =>
     fetchAPI<SnoozeOut>("/api/signals/snooze", {
       method: "POST",
-      body: JSON.stringify({ symbol, hours }),
+      body: JSON.stringify({ symbol, hours, indefinite, phantom_trailing_stop: phantomTrailingStop }),
     }),
   unsnoozeSignal: (symbol: string) =>
     fetchAPI<{ status: string; symbol: string }>(`/api/signals/snooze/${encodeURIComponent(symbol)}`, {

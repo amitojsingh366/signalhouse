@@ -159,7 +159,7 @@ ORM models in `api/src/trader_api/models.py`:
 | `DeviceRegistration` | device_token (unique), platform, enabled, daily_disabled_date | Push notification devices |
 | `NotificationLog` | device_token, symbol, signal, strength, delivered, acknowledged | Push audit trail |
 | `NotificationDigest` | channel, symbol, fingerprint (SHA-256), trading_day (ET) | Central dedup: once per day per channel per symbol, re-send on data change |
-| `SignalSnooze` | symbol (unique), snoozed_at, expires_at, pnl_pct_at_snooze | Snoozed sell signals (auto-unsnooze on 3%+ worsening) |
+| `SignalSnooze` | symbol (unique), snoozed_at, expires_at, pnl_pct_at_snooze, indefinite, phantom_trailing_stop | Snoozed sell signals with customizable duration and optional phantom trailing stop |
 | `WebAuthnCredential` | credential_id (unique), public_key, sign_count, name | Registered passkeys |
 
 ---
@@ -195,7 +195,7 @@ ORM models in `api/src/trader_api/models.py`:
 | GET | `/api/signals/price/{symbol}` | Current market price |
 | GET | `/api/signals/history/{symbol}` | OHLCV price history (60d default) |
 | GET | `/api/signals/insights` | Daily insights (all holdings, movers, sectors) |
-| POST | `/api/signals/snooze` | Snooze a sell signal (default 4h), auto-unsnoozes on worsening loss |
+| POST | `/api/signals/snooze` | Snooze a sell signal (customizable: 1h–7d or indefinite), optional phantom trailing stop |
 | DELETE | `/api/signals/snooze/{symbol}` | Remove snooze for a symbol |
 | GET | `/api/signals/snoozed` | List all active (non-expired) snoozes |
 | GET | `/api/signals/commodities` | Live commodity/crypto prices and overnight moves |

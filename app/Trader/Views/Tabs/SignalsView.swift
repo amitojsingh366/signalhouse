@@ -12,6 +12,7 @@ struct SignalsView: View {
     @State private var isChecking = false
     @State private var allSymbols: [SymbolInfo] = []
     @State private var showSnoozed = false
+    @State private var snoozeTarget: String?  // symbol to snooze (triggers sheet)
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
@@ -96,7 +97,7 @@ struct SignalsView: View {
                             }
                             .swipeActions(edge: .trailing) {
                                 Button {
-                                    Task { await snooze(action.symbol ?? "") }
+                                    snoozeTarget = action.symbol ?? action.sellSymbol ?? ""
                                 } label: {
                                     Label("Snooze", systemImage: "bell.slash")
                                 }
@@ -226,6 +227,19 @@ struct SignalsView: View {
             .onSubmit(of: .search) {
                 Task { await checkSymbol(nil) }
             }
+            .sheet(isPresented: Binding(
+                get: { snoozeTarget != nil },
+                set: { if !$0 { snoozeTarget = nil } }
+            )) {
+                if let symbol = snoozeTarget {
+                    SnoozeSheet(symbol: symbol) { hours, indefinite, phantomTrailingStop in
+                        snoozeTarget = nil
+                        Task { await snooze(symbol, hours: hours, indefinite: indefinite, phantomTrailingStop: phantomTrailingStop) }
+                    }
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+                }
+            }
             .refreshable { await loadData() }
             .task { await loadData() }
             .onChange(of: pushManager.deepLink) { _, link in
@@ -237,10 +251,10 @@ struct SignalsView: View {
         }
     }
 
-    private func snooze(_ symbol: String) async {
+    private func snooze(_ symbol: String, hours: Double = 4, indefinite: Bool = false, phantomTrailingStop: Bool = true) async {
         guard !symbol.isEmpty else { return }
         do {
-            _ = try await client.snoozeSignal(symbol: symbol)
+            _ = try await client.snoozeSignal(symbol: symbol, hours: hours, indefinite: indefinite, phantomTrailingStop: phantomTrailingStop)
             await loadData()
         } catch { /* ignore */ }
     }
@@ -526,5 +540,101 @@ private struct SignalCardContent: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Snooze Sheet
+
+private struct SnoozeDuration: Identifiable {
+    let id: String
+    let label: String
+    let hours: Double
+
+    static let options: [SnoozeDuration] = [
+        .init(id: "1h", label: "1 hour", hours: 1),
+        .init(id: "4h", label: "4 hours", hours: 4),
+        .init(id: "8h", label: "8 hours", hours: 8),
+        .init(id: "24h", label: "24 hours", hours: 24),
+        .init(id: "3d", label: "3 days", hours: 72),
+        .init(id: "7d", label: "7 days", hours: 168),
+    ]
+}
+
+private struct SnoozeSheet: View {
+    let symbol: String
+    let onConfirm: (_ hours: Double, _ indefinite: Bool, _ phantomTrailingStop: Bool) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedDuration = "4h"
+    @State private var indefinite = false
+    @State private var phantomTrailingStop = true
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(SnoozeDuration.options) { dur in
+                        Button {
+                            selectedDuration = dur.id
+                            indefinite = false
+                        } label: {
+                            HStack {
+                                Text(dur.label)
+                                    .foregroundStyle(Color.primary)
+                                Spacer()
+                                if !indefinite && selectedDuration == dur.id {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(Theme.brand)
+                                }
+                            }
+                        }
+                    }
+
+                    Button {
+                        indefinite.toggle()
+                    } label: {
+                        HStack {
+                            Label("Indefinite", systemImage: "infinity")
+                                .foregroundStyle(Color.primary)
+                            Spacer()
+                            if indefinite {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Theme.brand)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Duration")
+                }
+
+                Section {
+                    Toggle(isOn: $phantomTrailingStop) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Phantom trailing stop")
+                            Text("Auto-unsnooze and notify if loss worsens by 3%+ from current level")
+                                .font(.caption)
+                                .foregroundStyle(Theme.textDimmed)
+                        }
+                    }
+                    .tint(Theme.brand)
+                } header: {
+                    Text("Safety")
+                }
+            }
+            .navigationTitle("Snooze \(symbol)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Snooze") {
+                        let hours = SnoozeDuration.options.first { $0.id == selectedDuration }?.hours ?? 4
+                        onConfirm(hours, indefinite, phantomTrailingStop)
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
     }
 }

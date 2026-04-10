@@ -21,12 +21,13 @@ Progress tracker and roadmap. For architecture details see [ARCHITECTURE.md](ARC
 - [x] Scheduled push notifications + Pre-Market page — Standard APNs alerts for premarket (8 AM ET), morning briefing (8:30 AM), market close (3:50 PM), evening recap (10 PM PT). Pre-Market tab on iOS and `/premarket` page on web with tappable movers that navigate to signal check. Deep linking from notifications, AppDelegate for push token. DB: push_token on device_registrations, notification_type on notification_log.
 - [x] Debug page on web — `/debug` page (hidden behind 10-tap footer easter egg, persisted in localStorage for 24h) to manually trigger test push notification or VoIP call for the top signal from cached recommendations. Device dropdown (per-device or all). API: `GET /api/debug/devices`, `POST /api/debug/test-push`.
 - [x] Lower VoIP call threshold to 40% — both BUY and SELL signals now trigger CallKit push at ≥ 40% strength (was 70% buy / 50% sell). Updated `config/settings.yaml` and unified sell threshold to match buy.
+- [x] Customizable snooze — replaced fixed 4h snooze with popup (web) / sheet (iOS) offering 1h/4h/8h/24h/3d/7d/indefinite durations. Added toggleable phantom trailing stop (auto-unsnooze + push notification if loss worsens 3%+ from snooze point). DB: `indefinite` and `phantom_trailing_stop` columns on `signal_snoozes`.
 
 **Notable observations:**
 - Brand theme took 3 iterations — started with purple for everything, then split P&L to standard green/red
 - Fear & Greed library silently changed return type (dict vs object), sentiment fell back to neutral for weeks
 - Xcode 26 uses `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` and `SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES` by default — requires explicit `import Combine` for `ObservableObject`
-- `create_all` doesn't add columns to existing tables — new columns (push_token, notification_type) need manual ALTER TABLE on production
+- `create_all` doesn't add columns to existing tables — new columns (push_token, notification_type, indefinite, phantom_trailing_stop) need manual ALTER TABLE on production
 
 ---
 

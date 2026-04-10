@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from trader_api.auth import require_auth
 from trader_api.database import get_db
 from trader_api.deps import get_commodity, get_market_data, make_portfolio, make_strategy
-from trader_api.models import SignalSnooze
+from trader_api.models import DeviceRegistration, SignalSnooze
 from trader_api.schemas import (
     ActionOut,
     ActionPlanOut,
@@ -114,10 +114,14 @@ async def get_recommendations(n: int = 5, db: AsyncSession = Depends(get_db)):
 
 @router.post("/snooze", response_model=SnoozeOut)
 async def snooze_signal(body: SnoozeIn, db: AsyncSession = Depends(get_db)):
-    """Snooze a sell signal for a symbol. Default 4 hours."""
+    """Snooze a sell signal for a symbol."""
     symbol = body.symbol.upper().strip()
     now = datetime.now(UTC)
-    expires = now + timedelta(hours=body.hours)
+    # Indefinite: set expiry far in the future (10 years)
+    if body.indefinite:
+        expires = now + timedelta(days=3650)
+    else:
+        expires = now + timedelta(hours=body.hours)
 
     # Get current P&L for this symbol
     portfolio = make_portfolio(db)
@@ -139,12 +143,16 @@ async def snooze_signal(body: SnoozeIn, db: AsyncSession = Depends(get_db)):
         snooze.expires_at = expires
         snooze.snoozed_at = now
         snooze.pnl_pct_at_snooze = pnl_pct
+        snooze.indefinite = body.indefinite
+        snooze.phantom_trailing_stop = body.phantom_trailing_stop
     else:
         snooze = SignalSnooze(
             symbol=symbol,
             snoozed_at=now,
             expires_at=expires,
             pnl_pct_at_snooze=pnl_pct,
+            indefinite=body.indefinite,
+            phantom_trailing_stop=body.phantom_trailing_stop,
         )
         db.add(snooze)
     await db.commit()
@@ -179,7 +187,7 @@ async def get_action_plan(db: AsyncSession = Depends(get_db)):
 
     plan = await strategy.get_action_plan()
 
-    # Filter snoozed sells (auto-unsnooze if loss worsened by 3%+)
+    # Filter snoozed sells (auto-unsnooze if phantom trailing stop triggers)
     now = datetime.now(UTC)
     result = await db.execute(
         select(SignalSnooze).where(SignalSnooze.expires_at > now)
@@ -188,14 +196,14 @@ async def get_action_plan(db: AsyncSession = Depends(get_db)):
 
     filtered_actions = []
     snoozed_actions = []
+    auto_unsnoozed: list[tuple[str, float, float]] = []  # (symbol, current, at_snooze)
     for a in plan["actions"]:
         sym = a.get("symbol") or a.get("sell_symbol")
         if sym and sym in snoozed and a["type"] in ("SELL", "SWAP"):
             snz = snoozed[sym]
             current_pnl = a.get("pnl_pct") or a.get("sell_pnl_pct") or 0.0
-            # Auto-unsnooze if loss worsened by 3%+ from when snoozed
-            if current_pnl < snz.pnl_pct_at_snooze - 3.0:
-                # Loss worsened significantly — force unsnooze
+            # Phantom trailing stop: auto-unsnooze if loss worsened by 3%+
+            if snz.phantom_trailing_stop and current_pnl < snz.pnl_pct_at_snooze - 3.0:
                 await db.execute(
                     delete(SignalSnooze).where(SignalSnooze.symbol == sym)
                 )
@@ -205,12 +213,38 @@ async def get_action_plan(db: AsyncSession = Depends(get_db)):
                     f"({current_pnl:+.1f}% vs {snz_pnl:+.1f}%)"
                 )
                 filtered_actions.append(a)
+                auto_unsnoozed.append((sym, current_pnl, snz_pnl))
             else:
                 a["snoozed"] = True
                 snoozed_actions.append(a)
         else:
             filtered_actions.append(a)
     await db.commit()
+
+    # Send push notification for auto-unsnoozed symbols
+    if auto_unsnoozed:
+        from trader_api.services.notifier import Notifier
+
+        notifier = Notifier()
+        for sym, cur_pnl, snz_pnl in auto_unsnoozed:
+            title = f"Auto-Unsnoozed: {sym}"
+            body_text = (
+                f"Loss worsened from {snz_pnl:+.1f}% to {cur_pnl:+.1f}% "
+                f"since snooze. Review action plan."
+            )
+            result2 = await db.execute(
+                select(DeviceRegistration).where(
+                    DeviceRegistration.push_token.is_not(None)
+                )
+            )
+            for dev in result2.scalars().all():
+                if dev.push_token:
+                    await notifier.send_alert_push(
+                        dev.push_token,
+                        title=title,
+                        body=body_text,
+                        data={"type": "auto_unsnooze", "symbol": sym},
+                    )
 
     all_actions = filtered_actions + snoozed_actions
 

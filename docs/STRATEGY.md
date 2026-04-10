@@ -216,13 +216,14 @@ Every action includes exact share count, price, and dollar amount. New buys are 
 
 #### Signal Snoozing
 
-Sell and swap signals can be **snoozed** (default 4 hours) when the user believes a position will recover. Snoozed signals are hidden from the active action plan but still monitored:
+Sell and swap signals can be **snoozed** with a customizable duration when the user believes a position will recover. Both the web popup and iOS sheet offer duration options (1h, 4h, 8h, 24h, 3d, 7d, indefinite) and a toggleable phantom trailing stop.
 
-- **Auto-unsnooze:** If the position's loss worsens by **3%+ below the P&L at snooze time**, the signal is automatically restored (e.g., snoozed at -2%, if it drops to -5%, the sell reappears as "AUTO-UNSNOOZED").
-- **Expiry:** Snoozes expire after the configured duration (default 4h). The signal reappears on the next scan.
+- **Phantom trailing stop (enabled by default, opt-out):** If the position's loss worsens by **3%+ below the P&L at snooze time**, the signal is automatically restored and a push notification is sent to all registered devices (e.g., snoozed at -2%, if it drops to -5%, the sell reappears as "AUTO-UNSNOOZED"). Can be disabled per-snooze for positions the user is committed to holding.
+- **Indefinite snooze:** No time-based expiry — the signal stays snoozed until manually unsnoozed or the phantom trailing stop triggers (if enabled).
+- **Timed expiry:** Snoozes expire after the selected duration. The signal reappears on the next scan.
 - **Manual unsnooze:** Users can remove a snooze at any time via the web dashboard or iOS app.
 
-Snooze state is stored in the `signal_snoozes` DB table (symbol, expires_at, pnl_pct_at_snooze).
+Snooze state is stored in the `signal_snoozes` DB table (symbol, expires_at, pnl_pct_at_snooze, indefinite, phantom_trailing_stop).
 
 ---
 

@@ -161,6 +161,12 @@ class SignalSnooze(Base):
     pnl_pct_at_snooze: Mapped[float] = mapped_column(
         Float, nullable=False, default=0.0
     )  # P&L % when snoozed — auto-unsnooze if loss worsens by 3%
+    indefinite: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )  # True = no time-based expiry
+    phantom_trailing_stop: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )  # Auto-unsnooze + notify if loss worsens by 3%
 
 
 class WebAuthnCredential(Base):

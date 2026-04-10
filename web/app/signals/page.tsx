@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useState, useCallback } from "react";
+import { Suspense, useState, useCallback, useRef, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Zap, RefreshCw, AlertTriangle, ArrowRight, TrendingDown, TrendingUp, BellOff, Bell, ChevronDown, ChevronUp } from "lucide-react";
+import { Zap, RefreshCw, AlertTriangle, ArrowRight, TrendingDown, TrendingUp, BellOff, Bell, ChevronDown, ChevronUp, Clock, ShieldAlert, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useActionPlan, useSymbols, useSignalCheck, queryKeys } from "@/lib/hooks";
 import type { ActionItem } from "@/lib/api";
@@ -13,6 +13,110 @@ import { SignalBadge } from "@/components/ui/signal-badge";
 import { SearchBar } from "@/components/ui/search-bar";
 import { Skeleton, SignalCardsSkeleton } from "@/components/ui/loading";
 import { PriceChart } from "@/components/ui/price-chart";
+
+const SNOOZE_DURATIONS = [
+  { label: "1h", hours: 1 },
+  { label: "4h", hours: 4 },
+  { label: "8h", hours: 8 },
+  { label: "24h", hours: 24 },
+  { label: "3d", hours: 72 },
+  { label: "7d", hours: 168 },
+] as const;
+
+function SnoozePopup({
+  symbol,
+  onConfirm,
+  onClose,
+}: {
+  symbol: string;
+  onConfirm: (symbol: string, hours: number, indefinite: boolean, phantomTrailingStop: boolean) => void;
+  onClose: () => void;
+}) {
+  const [selectedHours, setSelectedHours] = useState(4);
+  const [indefinite, setIndefinite] = useState(false);
+  const [phantomTrailingStop, setPhantomTrailingStop] = useState(true);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [onClose]);
+
+  return (
+    <div ref={ref} className="absolute bottom-full left-0 mb-2 z-50 w-64 rounded-xl border border-white/10 bg-zinc-900/95 backdrop-blur-xl p-4 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-150">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-sm font-medium text-white">Snooze {symbol}</span>
+        <button onClick={onClose} className="text-slate-500 hover:text-white">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* Duration picker */}
+      <div className="mb-3">
+        <p className="mb-2 text-xs text-slate-500">Duration</p>
+        <div className="grid grid-cols-3 gap-1.5">
+          {SNOOZE_DURATIONS.map(({ label, hours }) => (
+            <button
+              key={label}
+              onClick={() => { setSelectedHours(hours); setIndefinite(false); }}
+              className={cn(
+                "rounded-lg px-2 py-1.5 text-xs font-medium transition-colors",
+                !indefinite && selectedHours === hours
+                  ? "bg-brand-500/20 text-brand-400 border border-brand-500/30"
+                  : "bg-white/5 text-slate-400 border border-white/5 hover:bg-white/10"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setIndefinite(!indefinite)}
+          className={cn(
+            "mt-1.5 w-full rounded-lg px-2 py-1.5 text-xs font-medium transition-colors",
+            indefinite
+              ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+              : "bg-white/5 text-slate-400 border border-white/5 hover:bg-white/10"
+          )}
+        >
+          <Clock className="mr-1 inline h-3 w-3" />
+          Indefinite
+        </button>
+      </div>
+
+      {/* Phantom trailing stop toggle */}
+      <div className="mb-3">
+        <button
+          onClick={() => setPhantomTrailingStop(!phantomTrailingStop)}
+          className="flex w-full items-center gap-2 rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-left transition-colors hover:bg-white/10"
+        >
+          <div className={cn(
+            "flex h-4 w-7 items-center rounded-full transition-colors",
+            phantomTrailingStop ? "bg-brand-500 justify-end" : "bg-slate-600 justify-start"
+          )}>
+            <div className="mx-0.5 h-3 w-3 rounded-full bg-white" />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-white">Phantom trailing stop</p>
+            <p className="text-[10px] text-slate-500">Auto-unsnooze if loss worsens 3%+</p>
+          </div>
+        </button>
+      </div>
+
+      {/* Confirm */}
+      <button
+        onClick={() => onConfirm(symbol, selectedHours, indefinite, phantomTrailingStop)}
+        className="w-full rounded-lg bg-brand-500/20 py-2 text-xs font-medium text-brand-400 transition-colors hover:bg-brand-500/30 border border-brand-500/20"
+      >
+        <BellOff className="mr-1 inline h-3 w-3" />
+        Snooze {indefinite ? "indefinitely" : SNOOZE_DURATIONS.find(d => d.hours === selectedHours)?.label ?? `${selectedHours}h`}
+      </button>
+    </div>
+  );
+}
 
 function ScoreTag({ text }: { text: string }) {
   const match = text.match(/\[([+-][\d.]+)\]$/);
@@ -45,13 +149,14 @@ function ActionCard({
   action: ActionItem;
   expanded: boolean;
   onToggle: () => void;
-  onSnooze?: (symbol: string) => void;
+  onSnooze?: (symbol: string, hours: number, indefinite: boolean, phantomTrailingStop: boolean) => void;
   onUnsnooze?: (symbol: string) => void;
   snoozing?: boolean;
 }) {
   const { mask } = usePrivacy();
   const sym = actionSymbol(action);
   const isSnoozed = action.snoozed;
+  const [showSnoozePopup, setShowSnoozePopup] = useState(false);
 
   if (action.type === "SELL") {
     const isUrgent = action.urgency === "urgent";
@@ -98,7 +203,7 @@ function ActionCard({
           </div>
         </button>
         {/* Snooze button */}
-        <div className="flex items-center gap-2 px-4 pb-3">
+        <div className="relative flex items-center gap-2 px-4 pb-3">
           {isSnoozed ? (
             <button
               onClick={(e) => { e.stopPropagation(); onUnsnooze?.(sym); }}
@@ -110,12 +215,19 @@ function ActionCard({
           ) : (
             <>
               <button
-                onClick={(e) => { e.stopPropagation(); onSnooze?.(sym); }}
+                onClick={(e) => { e.stopPropagation(); setShowSnoozePopup(!showSnoozePopup); }}
                 disabled={snoozing}
                 className="flex items-center gap-1 rounded-md border border-slate-600/30 px-2 py-1 text-xs text-slate-400 hover:text-white hover:border-white/20 transition-colors"
               >
-                <BellOff className="h-3 w-3" /> Snooze 4h
+                <BellOff className="h-3 w-3" /> Snooze
               </button>
+              {showSnoozePopup && (
+                <SnoozePopup
+                  symbol={sym}
+                  onConfirm={(s, h, ind, pts) => { onSnooze?.(s, h, ind, pts); setShowSnoozePopup(false); }}
+                  onClose={() => setShowSnoozePopup(false)}
+                />
+              )}
             </>
           )}
           <span className="ml-auto text-[10px] text-slate-600">
@@ -179,7 +291,7 @@ function ActionCard({
           </div>
         </button>
         {/* Snooze button */}
-        <div className="flex items-center gap-2 px-4 pb-3">
+        <div className="relative flex items-center gap-2 px-4 pb-3">
           {isSnoozed ? (
             <button
               onClick={(e) => { e.stopPropagation(); onUnsnooze?.(sellSym); }}
@@ -189,13 +301,22 @@ function ActionCard({
               <Bell className="h-3 w-3" /> Unsnooze
             </button>
           ) : (
-            <button
-              onClick={(e) => { e.stopPropagation(); onSnooze?.(sellSym); }}
-              disabled={snoozing}
-              className="flex items-center gap-1 rounded-md border border-slate-600/30 px-2 py-1 text-xs text-slate-400 hover:text-white hover:border-white/20 transition-colors"
-            >
-              <BellOff className="h-3 w-3" /> Snooze 4h
-            </button>
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowSnoozePopup(!showSnoozePopup); }}
+                disabled={snoozing}
+                className="flex items-center gap-1 rounded-md border border-slate-600/30 px-2 py-1 text-xs text-slate-400 hover:text-white hover:border-white/20 transition-colors"
+              >
+                <BellOff className="h-3 w-3" /> Snooze
+              </button>
+              {showSnoozePopup && (
+                <SnoozePopup
+                  symbol={sellSym}
+                  onConfirm={(s, h, ind, pts) => { onSnooze?.(s, h, ind, pts); setShowSnoozePopup(false); }}
+                  onClose={() => setShowSnoozePopup(false)}
+                />
+              )}
+            </>
           )}
           <span className="ml-auto text-[10px] text-slate-600">
             {expanded ? "click to hide chart" : "click to view chart"}
@@ -288,10 +409,10 @@ function SignalsContent() {
     setExpandedCard(prev => prev === key ? null : key);
   }, []);
 
-  const handleSnooze = useCallback(async (symbol: string) => {
+  const handleSnooze = useCallback(async (symbol: string, hours: number, indefinite: boolean, phantomTrailingStop: boolean) => {
     setSnoozing(true);
     try {
-      await api.snoozeSignal(symbol, 4);
+      await api.snoozeSignal(symbol, hours, indefinite, phantomTrailingStop);
       qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
     } finally {
       setSnoozing(false);

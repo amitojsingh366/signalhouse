@@ -175,6 +175,8 @@ class ActionPlanOut(BaseModel):
 class SnoozeIn(BaseModel):
     symbol: str
     hours: float = 4.0  # Default 4 hours
+    indefinite: bool = False  # No time-based expiry
+    phantom_trailing_stop: bool = True  # Auto-unsnooze if loss worsens by 3%
 
 
 class SnoozeOut(BaseModel):
@@ -182,6 +184,8 @@ class SnoozeOut(BaseModel):
     snoozed_at: datetime
     expires_at: datetime
     pnl_pct_at_snooze: float
+    indefinite: bool = False
+    phantom_trailing_stop: bool = True
 
     model_config = {"from_attributes": True}
 

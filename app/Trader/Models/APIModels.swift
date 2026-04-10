@@ -135,6 +135,8 @@ struct SnoozeOut: Codable {
     let snoozedAt: String
     let expiresAt: String
     let pnlPctAtSnooze: Double
+    let indefinite: Bool?
+    let phantomTrailingStop: Bool?
 }
 
 struct ActionPlanOut: Codable {

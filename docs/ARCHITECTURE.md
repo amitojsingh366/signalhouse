@@ -11,9 +11,10 @@ Web + App communicate via REST API (web through Caddy, app directly via configur
 All share the same PostgreSQL database.
 
 API scheduler (every 15 min, market hours) → signal scan:
-  → if strength ≥ 40%: APNs VoIP push → iOS CallKit incoming call → DND bypass
-  → retry once after 30s if not acknowledged
-  → Bot independently posts same signals to Discord channel
+  → Central NotificationDispatcher deduplicates across all channels
+  → Only notifies once per day per channel per symbol (re-sends if data changes)
+  → Push: strength ≥ 40% → APNs VoIP push → iOS CallKit (DND bypass) + alert
+  → Discord: bot posts only new/changed actions (not every scan)
 
 Scheduler runs inside FastAPI lifespan — notifications fire regardless of
 whether the Discord bot is up.
@@ -63,6 +64,7 @@ trader/
 │           ├── risk.py               # Position sizing (ATR), stop losses, drawdown
 │           ├── sentiment.py          # Analyst consensus, Fear & Greed, news, commodity
 │           ├── commodity.py          # Commodity/crypto correlation adjustments
+│           ├── notifications.py      # Central notification dedup: fingerprint-based, per-channel, per-day
 │           ├── notifier.py           # APNs push: VoIP signals + standard alerts (HTTP/2, ES256 JWT)
 │           ├── scheduler.py          # Background asyncio loops: scan + premarket/briefing/close/recap
 │           ├── vision.py             # Claude Sonnet vision (screenshot parsing)
@@ -129,8 +131,9 @@ Both call `strategy.get_top_recommendations()` → for each of ~333 symbols:
 6. Scanner filters: BUY ≥ 35% strength, SELL ≥ 30% strength
 7. Strategy ranks by strength, applies sector cap penalty (>40% exposure → halved), adds sell-to-fund suggestions
 8. Caches results for cross-command consistency
-9. **API scheduler:** strength ≥ 40% → `notifier.notify_signal()` → APNs VoIP push → iOS CallKit
-10. **Bot:** posts BUY/SELL embeds with Recheck button to Discord channel
+9. **Central dedup:** `NotificationDispatcher` fingerprints each signal/action (symbol + score + strength + reason + …) — only dispatches if new or changed today
+10. **API scheduler:** strength ≥ 40% → `notifier.notify_signal()` → APNs VoIP push → iOS CallKit
+11. **Bot:** posts only new/changed action embeds with Recheck button to Discord channel
 
 ### Trade Reporting
 
@@ -155,6 +158,7 @@ ORM models in `api/src/trader_api/models.py`:
 | `SignalHistory` | symbol, signal, strength, score, reasons | Signal audit trail |
 | `DeviceRegistration` | device_token (unique), platform, enabled, daily_disabled_date | Push notification devices |
 | `NotificationLog` | device_token, symbol, signal, strength, delivered, acknowledged | Push audit trail |
+| `NotificationDigest` | channel, symbol, fingerprint (SHA-256), trading_day (ET) | Central dedup: once per day per channel per symbol, re-send on data change |
 | `SignalSnooze` | symbol (unique), snoozed_at, expires_at, pnl_pct_at_snooze | Snoozed sell signals (auto-unsnooze on 3%+ worsening) |
 | `WebAuthnCredential` | credential_id (unique), public_key, sign_count, name | Registered passkeys |
 
@@ -264,15 +268,21 @@ APNs notifier only initializes if `APNS_KEY_PATH` env var is set.
 
 ---
 
-## Push Notifications
+## Notification System
 
-All push logic lives in `api/services/notifier.py` and is triggered exclusively by `api/services/scheduler.py`. The Discord bot has no push responsibilities.
+All notifications (push + Discord) go through a central dedup layer (`api/services/notifications.py`) before dispatch. This ensures you only receive a notification once per day per channel per symbol — unless the underlying data changes.
+
+**Central dedup (`NotificationDispatcher`):**
+- Fingerprints each action/signal by hashing: type, symbol, signal, score, strength, reason, shares, urgency
+- Stores fingerprint per channel + symbol + trading day (ET) in `notification_digests` table
+- Re-notifies only when the fingerprint changes (e.g. score shifts, new reason, price target moves)
+- Channels: `"push"` (APNs), `"discord"` (bot) — extensible to future channels (Telegram, etc.)
 
 **VoIP signal pushes** (CallKit — bypasses DND):
-- Trigger: strength ≥ 40% on BUY or SELL signals during the 15-min scan
-- Cooldown: 60 min per symbol per device (prevents repeated calls on the same signal)
+- Trigger: strength ≥ 40% on BUY or SELL signals during the 15-min scan, after dedup check
 - Delivery: HTTP/2 to `api.push.apple.com` with ES256 JWT, retry once after 30s if unacknowledged
 - iOS: PushKit → `PKPushRegistry` → `CXProvider.reportNewIncomingCall()` → CallKit UI
+- Also sends a standard alert push so it appears in notification center
 
 **Standard alert pushes** (banner/sound):
 - Premarket movers: 8:00 AM ET weekdays
@@ -281,17 +291,17 @@ All push logic lives in `api/services/notifier.py` and is triggered exclusively 
 - Evening recap: 10:00 PM PT weekdays
 - Delivery: standard APNs alert push (not VoIP), `aps.alert` payload with `sound: default`
 
-**Models:** `DeviceRegistration` (VoIP token + push token per device), `NotificationLog` (delivery + ack audit trail)
+**Models:** `DeviceRegistration` (VoIP token + push token per device), `NotificationLog` (delivery + ack audit trail), `NotificationDigest` (central dedup fingerprints)
 
 ---
 
 ## Scheduled Tasks
 
-Two independent schedulers run the same logical events. The API scheduler handles all push notifications; the bot scheduler handles all Discord posting. Both are fault-tolerant — if the bot is down, push notifications still fire; if the API is down, nothing works (it's the central service).
+Two independent schedulers run the same logical events. Both go through `NotificationDispatcher` for dedup. The API scheduler handles push notifications; the bot scheduler handles Discord posting. Both are fault-tolerant — if the bot is down, push notifications still fire; if the API is down, nothing works (it's the central service).
 
 | Event | Schedule | API scheduler (`scheduler.py`) | Bot scheduler (`tasks.py`) |
 |-------|----------|---------------------------------|---------------------------|
-| Market scan | Every 15 min, market hours | VoIP signal pushes (≥ 40% strength) | Exit alert embeds + buy/sell embeds to Discord |
+| Market scan | Every 15 min, market hours | VoIP + alert push (≥ 40% strength, deduped) | New/changed action embeds to Discord (deduped) |
 | Pre-market movers | 8:00 AM ET, weekdays | Alert push with top 3 CDR movers | Pre-market embed to Discord |
 | Morning briefing | 8:30 AM ET, weekdays | Alert push with portfolio summary | Full insights embeds to Discord |
 | Market close | 3:50 PM ET, weekdays | Alert push with daily P&L | Daily status embed + record daily snapshot |

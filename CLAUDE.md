@@ -67,7 +67,7 @@ git push origin main
 **Action plan:** `GET /api/signals/actions` returns prioritized, position-sized trade instructions (sells → swaps → buys). Exit triggers: stop loss (5%), take profit (8%), trailing stop (3%, tightens to 1.5% at 5% gain), max hold time (7d), momentum decay, technical sell signals.
 
 **Key files:**
-- Business logic: `api/src/trader_api/services/` (signals, strategy, portfolio, risk, sentiment, commodity)
+- Business logic: `api/src/trader_api/services/` (signals, strategy, portfolio, risk, sentiment, commodity, notifications)
 - API routes: `api/src/trader_api/routers/` (portfolio, trades, signals, status, auth, notifications)
 - Bot commands: `bot/src/trader_bot/cogs/` (trading, portfolio, signals, upload, tasks)
 - Web pages: `web/app/` (dashboard, portfolio, signals, trades, upload, status, settings)

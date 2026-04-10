@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useCallback, useRef, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Zap, RefreshCw, AlertTriangle, ArrowRight, TrendingDown, TrendingUp, BellOff, Bell, ChevronDown, ChevronUp, Clock, ShieldAlert, X } from "lucide-react";
+import { Zap, RefreshCw, AlertTriangle, ArrowRight, TrendingDown, TrendingUp, BellOff, Bell, ChevronDown, ChevronUp, Clock, ShieldAlert, X, DollarSign } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useActionPlan, useSymbols, useSignalCheck, queryKeys } from "@/lib/hooks";
 import type { ActionItem } from "@/lib/api";
@@ -328,26 +328,37 @@ function ActionCard({
   }
 
   // BUY
+  const isActionable = action.actionable !== false;
   return (
-    <div className="glass-card border border-emerald-500/20 bg-emerald-500/[0.03]">
+    <div className={cn(
+      "glass-card border",
+      isActionable
+        ? "border-emerald-500/20 bg-emerald-500/[0.03]"
+        : "border-slate-500/20 bg-white/[0.02] opacity-75"
+    )}>
       <button onClick={onToggle} className="w-full p-4 text-left">
         <div className="mb-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-emerald-400" />
+            <TrendingUp className={cn("h-4 w-4", isActionable ? "text-emerald-400" : "text-slate-500")} />
             <span className="text-lg font-semibold">{action.symbol}</span>
           </div>
           <div className="flex items-center gap-2">
+            {!isActionable && (
+              <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-amber-500/20 text-amber-400">
+                SIGNAL ONLY
+              </span>
+            )}
             {action.strength != null && (
               <SignalBadge signal="BUY" strength={action.strength} />
             )}
           </div>
         </div>
-        <p className="mb-3 text-sm font-medium text-white">{action.detail}</p>
+        <p className={cn("mb-3 text-sm font-medium", isActionable ? "text-white" : "text-amber-400/90")}>{action.detail}</p>
         <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
-          <span>Shares: {action.shares}</span>
+          {isActionable && <span>Shares: {action.shares}</span>}
           <span>Price: ~{formatCurrency(action.price ?? 0)}</span>
-          <span>Cost: {mask(formatCurrency(action.dollar_amount ?? 0))}</span>
-          {action.pct_of_portfolio != null && (
+          {isActionable && <span>Cost: {mask(formatCurrency(action.dollar_amount ?? 0))}</span>}
+          {isActionable && action.pct_of_portfolio != null && (
             <span>{mask(`${action.pct_of_portfolio.toFixed(1)}%`)} of portfolio</span>
           )}
           {action.sector && <span className="text-slate-500">{action.sector}</span>}
@@ -432,9 +443,10 @@ function SignalsContent() {
   const allActions = plan?.actions ?? [];
   const activeSells = allActions.filter(a => a.type === "SELL" && !a.snoozed);
   const activeSwaps = allActions.filter(a => a.type === "SWAP" && !a.snoozed);
-  const buys = allActions.filter(a => a.type === "BUY");
+  const actionableBuys = allActions.filter(a => a.type === "BUY" && a.actionable !== false);
+  const signalOnlyBuys = allActions.filter(a => a.type === "BUY" && a.actionable === false);
   const snoozedActions = allActions.filter(a => a.snoozed);
-  const hasActions = activeSells.length > 0 || activeSwaps.length > 0 || buys.length > 0;
+  const hasActions = activeSells.length > 0 || activeSwaps.length > 0 || actionableBuys.length > 0 || signalOnlyBuys.length > 0;
 
   return (
     <div className="space-y-6">
@@ -477,9 +489,14 @@ function SignalsContent() {
                   {activeSwaps.length} swap{activeSwaps.length > 1 ? "s" : ""}
                 </span>
               )}
-              {buys.length > 0 && (
+              {actionableBuys.length > 0 && (
                 <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-400">
-                  {buys.length} buy{buys.length > 1 ? "s" : ""}
+                  {actionableBuys.length} buy{actionableBuys.length > 1 ? "s" : ""}
+                </span>
+              )}
+              {signalOnlyBuys.length > 0 && (
+                <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-400">
+                  {signalOnlyBuys.length} signal{signalOnlyBuys.length > 1 ? "s" : ""}
                 </span>
               )}
               {snoozedActions.length > 0 && (
@@ -633,17 +650,43 @@ function SignalsContent() {
             </div>
           )}
 
-          {/* Buys */}
-          {buys.length > 0 && (
+          {/* Actionable Buys */}
+          {actionableBuys.length > 0 && (
             <div>
               <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
                 <TrendingUp className="h-4 w-4 text-emerald-400" />
                 Buys
               </h2>
-              <p className="mb-3 text-xs text-slate-500">New positions — only if you have available slots and cash</p>
+              <p className="mb-3 text-xs text-slate-500">New positions — you have the cash and slots to execute these</p>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {buys.map((a, i) => {
+                {actionableBuys.map((a, i) => {
                   const key = `buy-${a.symbol}-${i}`;
+                  return (
+                    <ActionCard
+                      key={key}
+                      action={a}
+                      expanded={expandedCard === key}
+                      onToggle={() => toggleCard(key)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Signal-only Buys (not enough cash) */}
+          {signalOnlyBuys.length > 0 && (
+            <div>
+              <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+                <DollarSign className="h-4 w-4 text-amber-400" />
+                Signals
+              </h2>
+              <p className="mb-3 text-xs text-slate-500">
+                Strong buy signals, but not enough cash to act on — free up funds or add cash to unlock
+              </p>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {signalOnlyBuys.map((a, i) => {
+                  const key = `signal-${a.symbol}-${i}`;
                   return (
                     <ActionCard
                       key={key}

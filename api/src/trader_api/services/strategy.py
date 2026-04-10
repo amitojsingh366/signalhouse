@@ -501,6 +501,7 @@ class Strategy:
                 "detail": alert.get("action_detail", alert["detail"]),
                 "pnl_pct": alert["pnl_pct"],
                 "entry_price": h["avg_cost"],
+                "actionable": True,
             })
 
         # --- Phase 2: Buys (only if room for positions, or as swaps) ---
@@ -539,6 +540,7 @@ class Strategy:
             actions.append({
                 "type": "SWAP",
                 "urgency": "normal",
+                "actionable": True,
                 "sell_symbol": sell_sym,
                 "sell_shares": sell_info["quantity"],
                 "sell_price": sell_info["price"],
@@ -556,7 +558,7 @@ class Strategy:
                 ),
             })
 
-        # New buys — only if under max positions and have cash
+        # New buys — always include signals, mark unaffordable ones as not actionable
         buy_symbols_added: set[str] = set()
         for sig in recs.get("buys", []):
             if sig.symbol in held_symbols or sig.symbol in buy_symbols_added:
@@ -568,47 +570,86 @@ class Strategy:
             ):
                 continue
 
-            if available_slots <= 0:
-                break
-
             price = self._extract_price(sig)
             if not price:
                 continue
 
+            # Calculate ideal position size
             shares = self._calculate_buy_shares(
                 price, portfolio_value, cash_after_sells
             )
-            if shares <= 0:
-                continue
+            # Also calculate what we'd buy if unconstrained by cash
+            max_dollars = portfolio_value * self.config["risk"]["max_position_pct"]
+            ideal_shares = int(max_dollars / price) if price > 0 else 0
 
-            cost = shares * price
-            if cost > cash_after_sells:
-                continue
+            can_afford = shares > 0 and (shares * price) <= cash_after_sells
+            has_slot = available_slots > 0
 
-            pct_of_portfolio = (cost / portfolio_value * 100) if portfolio_value > 0 else 0
+            if can_afford and has_slot:
+                cost = shares * price
+                pct_of_portfolio = (cost / portfolio_value * 100) if portfolio_value > 0 else 0
+                actions.append({
+                    "type": "BUY",
+                    "urgency": "normal",
+                    "symbol": sig.symbol,
+                    "shares": shares,
+                    "price": price,
+                    "dollar_amount": round(cost, 2),
+                    "pct_of_portfolio": round(pct_of_portfolio, 1),
+                    "strength": sig.strength,
+                    "score": sig.score,
+                    "reason": f"BUY signal ({sig.strength:.0%})",
+                    "detail": (
+                        f"Buy {shares} shares of {sig.symbol} "
+                        f"at ~${price:.2f} (${cost:,.2f})"
+                    ),
+                    "sector": self.get_sector(sig.symbol),
+                    "reasons": sig.reasons,
+                    "actionable": True,
+                })
+                buy_symbols_added.add(sig.symbol)
+                cash_after_sells -= cost
+                available_slots -= 1
+            else:
+                # Signal is valid but not affordable — include as non-actionable
+                if ideal_shares > 0:
+                    display_shares = ideal_shares
+                elif price > 0:
+                    display_shares = max(1, int(max_dollars / price))
+                else:
+                    display_shares = 0
+                cost = display_shares * price if display_shares > 0 else price
+                pct_of_portfolio = (cost / portfolio_value * 100) if portfolio_value > 0 else 0
+                not_actionable_reason = (
+                    f"Not enough cash (${cash_after_sells:,.2f} available, "
+                    f"~${cost:,.2f} needed)"
+                    if not can_afford else
+                    f"Max positions reached ({max_positions})"
+                )
+                actions.append({
+                    "type": "BUY",
+                    "urgency": "normal",
+                    "symbol": sig.symbol,
+                    "shares": display_shares,
+                    "price": price,
+                    "dollar_amount": round(cost, 2),
+                    "pct_of_portfolio": round(pct_of_portfolio, 1),
+                    "strength": sig.strength,
+                    "score": sig.score,
+                    "reason": f"BUY signal ({sig.strength:.0%})",
+                    "detail": not_actionable_reason,
+                    "sector": self.get_sector(sig.symbol),
+                    "reasons": sig.reasons,
+                    "actionable": False,
+                })
+                buy_symbols_added.add(sig.symbol)
 
-            actions.append({
-                "type": "BUY",
-                "urgency": "normal",
-                "symbol": sig.symbol,
-                "shares": shares,
-                "price": price,
-                "dollar_amount": round(cost, 2),
-                "pct_of_portfolio": round(pct_of_portfolio, 1),
-                "strength": sig.strength,
-                "score": sig.score,
-                "reason": f"BUY signal ({sig.strength:.0%})",
-                "detail": f"Buy {shares} shares of {sig.symbol} at ~${price:.2f} (${cost:,.2f})",
-                "sector": self.get_sector(sig.symbol),
-                "reasons": sig.reasons,
-            })
-            buy_symbols_added.add(sig.symbol)
-            cash_after_sells -= cost
-            available_slots -= 1
-
-        # Sort: urgent first, then normal, then low
+        # Sort: actionable first, then by urgency (urgent → normal → low)
         urgency_order = {"urgent": 0, "normal": 1, "low": 2}
-        actions.sort(key=lambda a: urgency_order.get(a.get("urgency", "low"), 3))
+        actions.sort(key=lambda a: (
+            0 if a.get("actionable", True) else 1,
+            urgency_order.get(a.get("urgency", "low"), 3),
+        ))
 
         exposure = await self.get_sector_exposure(prices)
 

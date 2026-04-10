@@ -154,6 +154,8 @@ class ActionOut(BaseModel):
     buy_price: float | None = None
     buy_amount: float | None = None
     buy_strength: float | None = None
+    # Affordability
+    actionable: bool = True  # False if signal is valid but can't be afforded with current cash
     # Snooze
     snoozed: bool = False
 

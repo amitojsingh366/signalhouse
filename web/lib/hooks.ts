@@ -136,6 +136,7 @@ export function useRecordBuy() {
       qc.invalidateQueries({ queryKey: queryKeys.pnl });
       qc.invalidateQueries({ queryKey: ["tradeHistory"] });
       qc.invalidateQueries({ queryKey: queryKeys.snapshots });
+      qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
     },
   });
 }
@@ -150,6 +151,7 @@ export function useRecordSell() {
       qc.invalidateQueries({ queryKey: queryKeys.pnl });
       qc.invalidateQueries({ queryKey: ["tradeHistory"] });
       qc.invalidateQueries({ queryKey: queryKeys.snapshots });
+      qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
     },
   });
 }
@@ -162,6 +164,7 @@ export function useUpdateHolding() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.holdings });
       qc.invalidateQueries({ queryKey: queryKeys.pnl });
+      qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
     },
   });
 }
@@ -173,6 +176,7 @@ export function useDeleteHolding() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.holdings });
       qc.invalidateQueries({ queryKey: queryKeys.pnl });
+      qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
     },
   });
 }
@@ -184,6 +188,7 @@ export function useUpdateCash() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.holdings });
       qc.invalidateQueries({ queryKey: queryKeys.pnl });
+      qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
     },
   });
 }
@@ -201,6 +206,7 @@ export function useConfirmUpload() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.holdings });
       qc.invalidateQueries({ queryKey: queryKeys.pnl });
+      qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
     },
   });
 }

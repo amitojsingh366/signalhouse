@@ -114,6 +114,7 @@ struct PortfolioView: View {
         defer { isSavingCash = false }
         do {
             try await client.updateCash(value)
+            NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
             await loadData()
         } catch { /* silent */ }
     }
@@ -250,6 +251,7 @@ private struct HoldingDetailSheet: View {
         let cost = Double(editAvgCost)
         do {
             try await client.updateHolding(symbol: holding.symbol, quantity: qty, avgCost: cost)
+            NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
             await onDismiss()
             dismiss()
         } catch { /* toast would be nice */ }
@@ -258,6 +260,7 @@ private struct HoldingDetailSheet: View {
     private func deleteHolding() async {
         do {
             try await client.deleteHolding(symbol: holding.symbol)
+            NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
             await onDismiss()
             dismiss()
         } catch { /* toast */ }

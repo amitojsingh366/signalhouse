@@ -153,6 +153,7 @@ export interface ActionItem {
   buy_price?: number;
   buy_amount?: number;
   buy_strength?: number;
+  actionable?: boolean;
   snoozed?: boolean;
 }
 

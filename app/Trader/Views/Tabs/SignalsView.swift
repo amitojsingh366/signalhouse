@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 /// Action Plan page — prioritized, position-sized trade instructions.
@@ -33,8 +34,11 @@ struct SignalsView: View {
     private var activeSwaps: [ActionItem] {
         actionPlan?.actions.filter { $0.type == "SWAP" && $0.snoozed != true } ?? []
     }
-    private var buys: [ActionItem] {
-        actionPlan?.actions.filter { $0.type == "BUY" } ?? []
+    private var actionableBuys: [ActionItem] {
+        actionPlan?.actions.filter { $0.type == "BUY" && $0.actionable != false } ?? []
+    }
+    private var signalOnlyBuys: [ActionItem] {
+        actionPlan?.actions.filter { $0.type == "BUY" && $0.actionable == false } ?? []
     }
     private var snoozedActions: [ActionItem] {
         actionPlan?.actions.filter { $0.snoozed == true } ?? []
@@ -138,10 +142,10 @@ struct SignalsView: View {
                     }
                 }
 
-                // Buys
-                if !buys.isEmpty {
+                // Actionable Buys
+                if !actionableBuys.isEmpty {
                     Section {
-                        ForEach(buys) { action in
+                        ForEach(actionableBuys) { action in
                             NavigationLink {
                                 ActionDetailView(action: action)
                             } label: {
@@ -152,7 +156,25 @@ struct SignalsView: View {
                         Label("Buys", systemImage: "arrow.up.circle.fill")
                             .foregroundStyle(Theme.positive)
                     } footer: {
-                        Text("New positions — only if you have available slots and cash")
+                        Text("You have the cash and slots to execute these")
+                    }
+                }
+
+                // Signal-only Buys (not enough cash)
+                if !signalOnlyBuys.isEmpty {
+                    Section {
+                        ForEach(signalOnlyBuys) { action in
+                            NavigationLink {
+                                ActionDetailView(action: action)
+                            } label: {
+                                SignalOnlyBuyRow(action: action)
+                            }
+                        }
+                    } header: {
+                        Label("Signals", systemImage: "dollarsign.circle.fill")
+                            .foregroundStyle(Theme.warning)
+                    } footer: {
+                        Text("Strong buy signals, but not enough cash — free up funds or add cash to unlock")
                     }
                 }
 
@@ -185,7 +207,7 @@ struct SignalsView: View {
                 }
 
                 // No actions
-                if !isLoading && actionPlan != nil && activeSells.isEmpty && activeSwaps.isEmpty && buys.isEmpty && snoozedActions.isEmpty {
+                if !isLoading && actionPlan != nil && activeSells.isEmpty && activeSwaps.isEmpty && actionableBuys.isEmpty && signalOnlyBuys.isEmpty && snoozedActions.isEmpty {
                     Section {
                         ContentUnavailableView {
                             Label("No Trades Needed", systemImage: "checkmark.circle")
@@ -242,6 +264,9 @@ struct SignalsView: View {
             }
             .refreshable { await loadData() }
             .task { await loadData() }
+            .onReceive(NotificationCenter.default.publisher(for: .portfolioDidChange)) { _ in
+                Task { await loadData() }
+            }
             .onChange(of: pushManager.deepLink) { _, link in
                 if case .signalCheck(let symbol) = link {
                     searchText = symbol
@@ -467,6 +492,59 @@ private struct BuyActionRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Signal-Only Buy Row (not enough cash)
+
+private struct SignalOnlyBuyRow: View {
+    let action: ActionItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: "arrow.up.circle")
+                    .foregroundStyle(Theme.textDimmed)
+                Text(action.symbol ?? "")
+                    .font(.headline)
+                Spacer()
+                Text("SIGNAL ONLY")
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Theme.warning.opacity(0.2))
+                    .clipShape(Capsule())
+                    .foregroundStyle(Theme.warning)
+                if let strength = action.strength {
+                    SignalBadgeView(signal: "BUY", strength: strength)
+                }
+            }
+
+            Text(action.detail)
+                .font(.subheadline)
+                .foregroundStyle(Theme.warning)
+
+            HStack(spacing: 12) {
+                if let price = action.price {
+                    Text("~\(Formatting.currency(price))")
+                }
+                if let sector = action.sector {
+                    Text(sector)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(Theme.textDimmed)
+
+            // Score reasons
+            if let reasons = action.reasons {
+                let filtered = reasons.filter { !$0.hasPrefix("Price:") && !$0.hasPrefix("ATR:") }.prefix(3)
+                ForEach(Array(filtered.enumerated()), id: \.offset) { _, reason in
+                    ScoreReasonRow(text: reason)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .opacity(0.75)
     }
 }
 

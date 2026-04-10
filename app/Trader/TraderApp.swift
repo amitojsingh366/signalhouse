@@ -150,21 +150,21 @@ struct MainTabView: View {
                 }
                 .tag(2)
 
-            PreMarketView()
-                .tabItem {
-                    Label("Pre-Market", systemImage: "sunrise")
-                }
-                .tag(3)
-
             TradesView()
                 .tabItem {
                     Label("Trades", systemImage: "arrow.left.arrow.right")
                 }
-                .tag(4)
+                .tag(3)
 
             UploadView()
                 .tabItem {
                     Label("Upload", systemImage: "square.and.arrow.up")
+                }
+                .tag(4)
+
+            PreMarketView()
+                .tabItem {
+                    Label("Pre-Market", systemImage: "sunrise")
                 }
                 .tag(5)
 
@@ -184,7 +184,7 @@ struct MainTabView: View {
             case .signalCheck:
                 selectedTab = 2
             case .premarket:
-                selectedTab = 3
+                selectedTab = 5
             }
             // Deep link is consumed by SignalsView, clear after a short delay
             if case .signalCheck = link {

@@ -35,6 +35,8 @@ Progress tracker and roadmap. For architecture details see [ARCHITECTURE.md](ARC
 
 _Check off items as they're completed. Break large items into sub-items as needed._
 
+- [x] Cash-aware actions + iOS tab reorganization — `actionable` field on BUY actions (false if insufficient cash/slots), separate "Signals" section on web + iOS, actionPlan auto-refreshes on trade/cash/holding changes, Trades promoted to tab 3, Pre-Market to More
+
 ---
 
 ## Roadmap

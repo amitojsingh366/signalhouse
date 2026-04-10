@@ -1,5 +1,14 @@
 import Combine
+import Foundation
 import SwiftUI
+
+// MARK: - Notification Names
+
+extension Notification.Name {
+    /// Posted when portfolio data changes (trade recorded, cash updated, holding edited).
+    /// Listeners (e.g. SignalsView) should refresh their action plan.
+    static let portfolioDidChange = Notification.Name("portfolioDidChange")
+}
 
 /// Persistent app configuration — API URL stored in UserDefaults.
 @MainActor

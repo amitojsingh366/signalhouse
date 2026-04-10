@@ -119,6 +119,7 @@ struct TradesView: View {
             symbol = ""
             quantity = ""
             price = ""
+            NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
             await loadHistory()
         } catch {
             errorMessage = error.localizedDescription

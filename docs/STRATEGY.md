@@ -210,9 +210,18 @@ The system generates a prioritized, position-sized action plan that tells you ex
 
 1. **Sells first** — stop losses, profit-taking, time exits (urgent actions)
 2. **Swaps** — replace weak holdings with stronger opportunities
-3. **Buys** — new positions only if under max position count and have cash
+3. **Actionable buys** — new positions you can afford (sufficient cash and open slots)
+4. **Signal-only buys** — strong BUY signals that can't be executed due to insufficient cash or max positions reached
 
 Every action includes exact share count, price, and dollar amount. New buys are limited by `max_positions` (5) — the system won't recommend accumulating positions indefinitely.
+
+#### Actions vs Signals
+
+Each BUY action carries an `actionable` flag:
+- **`actionable=true`** — you have the cash and position slots to execute this trade. Shown as a green "Buy" action.
+- **`actionable=false`** — the signal is valid but you can't afford it. Shown in an amber "Signals" section with a reason (e.g. "Not enough cash ($50.00 available, ~$2,150.00 needed)"). Signal-only buys display the ideal position size so you can see what you'd buy if funds were available.
+
+The action plan **automatically recalculates** when portfolio state changes — recording a trade, editing cash, updating or deleting a holding, or confirming an upload all trigger a fresh computation on both web (TanStack Query invalidation) and iOS (`NotificationCenter` broadcast).
 
 #### Signal Snoozing
 

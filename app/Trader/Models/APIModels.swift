@@ -127,6 +127,7 @@ struct ActionItem: Codable, Identifiable {
     let buyPrice: Double?
     let buyAmount: Double?
     let buyStrength: Double?
+    let actionable: Bool?
     let snoozed: Bool?
 }
 

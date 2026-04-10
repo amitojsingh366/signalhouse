@@ -191,7 +191,7 @@ ORM models in `api/src/trader_api/models.py`:
 |--------|------|-------------|
 | GET | `/api/signals/check/{symbol}` | Signal + sentiment for one symbol |
 | GET | `/api/signals/recommend` | Top N buy/sell/watchlist signals + exit alerts + funding pairs |
-| GET | `/api/signals/actions` | Prioritized, position-sized action plan (sells → swaps → buys) |
+| GET | `/api/signals/actions` | Prioritized, position-sized action plan (sells → swaps → buys); BUY actions include `actionable` flag (false if insufficient cash/slots) |
 | GET | `/api/signals/price/{symbol}` | Current market price |
 | GET | `/api/signals/history/{symbol}` | OHLCV price history (60d default) |
 | GET | `/api/signals/insights` | Daily insights (all holdings, movers, sectors) |
@@ -345,14 +345,17 @@ Eye icon in the sidebar header toggles a "hide numbers" mode (`web/lib/privacy.t
 
 ## iOS App Tabs
 
-| Tab | Description |
-|-----|-------------|
-| Dashboard | Stat cards, equity chart, latest signals, sector exposure |
-| Portfolio | Holdings list with P&L, edit sheet, cash edit, signal badges |
-| Signals | Recommendations, exit alerts, type-ahead symbol search → detail with price chart |
-| Trades | Buy/sell form, trade history |
-| Upload | PhotosPicker, Claude Vision parse, confirm |
-| Status | System status, notification toggle, mute today, passkey login |
+| Tab | Position | Description |
+|-----|----------|-------------|
+| Dashboard | Main | Stat cards, equity chart, latest signals, sector exposure |
+| Portfolio | Main | Holdings list with P&L, edit sheet, cash edit, signal badges |
+| Actions | Main | Action plan: sells, swaps, actionable buys, signal-only buys (not enough cash), snoozed |
+| Trades | Main | Buy/sell form, trade history |
+| Upload | More | PhotosPicker, Claude Vision parse, confirm |
+| Pre-Market | More | CDR counterpart US premarket movers |
+| Status | More | System status, notification toggle, mute today, passkey login |
+
+Tabs 0–3 appear in the main tab bar; tabs 4–6 appear in the iOS "More" section. Portfolio changes (trades, cash edits, holding edits) trigger an automatic refresh of the action plan via `NotificationCenter`.
 
 ---
 

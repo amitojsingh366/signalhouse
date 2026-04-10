@@ -36,6 +36,7 @@ Progress tracker and roadmap. For architecture details see [ARCHITECTURE.md](ARC
 _Check off items as they're completed. Break large items into sub-items as needed._
 
 - [x] Cash-aware actions + iOS tab reorganization — `actionable` field on BUY actions (false if insufficient cash/slots), separate "Signals" section on web + iOS, actionPlan auto-refreshes on trade/cash/holding changes, Trades promoted to tab 3, Pre-Market to More
+- [x] Fix equity curve + price chart rendering — iOS: explicit tight Y-axis domain with 10% padding (EquityChartView, SignalDetailView, ActionDetailView), Web: use `formatCurrency` for equity chart Y-axis tick labels
 
 ---
 

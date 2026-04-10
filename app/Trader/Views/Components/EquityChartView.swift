@@ -62,6 +62,14 @@ struct EquityChartView: View {
                     return (d, snap.portfolioValue)
                 }
 
+                let values = parsed.map(\.value)
+                let minVal = values.min() ?? 0
+                let maxVal = values.max() ?? 0
+                let range = max(maxVal - minVal, 1)
+                let padding = range * 0.1
+                let yMin = minVal - padding
+                let yMax = maxVal + padding
+
                 Chart(Array(parsed.enumerated()), id: \.offset) { _, item in
                     AreaMark(
                         x: .value("Date", item.date),
@@ -82,7 +90,7 @@ struct EquityChartView: View {
                     .foregroundStyle(Theme.brand)
                     .lineStyle(StrokeStyle(lineWidth: 2))
                 }
-                .chartYScale(domain: .automatic(includesZero: false))
+                .chartYScale(domain: yMin ... yMax)
                 .chartXAxis {
                     AxisMarks(values: .automatic(desiredCount: 4)) { value in
                         AxisValueLabel {

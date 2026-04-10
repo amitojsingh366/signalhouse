@@ -152,6 +152,14 @@ struct ActionDetailView: View {
                 return (d, bar.close)
             }
 
+            let closes = parsed.map(\.close)
+            let minPrice = closes.min() ?? 0
+            let maxPrice = closes.max() ?? 0
+            let priceRange = max(maxPrice - minPrice, 0.01)
+            let pricePad = priceRange * 0.1
+            let yMin = minPrice - pricePad
+            let yMax = maxPrice + pricePad
+
             Chart(Array(parsed.enumerated()), id: \.offset) { _, item in
                 AreaMark(
                     x: .value("Date", item.date),
@@ -172,7 +180,7 @@ struct ActionDetailView: View {
                 .foregroundStyle(Theme.brand)
                 .lineStyle(StrokeStyle(lineWidth: 2))
             }
-            .chartYScale(domain: .automatic(includesZero: false))
+            .chartYScale(domain: yMin ... yMax)
             .chartXAxis {
                 AxisMarks(values: .automatic(desiredCount: 4)) { value in
                     AxisValueLabel {

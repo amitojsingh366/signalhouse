@@ -101,7 +101,7 @@ export function EquityChart({ snapshots, className }: EquityChartProps) {
               stroke="#52525b"
               fontSize={11}
               tickLine={false}
-              tickFormatter={(v) => mask(`$${v}`)}
+              tickFormatter={(v) => mask(formatCurrency(v))}
               domain={["dataMin - 20", "dataMax + 20"]}
             />
             <Tooltip

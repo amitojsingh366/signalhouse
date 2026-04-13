@@ -217,7 +217,8 @@ private struct HoldingDetailSheet: View {
                     ScoreMixCard(
                         technical: holding.technicalScore,
                         sentiment: holding.sentimentScore,
-                        commodity: holding.commodityScore
+                        commodity: holding.commodityScore,
+                        total: holding.technicalScore + holding.sentimentScore + holding.commodityScore
                     )
                     ForEach(holding.reasons, id: \.self) { reason in
                         ScoreReasonRow(text: reason)

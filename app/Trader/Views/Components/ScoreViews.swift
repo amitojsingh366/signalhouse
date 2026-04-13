@@ -45,6 +45,23 @@ struct ScoreMixCard: View {
     let technical: Double
     let sentiment: Double
     let commodity: Double
+    let total: Double?
+
+    init(
+        technical: Double,
+        sentiment: Double,
+        commodity: Double,
+        total: Double? = nil
+    ) {
+        self.technical = technical
+        self.sentiment = sentiment
+        self.commodity = commodity
+        self.total = total
+    }
+
+    private var resolvedTotal: Double {
+        total ?? (technical + sentiment + commodity)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -52,6 +69,7 @@ struct ScoreMixCard: View {
                 .font(.caption2)
                 .foregroundStyle(Theme.textDimmed)
                 .textCase(.uppercase)
+            scoreRow(label: "Total", value: resolvedTotal, showScale: true)
             scoreRow(label: "Technical", value: technical)
             scoreRow(label: "Sentiment", value: sentiment)
             scoreRow(label: "Commodity", value: commodity)
@@ -66,13 +84,13 @@ struct ScoreMixCard: View {
     }
 
     @ViewBuilder
-    private func scoreRow(label: String, value: Double) -> some View {
+    private func scoreRow(label: String, value: Double, showScale: Bool = false) -> some View {
         HStack {
             Text(label)
                 .font(.caption)
-                .foregroundStyle(Theme.textMuted)
+                .foregroundStyle(label == "Total" ? Theme.textPrimary : Theme.textMuted)
             Spacer()
-            Text("\(value > 0 ? "+" : "")\(String(format: "%.2f", value))")
+            Text("\(value > 0 ? "+" : "")\(String(format: "%.2f", value))\(showScale ? " / 9" : "")")
                 .font(.caption)
                 .fontDesign(.monospaced)
                 .foregroundStyle(Formatting.pnlColor(value))

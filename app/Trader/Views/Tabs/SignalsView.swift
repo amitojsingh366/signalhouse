@@ -487,7 +487,8 @@ private struct BuyActionRow: View {
                 ScoreMixCard(
                     technical: action.technicalScore ?? 0,
                     sentiment: action.sentimentScore ?? 0,
-                    commodity: action.commodityScore ?? 0
+                    commodity: action.commodityScore ?? 0,
+                    total: action.score
                 )
             }
 
@@ -547,7 +548,8 @@ private struct SignalOnlyBuyRow: View {
                 ScoreMixCard(
                     technical: action.technicalScore ?? 0,
                     sentiment: action.sentimentScore ?? 0,
-                    commodity: action.commodityScore ?? 0
+                    commodity: action.commodityScore ?? 0,
+                    total: action.score
                 )
             }
 
@@ -631,7 +633,8 @@ private struct SignalCardContent: View {
             ScoreMixCard(
                 technical: signal.technicalScore,
                 sentiment: signal.sentimentScore,
-                commodity: signal.commodityScore
+                commodity: signal.commodityScore,
+                total: signal.score
             )
 
             ForEach(signal.reasons, id: \.self) { reason in

@@ -67,6 +67,9 @@ struct SignalOut: Codable, Identifiable {
     let signal: String
     let strength: Double
     let score: Double
+    let technicalScore: Double
+    let sentimentScore: Double
+    let commodityScore: Double
     let reasons: [String]
     let price: Double?
     let sector: String?
@@ -112,6 +115,9 @@ struct ActionItem: Codable, Identifiable {
     let entryPrice: Double?
     let strength: Double?
     let score: Double?
+    let technicalScore: Double?
+    let sentimentScore: Double?
+    let commodityScore: Double?
     let reason: String
     let detail: String
     let sector: String?

@@ -483,6 +483,14 @@ private struct BuyActionRow: View {
             .font(.caption2)
             .foregroundStyle(Theme.textDimmed)
 
+            if action.technicalScore != nil || action.sentimentScore != nil || action.commodityScore != nil {
+                ScoreMixCard(
+                    technical: action.technicalScore ?? 0,
+                    sentiment: action.sentimentScore ?? 0,
+                    commodity: action.commodityScore ?? 0
+                )
+            }
+
             // Score reasons
             if let reasons = action.reasons {
                 let filtered = reasons.filter { !$0.hasPrefix("Price:") && !$0.hasPrefix("ATR:") }.prefix(3)
@@ -534,6 +542,14 @@ private struct SignalOnlyBuyRow: View {
             }
             .font(.caption)
             .foregroundStyle(Theme.textDimmed)
+
+            if action.technicalScore != nil || action.sentimentScore != nil || action.commodityScore != nil {
+                ScoreMixCard(
+                    technical: action.technicalScore ?? 0,
+                    sentiment: action.sentimentScore ?? 0,
+                    commodity: action.commodityScore ?? 0
+                )
+            }
 
             // Score reasons
             if let reasons = action.reasons {
@@ -612,34 +628,17 @@ private struct SignalCardContent: View {
                     .font(.caption2)
                     .foregroundStyle(Theme.textDimmed)
             }
-            HStack(spacing: 10) {
-                ScoreComponentPill(label: "Tech", value: signal.technicalScore)
-                ScoreComponentPill(label: "Sent", value: signal.sentimentScore)
-                ScoreComponentPill(label: "Comm", value: signal.commodityScore)
-            }
+            ScoreMixCard(
+                technical: signal.technicalScore,
+                sentiment: signal.sentimentScore,
+                commodity: signal.commodityScore
+            )
 
             ForEach(signal.reasons, id: \.self) { reason in
                 ScoreReasonRow(text: reason)
             }
         }
         .padding(.vertical, 4)
-    }
-}
-
-private struct ScoreComponentPill: View {
-    let label: String
-    let value: Double
-
-    var body: some View {
-        let color = value > 0 ? Theme.positive : value < 0 ? Theme.negative : Theme.textDimmed
-        Text("\(label) \(value > 0 ? "+" : "")\(String(format: "%.2f", value))")
-            .font(.caption2)
-            .fontDesign(.monospaced)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.18))
-            .foregroundStyle(color)
-            .clipShape(Capsule())
     }
 }
 

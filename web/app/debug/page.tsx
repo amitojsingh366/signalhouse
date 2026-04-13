@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import type { DebugDevice, SignalOut } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { CardSkeleton } from "@/components/ui/loading";
+import { ScoreBreakdown, ScoreTag } from "@/components/ui/score-breakdown";
 
 export default function DebugPage() {
   const [devices, setDevices] = useState<DebugDevice[]>([]);
@@ -132,17 +133,21 @@ export default function DebugPage() {
           <p className="text-slate-500">No signals available right now.</p>
         )}
 
+        {topSignal && (
+          <ScoreBreakdown
+            technical={topSignal.technical_score}
+            sentiment={topSignal.sentiment_score}
+            commodity={topSignal.commodity_score}
+          />
+        )}
         {topSignal?.reasons && topSignal.reasons.length > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <ul className="space-y-0.5 text-xs text-slate-400">
             {topSignal.reasons.map((r, i) => (
-              <span
-                key={i}
-                className="rounded-full bg-white/5 px-2.5 py-0.5 text-xs text-slate-400"
-              >
-                {r}
-              </span>
+              <li key={i}>
+                <ScoreTag text={r} />
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
 

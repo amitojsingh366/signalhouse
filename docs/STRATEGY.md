@@ -128,9 +128,10 @@ strength = min(|total_score| / 9.0, 1.0)
 
 | Signal Type | Minimum Strength | Context |
 |-------------|-----------------|---------|
-| BUY (universe scan) | 35% (score ≥ ~2.8) | Recommendations and scheduled scans |
+| BUY (universe scan) | 35% (score ≥ ~3.2 on /9 scale) | Recommendations and scheduled scans |
 | SELL (universe scan) | 30% (score ≤ ~-2.4) | Held → sell signals, non-held → watchlist alerts |
 | BUY/SELL (single check) | None | On-demand symbol lookup |
+| BUY (oversold fast-lane) | 30% (score ≥ ~2.7) with oversold trigger + bearish-crossover block + sentiment guard | Early dip-reversal candidates only |
 
 #### Score Display
 
@@ -150,6 +151,16 @@ Runs every 15 minutes during market hours and on-demand when a user requests rec
 1. Scans all ~333 symbols (20 concurrent via asyncio semaphore)
 2. Filters to BUY ≥ 35% and SELL ≥ 30% strength
 3. Sorts by strength descending
+
+#### Oversold Reversal Fast-Lane
+
+To avoid missing early recovery entries after sharp pullbacks, the scan includes a guarded fast-lane for BUY signals that are slightly below the normal 35% threshold:
+
+- Oversold trigger present (`RSI oversold` **or** `Price at lower Bollinger Band`)
+- Bearish crossover block (optional): reject if `EMA bearish crossover` fired
+- Sentiment floor guard: sentiment component must be above configured minimum (default `-0.25`)
+
+This path uses a lower minimum strength (default 30%) and is intended for dip-reversal setups, while still avoiding pure falling-knife entries.
 
 ### Sector Resolution
 

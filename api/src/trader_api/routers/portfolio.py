@@ -138,8 +138,12 @@ async def update_holding(data: HoldingUpdate, db: AsyncSession = Depends(get_db)
         raise HTTPException(status_code=404, detail=f"Holding {data.symbol} not found")
     holdings = await portfolio.get_holdings_dict()
     meta = await portfolio._get_meta()
-    risk.open_trades.clear()
-    portfolio.sync_risk_manager(risk, holdings, meta.initial_capital)
+    portfolio.sync_risk_manager(
+        risk,
+        holdings,
+        meta.initial_capital,
+        preserve_existing_state=True,
+    )
     return HoldingOut(**result)
 
 
@@ -152,8 +156,12 @@ async def delete_holding(symbol: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"Holding {symbol} not found")
     holdings = await portfolio.get_holdings_dict()
     meta = await portfolio._get_meta()
-    risk.open_trades.clear()
-    portfolio.sync_risk_manager(risk, holdings, meta.initial_capital)
+    portfolio.sync_risk_manager(
+        risk,
+        holdings,
+        meta.initial_capital,
+        preserve_existing_state=True,
+    )
     return {"status": "deleted", "symbol": symbol.upper()}
 
 

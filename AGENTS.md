@@ -1,5 +1,10 @@
 # AGENTS.md
 
+## Scope
+
+This is the canonical guidance file for coding agents in this repository.
+If `CLAUDE.md` is present, treat it as a compatibility pointer and use `AGENTS.md` as the source of truth.
+
 ## What This Is
 
 Trading recommendation + portfolio tracking system for TSX stocks, CBOE Canada CDRs, and CAD-hedged ETFs. **Not an auto-trading bot** — provides buy/sell/swap signals and the user trades manually via their brokerage, then reports back.
@@ -58,7 +63,7 @@ git push origin main
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture, project structure, data flow, DB models, API endpoints, auth, Docker, design system |
 | [docs/STRATEGY.md](docs/STRATEGY.md) | Trading strategy: signal pipeline, sentiment, commodity correlation, risk management, position sizing, symbol universe |
 | [docs/PLAN.md](docs/PLAN.md) | Development progress tracker and roadmap |
-| [docs/PROMPT.md](docs/PROMPT.md) | Copy-paste prompt to bootstrap a new Claude Code conversation |
+| [docs/PROMPT.md](docs/PROMPT.md) | Copy-paste prompt to bootstrap a new coding-agent conversation |
 
 ## Quick Reference
 
@@ -85,5 +90,5 @@ git push origin main
 - yfinance data is ~15 min delayed — fine for daily-bar swing trading
 - Web uses **Bun** (not npm/yarn) for package management and builds
 - 8% daily drawdown or 20% total drawdown halts all recommendations
-- Anthropic API required for screenshot parsing (Claude Sonnet vision)
+- Anthropic API required for screenshot parsing (vision model)
 - CDR (`.NE`) data can be spotty — falls back to US counterpart ticker

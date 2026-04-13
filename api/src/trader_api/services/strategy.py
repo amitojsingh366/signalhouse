@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from trader_api.services.market_data import MarketData
 from trader_api.services.portfolio import Portfolio
@@ -16,9 +19,17 @@ logger = logging.getLogger(__name__)
 
 # Max concurrent symbol scans — limits yfinance request pressure
 _SCAN_CONCURRENCY = 20
+ET = ZoneInfo("America/New_York")
 
 
 class Strategy:
+    # Shared in-process recommendation cache so separate Strategy instances
+    # (per-request) can still reference the same funding suggestions.
+    _shared_recommendations: dict[str, Any] | None = None
+    _shared_recommendations_at: float = 0.0
+    _shared_cache_ttl_seconds: float = 900.0  # 15 minutes
+    _risk_daily_reset_date: str | None = None
+
     def __init__(
         self,
         market_data: MarketData,
@@ -51,6 +62,21 @@ class Strategy:
         else:
             self.symbols = config["strategy"].get("symbols", [])
 
+    @classmethod
+    def _get_shared_recommendations(cls) -> dict[str, Any] | None:
+        if cls._shared_recommendations is None:
+            return None
+        age = time.monotonic() - cls._shared_recommendations_at
+        if age > cls._shared_cache_ttl_seconds:
+            cls._shared_recommendations = None
+            return None
+        return cls._shared_recommendations
+
+    @classmethod
+    def _set_shared_recommendations(cls, recommendations: dict[str, Any]) -> None:
+        cls._shared_recommendations = recommendations
+        cls._shared_recommendations_at = time.monotonic()
+
     def get_sector(self, symbol: str) -> str:
         if symbol in self.symbol_to_sector:
             return self.symbol_to_sector[symbol]
@@ -61,6 +87,57 @@ class Strategy:
             if alt != symbol and alt in self.symbol_to_sector:
                 return self.symbol_to_sector[alt]
         return "unknown"
+
+    async def _check_risk_halt(self, portfolio_value: float) -> bool:
+        current_date = datetime.now(ET).strftime("%Y-%m-%d")
+        if current_date != self.__class__._risk_daily_reset_date:
+            self.risk.reset_daily(portfolio_value)
+            # Daily drawdown halts are reset each new market day.
+            if self.risk.halt_reason.startswith("Daily drawdown limit hit"):
+                self.risk.halted = False
+                self.risk.halt_reason = ""
+            self.__class__._risk_daily_reset_date = current_date
+        elif self.risk.daily_start_value <= 0:
+            self.risk.reset_daily(portfolio_value)
+        self.risk.check_drawdown(portfolio_value)
+        return self.risk.halted
+
+    async def _market_regime_allows_buys(self) -> tuple[bool, str]:
+        """Check broad market regime gate for new buys.
+
+        Fail-open (allow buys) if data is unavailable.
+        """
+        regime_symbol = self.config["strategy"].get("regime_filter_symbol", "VFV.TO")
+        sma_days = int(self.config["strategy"].get("regime_filter_sma_days", 200))
+        period = self.config["strategy"].get("regime_filter_period", "300d")
+        try:
+            df = await self.market_data.get_historical_data(regime_symbol, period=period)
+            if df is None or len(df) < sma_days:
+                return True, ""
+            close = float(df["close"].iloc[-1])
+            sma = float(df["close"].tail(sma_days).mean())
+            if close >= sma:
+                return True, ""
+            return (
+                False,
+                f"Regime filter risk-off: {regime_symbol} below {sma_days}-day average",
+            )
+        except Exception:
+            logger.debug("Market regime filter unavailable, failing open")
+            return True, ""
+
+    def _passes_liquidity_filter(self, df) -> bool:
+        """Require minimum trailing average dollar volume for BUY eligibility."""
+        min_dollar_volume = float(
+            self.config["strategy"].get("min_avg_dollar_volume", 500000.0)
+        )
+        if min_dollar_volume <= 0:
+            return True
+        if len(df) < 20:
+            return False
+        tail = df.tail(20)
+        avg_dollar_volume = float((tail["close"] * tail["volume"]).mean())
+        return avg_dollar_volume >= min_dollar_volume
 
     async def get_sector_exposure(
         self, live_prices: dict[str, float]
@@ -98,8 +175,14 @@ class Strategy:
 
         df = compute_indicators(df, self.config)
         sent = await self.sentiment.analyze(symbol)
-        result = generate_signal(df, self.config, sentiment_score=sent.total_score)
+        result = generate_signal(
+            df,
+            self.config,
+            sentiment_score=sent.non_commodity_score,
+            commodity_score=sent.commodity_score,
+        )
         result.symbol = symbol
+        result.commodity_reasons = list(sent.commodity_reasons)
         result.reasons.extend(sent.reasons)
         result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
         atr = df["atr"].iloc[-1]
@@ -124,11 +207,17 @@ class Strategy:
             df = compute_indicators(df, self.config)
             sent = await self.sentiment.analyze(symbol)
             result = generate_signal(
-                df, self.config, sentiment_score=sent.total_score
+                df,
+                self.config,
+                sentiment_score=sent.non_commodity_score,
+                commodity_score=sent.commodity_score,
             )
             result.symbol = symbol
+            result.commodity_reasons = list(sent.commodity_reasons)
 
             if result.signal == Signal.BUY and result.strength >= 0.35:
+                if not self._passes_liquidity_filter(df):
+                    return None
                 result.reasons.extend(sent.reasons)
                 result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
                 return result
@@ -210,6 +299,13 @@ class Strategy:
                 })
                 continue
 
+            min_hold_days = int(self.config["strategy"].get("min_hold_days", 0))
+            open_trade = self.risk.open_trades.get(symbol)
+            days_held = (
+                (time.time() - open_trade.entry_time.timestamp()) / 86400.0
+                if open_trade is not None
+                else None
+            )
             if self.risk.should_exit_time(symbol):
                 alerts.append({
                     "symbol": symbol,
@@ -231,9 +327,16 @@ class Strategy:
                     df = compute_indicators(df, self.config)
                     sent = await self.sentiment.analyze(symbol)
                     result = generate_signal(
-                        df, self.config, sentiment_score=sent.total_score
+                        df,
+                        self.config,
+                        sentiment_score=sent.non_commodity_score,
+                        commodity_score=sent.commodity_score,
                     )
-                    if result.signal == Signal.SELL and result.strength >= 0.3:
+                    if (
+                        result.signal == Signal.SELL
+                        and result.strength >= 0.3
+                        and (days_held is None or days_held >= min_hold_days)
+                    ):
                         all_reasons = result.reasons + sent.reasons
                         alerts.append({
                             "symbol": symbol,
@@ -303,7 +406,10 @@ class Strategy:
                     df = compute_indicators(df, self.config)
                     sent = await self.sentiment.analyze(symbol)
                     result = generate_signal(
-                        df, self.config, sentiment_score=sent.total_score
+                        df,
+                        self.config,
+                        sentiment_score=sent.non_commodity_score,
+                        commodity_score=sent.commodity_score,
                     )
                     signal_reasons = result.reasons + sent.reasons
                     if result.signal == Signal.SELL:
@@ -357,6 +463,9 @@ class Strategy:
             if held_symbols else {}
         )
         exposure = await self.get_sector_exposure(prices)
+        portfolio_value = await self.portfolio.get_portfolio_value(prices)
+        halted = await self._check_risk_halt(portfolio_value)
+        regime_allows_buys, regime_reason = await self._market_regime_allows_buys()
 
         for sig in sells:
             h = holdings.get(sig.symbol)
@@ -365,6 +474,24 @@ class Strategy:
 
         for sig in watchlist_sells:
             sig.reasons.append("Not held — sell signal for watchlist")
+
+        if halted or not regime_allows_buys:
+            block_reason = (
+                f"Risk halt active — {self.risk.halt_reason}"
+                if halted
+                else (regime_reason or "Regime filter blocked new buys")
+            )
+            result = {
+                "buys": [],
+                "sells": sells[:n],
+                "watchlist_sells": watchlist_sells[:n],
+                "funding": [],
+                "sector_exposure": exposure,
+                "buy_block_reason": block_reason,
+            }
+            self._cached_recommendations = result
+            self._set_shared_recommendations(result)
+            return result
 
         # Track sector-capped buys but don't penalize yet — swaps within
         # the same sector shouldn't be penalized since they replace exposure
@@ -380,8 +507,24 @@ class Strategy:
                 sig.reasons.append(f"Sector: {sector}")
             filtered_buys.append(sig)
 
+        # Apply liquidity filter before ranking so low-liquidity symbols never
+        # displace safer candidates in top-N recommendations.
+        liquid_filtered_buys: list[SignalResult] = []
+        for sig in filtered_buys:
+            try:
+                df = await self.market_data.get_historical_data(sig.symbol, period="60d")
+                if df is None or len(df) < 20:
+                    continue
+                if not self._passes_liquidity_filter(df):
+                    sig.reasons.append("Liquidity filter: below minimum avg dollar volume")
+                    continue
+                liquid_filtered_buys.append(sig)
+            except Exception:
+                continue
+        filtered_buys = liquid_filtered_buys
+
         filtered_buys.sort(key=lambda r: r.strength, reverse=True)
-        top_buys = filtered_buys[:n]
+        top_buys = filtered_buys
         top_sells = sells[:n]
 
         funding: list[dict[str, Any]] = []
@@ -442,8 +585,9 @@ class Strategy:
                 )
                 sig.strength *= 0.5
 
-        # Re-sort after applying penalties
+        # Re-sort after applying penalties, then cap to top-N.
         top_buys.sort(key=lambda r: r.strength, reverse=True)
+        top_buys = top_buys[:n]
 
         result = {
             "buys": top_buys,
@@ -453,6 +597,7 @@ class Strategy:
             "sector_exposure": exposure,
         }
         self._cached_recommendations = result
+        self._set_shared_recommendations(result)
         return result
 
     async def get_action_plan(self) -> dict[str, Any]:
@@ -478,6 +623,9 @@ class Strategy:
         max_positions = self.config["risk"]["max_positions"]
 
         actions: list[dict[str, Any]] = []
+
+        halted = await self._check_risk_halt(portfolio_value)
+        regime_allows_buys, regime_reason = await self._market_regime_allows_buys()
 
         # --- Phase 1: Exit alerts (sells) ---
         exit_alerts = await self.get_exit_alerts(prices) if holdings else []
@@ -510,53 +658,68 @@ class Strategy:
         cash_after_sells = cash + sum(
             a["dollar_amount"] for a in actions if a["type"] == "SELL"
         )
+        base_exposure = recs.get("sector_exposure", {})
+        sectors_being_reduced = {
+            self.get_sector(a["symbol"])
+            for a in actions
+            if a["type"] == "SELL" and a.get("symbol")
+        }
 
         # Add swap suggestions from funding pairs
-        for fund in recs.get("funding", []):
-            buy_sym = fund["buy"]
-            sell_info = fund["sell"]
-            sell_sym = sell_info["symbol"]
-            if sell_sym in sell_symbols:
-                continue  # Already selling this one
+        if not halted and regime_allows_buys:
+            for fund in recs.get("funding", []):
+                buy_sym = fund["buy"]
+                sell_info = fund["sell"]
+                sell_sym = sell_info["symbol"]
+                if sell_sym in sell_symbols:
+                    continue  # Already selling this one
 
-            buy_sig = next(
-                (b for b in recs["buys"] if b.symbol == buy_sym), None
-            )
-            if not buy_sig:
-                continue
+                buy_sig = next(
+                    (b for b in recs["buys"] if b.symbol == buy_sym), None
+                )
+                if not buy_sig:
+                    continue
 
-            buy_price = self._extract_price(buy_sig)
-            if not buy_price:
-                continue
+                buy_price = self._extract_price(buy_sig)
+                if not buy_price:
+                    continue
 
-            sell_value = sell_info["quantity"] * sell_info["price"]
-            shares_to_buy = self._calculate_buy_shares(
-                buy_price, portfolio_value, sell_value
-            )
-            if shares_to_buy <= 0:
-                continue
+                sell_value = sell_info["quantity"] * sell_info["price"]
+                shares_to_buy = self._calculate_buy_shares_for_signal(
+                    buy_sig,
+                    buy_price,
+                    portfolio_value,
+                    sell_value,
+                )
+                if shares_to_buy <= 0:
+                    continue
 
-            sell_symbols.add(sell_sym)
-            actions.append({
-                "type": "SWAP",
-                "urgency": "normal",
-                "actionable": True,
-                "sell_symbol": sell_sym,
-                "sell_shares": sell_info["quantity"],
-                "sell_price": sell_info["price"],
-                "sell_amount": round(sell_value, 2),
-                "sell_pnl_pct": sell_info["pnl_pct"],
-                "buy_symbol": buy_sym,
-                "buy_shares": shares_to_buy,
-                "buy_price": buy_price,
-                "buy_amount": round(shares_to_buy * buy_price, 2),
-                "buy_strength": buy_sig.strength,
-                "reason": f"Swap: stronger opportunity ({buy_sig.strength:.0%} vs current)",
-                "detail": (
-                    f"Sell {sell_info['quantity']:.4f} sh of {sell_sym} "
-                    f"→ buy {shares_to_buy} sh of {buy_sym}"
-                ),
-            })
+                sell_symbols.add(sell_sym)
+                sectors_being_reduced.add(self.get_sector(sell_sym))
+                actions.append({
+                    "type": "SWAP",
+                    "urgency": "normal",
+                    "actionable": True,
+                    "sell_symbol": sell_sym,
+                    "sell_shares": sell_info["quantity"],
+                    "sell_price": sell_info["price"],
+                    "sell_amount": round(sell_value, 2),
+                    "sell_pnl_pct": sell_info["pnl_pct"],
+                    "buy_symbol": buy_sym,
+                    "buy_shares": shares_to_buy,
+                    "buy_price": buy_price,
+                    "buy_amount": round(shares_to_buy * buy_price, 2),
+                    "buy_strength": buy_sig.strength,
+                    "score": buy_sig.score,
+                    "technical_score": buy_sig.technical_score,
+                    "sentiment_score": buy_sig.sentiment_score,
+                    "commodity_score": buy_sig.commodity_score,
+                    "reason": f"Swap: stronger opportunity ({buy_sig.strength:.0%} vs current)",
+                    "detail": (
+                        f"Sell {sell_info['quantity']:.4f} sh of {sell_sym} "
+                        f"→ buy {shares_to_buy} sh of {buy_sym}"
+                    ),
+                })
 
         # New buys — always include signals, mark unaffordable ones as not actionable
         buy_symbols_added: set[str] = set()
@@ -575,8 +738,11 @@ class Strategy:
                 continue
 
             # Calculate ideal position size
-            shares = self._calculate_buy_shares(
-                price, portfolio_value, cash_after_sells
+            shares = self._calculate_buy_shares_for_signal(
+                sig,
+                price,
+                portfolio_value,
+                cash_after_sells,
             )
             # Also calculate what we'd buy if unconstrained by cash
             max_dollars = portfolio_value * self.config["risk"]["max_position_pct"]
@@ -584,8 +750,85 @@ class Strategy:
 
             can_afford = shares > 0 and (shares * price) <= cash_after_sells
             has_slot = available_slots > 0
+            buy_sector = self.get_sector(sig.symbol)
+            buy_sector_pct = (
+                base_exposure.get(buy_sector, {}).get("pct", 0.0)
+                if isinstance(base_exposure.get(buy_sector, {}), dict)
+                else 0.0
+            )
+            sector_blocked = (
+                buy_sector != "unknown"
+                and buy_sector_pct >= self.max_sector_pct
+                and buy_sector not in sectors_being_reduced
+            )
 
-            if can_afford and has_slot:
+            if halted:
+                actions.append({
+                    "type": "BUY",
+                    "urgency": "normal",
+                    "symbol": sig.symbol,
+                    "shares": 0,
+                    "price": price,
+                    "dollar_amount": 0.0,
+                    "pct_of_portfolio": 0.0,
+                    "strength": sig.strength,
+                    "score": sig.score,
+                    "technical_score": sig.technical_score,
+                    "sentiment_score": sig.sentiment_score,
+                    "commodity_score": sig.commodity_score,
+                    "reason": f"BUY signal ({sig.strength:.0%})",
+                    "detail": f"Risk halt active — {self.risk.halt_reason}",
+                    "sector": self.get_sector(sig.symbol),
+                    "reasons": sig.reasons,
+                    "actionable": False,
+                })
+                buy_symbols_added.add(sig.symbol)
+            elif sector_blocked:
+                actions.append({
+                    "type": "BUY",
+                    "urgency": "normal",
+                    "symbol": sig.symbol,
+                    "shares": 0,
+                    "price": price,
+                    "dollar_amount": 0.0,
+                    "pct_of_portfolio": 0.0,
+                    "strength": sig.strength,
+                    "score": sig.score,
+                    "technical_score": sig.technical_score,
+                    "sentiment_score": sig.sentiment_score,
+                    "commodity_score": sig.commodity_score,
+                    "reason": f"BUY signal ({sig.strength:.0%})",
+                    "detail": (
+                        f"Sector cap reached: {buy_sector} at "
+                        f"{buy_sector_pct:.0%} (max {self.max_sector_pct:.0%})"
+                    ),
+                    "sector": buy_sector,
+                    "reasons": sig.reasons,
+                    "actionable": False,
+                })
+                buy_symbols_added.add(sig.symbol)
+            elif not regime_allows_buys:
+                actions.append({
+                    "type": "BUY",
+                    "urgency": "normal",
+                    "symbol": sig.symbol,
+                    "shares": 0,
+                    "price": price,
+                    "dollar_amount": 0.0,
+                    "pct_of_portfolio": 0.0,
+                    "strength": sig.strength,
+                    "score": sig.score,
+                    "technical_score": sig.technical_score,
+                    "sentiment_score": sig.sentiment_score,
+                    "commodity_score": sig.commodity_score,
+                    "reason": f"BUY signal ({sig.strength:.0%})",
+                    "detail": regime_reason or "Regime filter blocked new buys",
+                    "sector": self.get_sector(sig.symbol),
+                    "reasons": sig.reasons,
+                    "actionable": False,
+                })
+                buy_symbols_added.add(sig.symbol)
+            elif can_afford and has_slot:
                 cost = shares * price
                 pct_of_portfolio = (cost / portfolio_value * 100) if portfolio_value > 0 else 0
                 actions.append({
@@ -598,6 +841,9 @@ class Strategy:
                     "pct_of_portfolio": round(pct_of_portfolio, 1),
                     "strength": sig.strength,
                     "score": sig.score,
+                    "technical_score": sig.technical_score,
+                    "sentiment_score": sig.sentiment_score,
+                    "commodity_score": sig.commodity_score,
                     "reason": f"BUY signal ({sig.strength:.0%})",
                     "detail": (
                         f"Buy {shares} shares of {sig.symbol} "
@@ -636,6 +882,9 @@ class Strategy:
                     "pct_of_portfolio": round(pct_of_portfolio, 1),
                     "strength": sig.strength,
                     "score": sig.score,
+                    "technical_score": sig.technical_score,
+                    "sentiment_score": sig.sentiment_score,
+                    "commodity_score": sig.commodity_score,
                     "reason": f"BUY signal ({sig.strength:.0%})",
                     "detail": not_actionable_reason,
                     "sector": self.get_sector(sig.symbol),
@@ -677,6 +926,31 @@ class Strategy:
         shares = int(max_dollars / price)
         return max(shares, 1) if max_dollars >= price else 0
 
+    def _extract_atr(self, sig: SignalResult) -> float | None:
+        for r in sig.reasons:
+            if r.startswith("ATR: $"):
+                try:
+                    return float(r.split("$")[1])
+                except (ValueError, IndexError):
+                    pass
+        return None
+
+    def _calculate_buy_shares_for_signal(
+        self,
+        sig: SignalResult,
+        price: float,
+        portfolio_value: float,
+        available_cash: float,
+    ) -> int:
+        atr = self._extract_atr(sig)
+        if atr is None or atr <= 0:
+            return self._calculate_buy_shares(price, portfolio_value, available_cash)
+        shares = int(self.risk.calculate_position_size(portfolio_value, price, atr))
+        if shares <= 0:
+            return 0
+        affordable = int(available_cash / price) if price > 0 else 0
+        return max(0, min(shares, affordable))
+
     @staticmethod
     def _extract_price(sig: SignalResult) -> float | None:
         for r in sig.reasons:
@@ -715,9 +989,14 @@ class Strategy:
                 df = compute_indicators(df, self.config)
                 sent = await self.sentiment.analyze(candidate)
                 result = generate_signal(
-                    df, self.config, sentiment_score=sent.total_score
+                    df,
+                    self.config,
+                    sentiment_score=sent.non_commodity_score,
+                    commodity_score=sent.commodity_score,
                 )
                 if result.signal != Signal.BUY or result.strength < 0.4:
+                    continue
+                if not self._passes_liquidity_filter(df):
                     continue
 
                 price = float(df["close"].iloc[-1])
@@ -824,12 +1103,13 @@ class Strategy:
 
         advice = self._holding_action(signal_result, pnl_pct, alternative)
 
-        if advice["action"] == "HOLD" and self._cached_recommendations:
-            for f in self._cached_recommendations.get("funding", []):
+        recommendation_cache = self._cached_recommendations or self._get_shared_recommendations()
+        if advice["action"] == "HOLD" and recommendation_cache:
+            for f in recommendation_cache.get("funding", []):
                 if f["sell"]["symbol"] == symbol:
                     buy_sym = f["buy"]
                     buy_sig = next(
-                        (b for b in self._cached_recommendations["buys"]
+                        (b for b in recommendation_cache["buys"]
                          if b.symbol == buy_sym),
                         None,
                     )

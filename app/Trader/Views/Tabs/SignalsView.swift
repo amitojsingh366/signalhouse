@@ -612,12 +612,34 @@ private struct SignalCardContent: View {
                     .font(.caption2)
                     .foregroundStyle(Theme.textDimmed)
             }
+            HStack(spacing: 10) {
+                ScoreComponentPill(label: "Tech", value: signal.technicalScore)
+                ScoreComponentPill(label: "Sent", value: signal.sentimentScore)
+                ScoreComponentPill(label: "Comm", value: signal.commodityScore)
+            }
 
             ForEach(signal.reasons, id: \.self) { reason in
                 ScoreReasonRow(text: reason)
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+private struct ScoreComponentPill: View {
+    let label: String
+    let value: Double
+
+    var body: some View {
+        let color = value > 0 ? Theme.positive : value < 0 ? Theme.negative : Theme.textDimmed
+        Text("\(label) \(value > 0 ? "+" : "")\(String(format: "%.2f", value))")
+            .font(.caption2)
+            .fontDesign(.monospaced)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.18))
+            .foregroundStyle(color)
+            .clipShape(Capsule())
     }
 }
 

@@ -99,6 +99,9 @@ export interface SignalOut {
   signal: string;
   strength: number;
   score: number;
+  technical_score: number;
+  sentiment_score: number;
+  commodity_score: number;
   reasons: string[];
   price: number | null;
   sector: string | null;
@@ -138,6 +141,9 @@ export interface ActionItem {
   entry_price?: number;
   strength?: number;
   score?: number;
+  technical_score?: number;
+  sentiment_score?: number;
+  commodity_score?: number;
   reason: string;
   detail: string;
   sector?: string;

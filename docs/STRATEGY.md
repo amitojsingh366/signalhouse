@@ -134,7 +134,7 @@ strength = min(|total_score| / 9.0, 1.0)
 
 #### Score Display
 
-Every signal shows its total score (e.g. `-2.5/9`, max ±9). Each factor shows its contribution (`[+1.5]`, `[-0.5]`) color-coded green/red in all clients (web, iOS, Discord).
+Every signal shows its total score (e.g. `-2.5/9`, max ±9). Each factor (technical, sentiment, commodity) is exposed separately and shown in web and iOS clients so you can verify exactly where conviction is coming from.
 
 #### Why Sells Are Less Frequent Than Buys
 
@@ -157,10 +157,13 @@ Runs every 15 minutes during market hours and on-demand when a user requests rec
 
 ### Top Recommendations
 
-Adds portfolio context:
+Adds portfolio context and risk gates:
 1. **Sector penalty** — Symbols in over-concentrated sectors (>40%) get strength halved — **except** same-sector swaps (which don't increase exposure)
-2. **Sell signals** — Held positions shown as sells; non-held shown as "Watchlist Alerts"
-3. **Sell-to-fund** — When cash < $50, suggests which holding to sell to fund each buy
+2. **Liquidity filter** — BUY candidates below minimum 20-day average dollar volume are removed before ranking
+3. **Market regime filter** — New BUY/SWAP suggestions are blocked when the configured broad-market proxy is below its long SMA (default: VFV.TO below 200-day)
+4. **Drawdown circuit breaker** — New BUY/SWAP suggestions are blocked when daily/total drawdown limits are breached
+5. **Sell signals** — Held positions shown as sells; non-held shown as "Watchlist Alerts"
+6. **Sell-to-fund** — When cash < $50, suggests which holding to sell to fund each buy
 
 #### Sell-to-Fund Ranking
 
@@ -199,7 +202,7 @@ Checked every 15 minutes for held positions only (priority order):
 1. **Stop loss hit** — price below trailing/hard stop (high severity, urgent)
 2. **Take profit** — gain ≥ 8% from entry (high severity, urgent) — lock in winners
 3. **Max hold time** — held 7+ days (medium severity)
-4. **Sell signal** — technical SELL (≥ 30% strength) for a held position (medium severity)
+4. **Sell signal** — technical SELL (≥ 30% strength) for a held position **after `min_hold_days` is met** (medium severity)
 5. **Momentum lost** — signal weakened to HOLD while position is at a loss (low severity)
 
 Exit alerts use 60 days of price history (same as universe scan) to ensure all indicators have enough data.
@@ -214,6 +217,8 @@ The system generates a prioritized, position-sized action plan that tells you ex
 4. **Signal-only buys** — strong BUY signals that can't be executed due to insufficient cash or max positions reached
 
 Every action includes exact share count, price, and dollar amount. New buys are limited by `max_positions` (5) — the system won't recommend accumulating positions indefinitely.
+
+When a BUY signal is valid but cannot be executed because of a risk gate (drawdown halt, regime filter, or sector cap), it is still surfaced as a non-actionable item so you keep visibility into missed opportunities.
 
 #### Actions vs Signals
 

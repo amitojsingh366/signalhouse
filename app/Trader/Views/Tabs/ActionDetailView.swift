@@ -106,6 +106,33 @@ struct ActionDetailView: View {
                 if !action.reason.isEmpty {
                     LabeledContent("Reason", value: action.reason)
                 }
+                if let technical = action.technicalScore {
+                    HStack {
+                        Text("Technical")
+                        Spacer()
+                        Text("\(technical > 0 ? "+" : "")\(String(format: "%.2f", technical))")
+                            .fontDesign(.monospaced)
+                            .foregroundStyle(Formatting.pnlColor(technical))
+                    }
+                }
+                if let sentiment = action.sentimentScore {
+                    HStack {
+                        Text("Sentiment")
+                        Spacer()
+                        Text("\(sentiment > 0 ? "+" : "")\(String(format: "%.2f", sentiment))")
+                            .fontDesign(.monospaced)
+                            .foregroundStyle(Formatting.pnlColor(sentiment))
+                    }
+                }
+                if let commodity = action.commodityScore {
+                    HStack {
+                        Text("Commodity")
+                        Spacer()
+                        Text("\(commodity > 0 ? "+" : "")\(String(format: "%.2f", commodity))")
+                            .fontDesign(.monospaced)
+                            .foregroundStyle(Formatting.pnlColor(commodity))
+                    }
+                }
             }
 
             // Detail text

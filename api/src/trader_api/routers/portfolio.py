@@ -129,18 +129,28 @@ async def get_snapshots(db: AsyncSession = Depends(get_db)):
 @router.put("/holding", response_model=HoldingOut)
 async def update_holding(data: HoldingUpdate, db: AsyncSession = Depends(get_db)):
     portfolio = make_portfolio(db)
+    risk = get_risk()
     result = await portfolio.update_holding(data.symbol.upper(), data.quantity, data.avg_cost)
     if result is None:
         raise HTTPException(status_code=404, detail=f"Holding {data.symbol} not found")
+    holdings = await portfolio.get_holdings_dict()
+    meta = await portfolio._get_meta()
+    risk.open_trades.clear()
+    portfolio.sync_risk_manager(risk, holdings, meta.initial_capital)
     return HoldingOut(**result)
 
 
 @router.delete("/holding/{symbol}")
 async def delete_holding(symbol: str, db: AsyncSession = Depends(get_db)):
     portfolio = make_portfolio(db)
+    risk = get_risk()
     deleted = await portfolio.delete_holding(symbol.upper())
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Holding {symbol} not found")
+    holdings = await portfolio.get_holdings_dict()
+    meta = await portfolio._get_meta()
+    risk.open_trades.clear()
+    portfolio.sync_risk_manager(risk, holdings, meta.initial_capital)
     return {"status": "deleted", "symbol": symbol.upper()}
 
 

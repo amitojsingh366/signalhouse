@@ -132,6 +132,37 @@ function ScoreTag({ text }: { text: string }) {
   );
 }
 
+function ScoreBreakdown({
+  technical,
+  sentiment,
+  commodity,
+}: {
+  technical?: number;
+  sentiment?: number;
+  commodity?: number;
+}) {
+  const rows = [
+    { label: "Technical", value: technical ?? 0 },
+    { label: "Sentiment", value: sentiment ?? 0 },
+    { label: "Commodity", value: commodity ?? 0 },
+  ];
+  return (
+    <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.02] p-2">
+      <p className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">Score Mix</p>
+      <div className="space-y-1">
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-center justify-between text-xs">
+            <span className="text-slate-400">{row.label}</span>
+            <span className={cn("font-mono", row.value > 0 ? "text-emerald-400" : row.value < 0 ? "text-red-400" : "text-slate-500")}>
+              {row.value > 0 ? "+" : ""}{row.value.toFixed(2)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Get the primary symbol for an action (for chart display). */
 function actionSymbol(action: ActionItem): string {
   if (action.type === "SWAP") return action.sell_symbol ?? action.buy_symbol ?? "";
@@ -372,6 +403,11 @@ function ActionCard({
             ))}
           </ul>
         )}
+        <ScoreBreakdown
+          technical={action.technical_score}
+          sentiment={action.sentiment_score}
+          commodity={action.commodity_score}
+        />
       </button>
       <div className="px-4 pb-3">
         <span className="text-[10px] text-slate-600">
@@ -571,6 +607,11 @@ function SignalsContent() {
               </li>
             ))}
           </ul>
+          <ScoreBreakdown
+            technical={checked.technical_score}
+            sentiment={checked.sentiment_score}
+            commodity={checked.commodity_score}
+          />
           <button
             onClick={() => setCheckedSymbol(null)}
             className="mt-3 text-xs text-slate-500 hover:text-white"

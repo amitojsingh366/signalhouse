@@ -99,7 +99,10 @@ class SignalOut(BaseModel):
     symbol: str
     signal: str  # BUY / SELL / HOLD
     strength: float
-    score: float = 0.0  # raw score out of ±8
+    score: float = 0.0  # raw score out of ±9
+    technical_score: float = 0.0
+    sentiment_score: float = 0.0
+    commodity_score: float = 0.0
     reasons: list[str]
     price: float | None = None
     sector: str | None = None
@@ -139,6 +142,9 @@ class ActionOut(BaseModel):
     entry_price: float | None = None
     strength: float | None = None
     score: float | None = None
+    technical_score: float | None = None
+    sentiment_score: float | None = None
+    commodity_score: float | None = None
     reason: str = ""
     detail: str = ""
     sector: str | None = None

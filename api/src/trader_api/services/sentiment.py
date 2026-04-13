@@ -46,8 +46,12 @@ class SentimentResult:
     commodity_reasons: list[str] = field(default_factory=list)
 
     @property
+    def non_commodity_score(self) -> float:
+        return self.analyst_score + self.fear_greed_score + self.news_score
+
+    @property
     def total_score(self) -> float:
-        return self.analyst_score + self.fear_greed_score + self.news_score + self.commodity_score
+        return self.non_commodity_score + self.commodity_score
 
     @property
     def reasons(self) -> list[str]:

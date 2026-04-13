@@ -1077,6 +1077,9 @@ class Strategy:
             return {
                 "signal": "HOLD",
                 "strength": 0.0,
+                "technical_score": 0.0,
+                "sentiment_score": 0.0,
+                "commodity_score": 0.0,
                 "reasons": [],
                 "pnl_pct": 0.0,
                 "action": "HOLD",
@@ -1133,6 +1136,9 @@ class Strategy:
         return {
             "signal": signal_result.signal.value,
             "strength": signal_result.strength,
+            "technical_score": signal_result.technical_score,
+            "sentiment_score": signal_result.sentiment_score,
+            "commodity_score": signal_result.commodity_score,
             "reasons": signal_result.reasons,
             "pnl_pct": pnl_pct,
             "action": advice["action"],

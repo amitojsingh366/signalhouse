@@ -77,27 +77,6 @@ struct SignalDetailView: View {
                             .foregroundStyle(Formatting.pnlColor(signal.score))
                     }
                 }
-                HStack {
-                    Text("Technical")
-                    Spacer()
-                    Text("\(signal.technicalScore > 0 ? "+" : "")\(String(format: "%.2f", signal.technicalScore))")
-                        .fontDesign(.monospaced)
-                        .foregroundStyle(Formatting.pnlColor(signal.technicalScore))
-                }
-                HStack {
-                    Text("Sentiment")
-                    Spacer()
-                    Text("\(signal.sentimentScore > 0 ? "+" : "")\(String(format: "%.2f", signal.sentimentScore))")
-                        .fontDesign(.monospaced)
-                        .foregroundStyle(Formatting.pnlColor(signal.sentimentScore))
-                }
-                HStack {
-                    Text("Commodity")
-                    Spacer()
-                    Text("\(signal.commodityScore > 0 ? "+" : "")\(String(format: "%.2f", signal.commodityScore))")
-                        .fontDesign(.monospaced)
-                        .foregroundStyle(Formatting.pnlColor(signal.commodityScore))
-                }
                 if let price = signal.price {
                     LabeledContent("Price", value: Formatting.currency(price))
                 }
@@ -107,11 +86,14 @@ struct SignalDetailView: View {
             }
 
             // Score breakdown
-            if !signal.reasons.isEmpty {
-                Section("Score Breakdown") {
-                    ForEach(signal.reasons, id: \.self) { reason in
-                        ScoreReasonRow(text: reason)
-                    }
+            Section("Score Breakdown") {
+                ScoreMixCard(
+                    technical: signal.technicalScore,
+                    sentiment: signal.sentimentScore,
+                    commodity: signal.commodityScore
+                )
+                ForEach(signal.reasons, id: \.self) { reason in
+                    ScoreReasonRow(text: reason)
                 }
             }
         }

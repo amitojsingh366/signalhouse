@@ -31,6 +31,9 @@ class HoldingAdvice(BaseModel):
     pnl_pct: float
     signal: str
     strength: float
+    technical_score: float = 0.0
+    sentiment_score: float = 0.0
+    commodity_score: float = 0.0
     action: str
     action_detail: str
     reasons: list[str]

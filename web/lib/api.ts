@@ -56,6 +56,9 @@ export interface HoldingAdvice {
   pnl_pct: number;
   signal: string;
   strength: number;
+  technical_score: number;
+  sentiment_score: number;
+  commodity_score: number;
   action: string;
   action_detail: string;
   reasons: string[];

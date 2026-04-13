@@ -17,6 +17,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { CardSkeleton, HoldingsTableSkeleton } from "@/components/ui/loading";
 import { SearchTrigger } from "@/components/ui/search-trigger";
+import { ScoreBreakdown, ScoreTag } from "@/components/ui/score-breakdown";
 import { useQueryClient } from "@tanstack/react-query";
 
 function EditHoldingPanel({
@@ -120,10 +121,17 @@ function EditHoldingPanel({
           <span className="text-sm text-slate-400">{holding.action}</span>
         </div>
         <p className="text-xs text-slate-500">{holding.action_detail}</p>
+        <ScoreBreakdown
+          technical={holding.technical_score}
+          sentiment={holding.sentiment_score}
+          commodity={holding.commodity_score}
+        />
         {holding.reasons.length > 0 && (
-          <ul className="list-inside list-disc space-y-0.5 text-xs text-slate-400">
+          <ul className="space-y-0.5 text-xs text-slate-400">
             {holding.reasons.map((r, i) => (
-              <li key={i}>{r}</li>
+              <li key={i}>
+                <ScoreTag text={r} />
+              </li>
             ))}
           </ul>
         )}

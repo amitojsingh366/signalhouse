@@ -52,6 +52,14 @@ struct ActionDetailView: View {
         }
     }
 
+    private var filteredScoreReasons: [String] {
+        (action.reasons ?? []).filter { !$0.hasPrefix("Price:") && !$0.hasPrefix("ATR:") }
+    }
+
+    private var hasScoreMix: Bool {
+        action.technicalScore != nil || action.sentimentScore != nil || action.commodityScore != nil
+    }
+
     var body: some View {
         List {
             // Price chart
@@ -106,33 +114,6 @@ struct ActionDetailView: View {
                 if !action.reason.isEmpty {
                     LabeledContent("Reason", value: action.reason)
                 }
-                if let technical = action.technicalScore {
-                    HStack {
-                        Text("Technical")
-                        Spacer()
-                        Text("\(technical > 0 ? "+" : "")\(String(format: "%.2f", technical))")
-                            .fontDesign(.monospaced)
-                            .foregroundStyle(Formatting.pnlColor(technical))
-                    }
-                }
-                if let sentiment = action.sentimentScore {
-                    HStack {
-                        Text("Sentiment")
-                        Spacer()
-                        Text("\(sentiment > 0 ? "+" : "")\(String(format: "%.2f", sentiment))")
-                            .fontDesign(.monospaced)
-                            .foregroundStyle(Formatting.pnlColor(sentiment))
-                    }
-                }
-                if let commodity = action.commodityScore {
-                    HStack {
-                        Text("Commodity")
-                        Spacer()
-                        Text("\(commodity > 0 ? "+" : "")\(String(format: "%.2f", commodity))")
-                            .fontDesign(.monospaced)
-                            .foregroundStyle(Formatting.pnlColor(commodity))
-                    }
-                }
             }
 
             // Detail text
@@ -144,9 +125,16 @@ struct ActionDetailView: View {
             }
 
             // Score breakdown (for BUY actions)
-            if let reasons = action.reasons, !reasons.isEmpty {
+            if hasScoreMix || !filteredScoreReasons.isEmpty {
                 Section("Score Breakdown") {
-                    ForEach(reasons.filter { !$0.hasPrefix("Price:") && !$0.hasPrefix("ATR:") }, id: \.self) { reason in
+                    if hasScoreMix {
+                        ScoreMixCard(
+                            technical: action.technicalScore ?? 0,
+                            sentiment: action.sentimentScore ?? 0,
+                            commodity: action.commodityScore ?? 0
+                        )
+                    }
+                    ForEach(filteredScoreReasons, id: \.self) { reason in
                         ScoreReasonRow(text: reason)
                     }
                 }

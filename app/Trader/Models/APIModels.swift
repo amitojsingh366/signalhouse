@@ -13,6 +13,9 @@ struct HoldingAdvice: Codable, Identifiable {
     let pnlPct: Double
     let signal: String
     let strength: Double
+    let technicalScore: Double
+    let sentimentScore: Double
+    let commodityScore: Double
     let action: String
     let actionDetail: String
     let reasons: [String]

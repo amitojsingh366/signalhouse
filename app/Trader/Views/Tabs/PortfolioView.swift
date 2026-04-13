@@ -211,7 +211,14 @@ private struct HoldingDetailSheet: View {
                     Text(holding.actionDetail)
                         .font(.caption)
                         .foregroundStyle(Theme.textMuted)
+                }
 
+                Section("Score Breakdown") {
+                    ScoreMixCard(
+                        technical: holding.technicalScore,
+                        sentiment: holding.sentimentScore,
+                        commodity: holding.commodityScore
+                    )
                     ForEach(holding.reasons, id: \.self) { reason in
                         ScoreReasonRow(text: reason)
                     }
@@ -264,36 +271,5 @@ private struct HoldingDetailSheet: View {
             await onDismiss()
             dismiss()
         } catch { /* toast */ }
-    }
-}
-
-// MARK: - Score Reason Row
-
-struct ScoreReasonRow: View {
-    let text: String
-
-    var body: some View {
-        if let match = text.range(of: #"\[([+-][\d.]+)\]$"#, options: .regularExpression) {
-            let label = String(text[text.startIndex..<match.lowerBound]).trimmingCharacters(in: .whitespaces)
-            let scoreStr = String(text[match])
-                .replacingOccurrences(of: "[", with: "")
-                .replacingOccurrences(of: "]", with: "")
-            let value = Double(scoreStr) ?? 0
-
-            HStack {
-                Text(label)
-                    .font(.caption)
-                    .foregroundStyle(Theme.textMuted)
-                Spacer()
-                Text(scoreStr)
-                    .font(.caption2)
-                    .fontDesign(.monospaced)
-                    .foregroundStyle(Formatting.pnlColor(value))
-            }
-        } else {
-            Text(text)
-                .font(.caption)
-                .foregroundStyle(Theme.textMuted)
-        }
     }
 }

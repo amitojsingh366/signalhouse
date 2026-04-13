@@ -122,6 +122,7 @@ function EditHoldingPanel({
         </div>
         <p className="text-xs text-slate-500">{holding.action_detail}</p>
         <ScoreBreakdown
+          total={holding.technical_score + holding.sentiment_score + holding.commodity_score}
           technical={holding.technical_score}
           sentiment={holding.sentiment_score}
           commodity={holding.commodity_score}

@@ -131,7 +131,8 @@ struct ActionDetailView: View {
                         ScoreMixCard(
                             technical: action.technicalScore ?? 0,
                             sentiment: action.sentimentScore ?? 0,
-                            commodity: action.commodityScore ?? 0
+                            commodity: action.commodityScore ?? 0,
+                            total: action.score
                         )
                     }
                     ForEach(filteredScoreReasons, id: \.self) { reason in

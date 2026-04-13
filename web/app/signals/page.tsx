@@ -360,6 +360,7 @@ function ActionCard({
           </ul>
         )}
         <ScoreBreakdown
+          total={action.score}
           technical={action.technical_score}
           sentiment={action.sentiment_score}
           commodity={action.commodity_score}
@@ -564,6 +565,7 @@ function SignalsContent() {
             ))}
           </ul>
           <ScoreBreakdown
+            total={checked.score}
             technical={checked.technical_score}
             sentiment={checked.sentiment_score}
             commodity={checked.commodity_score}

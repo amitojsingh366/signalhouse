@@ -135,6 +135,7 @@ export default function DebugPage() {
 
         {topSignal && (
           <ScoreBreakdown
+            total={topSignal.score}
             technical={topSignal.technical_score}
             sentiment={topSignal.sentiment_score}
             commodity={topSignal.commodity_score}

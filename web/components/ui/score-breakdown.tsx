@@ -37,12 +37,16 @@ export function ScoreBreakdown({
   technical,
   sentiment,
   commodity,
+  total,
 }: {
   technical?: number;
   sentiment?: number;
   commodity?: number;
+  total?: number;
 }) {
+  const resolvedTotal = total ?? (technical ?? 0) + (sentiment ?? 0) + (commodity ?? 0);
   const rows = [
+    { label: "Total", value: resolvedTotal, isTotal: true },
     { label: "Technical", value: technical ?? 0 },
     { label: "Sentiment", value: sentiment ?? 0 },
     { label: "Commodity", value: commodity ?? 0 },
@@ -54,10 +58,11 @@ export function ScoreBreakdown({
       <div className="space-y-1">
         {rows.map((row) => (
           <div key={row.label} className="flex items-center justify-between text-xs">
-            <span className="text-slate-400">{row.label}</span>
+            <span className={cn("text-slate-400", row.isTotal && "font-semibold text-slate-300")}>{row.label}</span>
             <span className={cn("font-mono", scoreColor(row.value))}>
               {row.value > 0 ? "+" : ""}
               {row.value.toFixed(2)}
+              {row.isTotal ? " / 9" : ""}
             </span>
           </div>
         ))}

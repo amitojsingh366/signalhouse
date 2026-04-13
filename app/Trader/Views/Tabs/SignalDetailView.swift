@@ -90,7 +90,8 @@ struct SignalDetailView: View {
                 ScoreMixCard(
                     technical: signal.technicalScore,
                     sentiment: signal.sentimentScore,
-                    commodity: signal.commodityScore
+                    commodity: signal.commodityScore,
+                    total: signal.score
                 )
                 ForEach(signal.reasons, id: \.self) { reason in
                     ScoreReasonRow(text: reason)

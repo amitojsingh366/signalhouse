@@ -384,9 +384,34 @@ class Portfolio:
 
         await self.db.commit()
 
-    def sync_risk_manager(self, risk: RiskManager, holdings: dict[str, dict[str, Any]], initial_capital: float) -> None:
-        """Replay open holdings into the RiskManager (called at startup)."""
+    def sync_risk_manager(
+        self,
+        risk: RiskManager,
+        holdings: dict[str, dict[str, Any]],
+        initial_capital: float,
+        preserve_existing_state: bool = False,
+    ) -> None:
+        """Replay open holdings into the RiskManager.
+
+        When preserve_existing_state=True, keep entry_time/highest_price/stop_price
+        for symbols that are still present and only refresh fields that changed
+        (entry price and quantity).
+        """
+        if not preserve_existing_state:
+            risk.open_trades.clear()
+            existing = {}
+        else:
+            existing = risk.open_trades
+            # Remove symbols no longer held so deleted positions stop being tracked.
+            for symbol in list(existing.keys()):
+                if symbol not in holdings:
+                    del existing[symbol]
         for symbol, h in holdings.items():
+            if preserve_existing_state and symbol in existing:
+                trade = existing[symbol]
+                trade.entry_price = h["avg_cost"]
+                trade.quantity = h["quantity"]
+                continue
             risk.register_entry(symbol, h["avg_cost"], h["quantity"])
 
         if initial_capital > 0:

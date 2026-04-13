@@ -187,6 +187,7 @@ class Strategy:
         result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
         atr = df["atr"].iloc[-1]
         if atr == atr:
+            result.meta["atr"] = float(atr)
             result.reasons.append(f"ATR: ${atr:.2f}")
 
         sector = self.get_sector(symbol)
@@ -214,16 +215,23 @@ class Strategy:
             )
             result.symbol = symbol
             result.commodity_reasons = list(sent.commodity_reasons)
+            atr = df["atr"].iloc[-1]
+            if atr == atr:
+                result.meta["atr"] = float(atr)
 
             if result.signal == Signal.BUY and result.strength >= 0.35:
                 if not self._passes_liquidity_filter(df):
                     return None
                 result.reasons.extend(sent.reasons)
                 result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
+                if atr == atr:
+                    result.reasons.append(f"ATR: ${atr:.2f}")
                 return result
             elif result.signal == Signal.SELL and result.strength >= 0.3:
                 result.reasons.extend(sent.reasons)
                 result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
+                if atr == atr:
+                    result.reasons.append(f"ATR: ${atr:.2f}")
                 return result
             return None
 
@@ -506,22 +514,6 @@ class Strategy:
             if sector != "unknown":
                 sig.reasons.append(f"Sector: {sector}")
             filtered_buys.append(sig)
-
-        # Apply liquidity filter before ranking so low-liquidity symbols never
-        # displace safer candidates in top-N recommendations.
-        liquid_filtered_buys: list[SignalResult] = []
-        for sig in filtered_buys:
-            try:
-                df = await self.market_data.get_historical_data(sig.symbol, period="60d")
-                if df is None or len(df) < 20:
-                    continue
-                if not self._passes_liquidity_filter(df):
-                    sig.reasons.append("Liquidity filter: below minimum avg dollar volume")
-                    continue
-                liquid_filtered_buys.append(sig)
-            except Exception:
-                continue
-        filtered_buys = liquid_filtered_buys
 
         filtered_buys.sort(key=lambda r: r.strength, reverse=True)
         top_buys = filtered_buys
@@ -927,6 +919,9 @@ class Strategy:
         return max(shares, 1) if max_dollars >= price else 0
 
     def _extract_atr(self, sig: SignalResult) -> float | None:
+        meta_atr = sig.meta.get("atr") if sig.meta else None
+        if isinstance(meta_atr, (int, float)) and meta_atr > 0:
+            return float(meta_atr)
         for r in sig.reasons:
             if r.startswith("ATR: $"):
                 try:

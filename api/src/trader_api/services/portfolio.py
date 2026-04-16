@@ -81,6 +81,7 @@ class Portfolio:
             new_qty = old_qty + quantity
             existing.avg_cost = (old_cost * old_qty + price * quantity) / new_qty
             existing.quantity = new_qty
+            avg_cost = existing.avg_cost
         else:
             holding = Holding(
                 symbol=symbol,
@@ -89,6 +90,7 @@ class Portfolio:
                 entry_date=datetime.now(UTC),
             )
             self.db.add(holding)
+            avg_cost = price
 
         trade = Trade(
             symbol=symbol,
@@ -109,13 +111,17 @@ class Portfolio:
 
         await self.db.commit()
         self._meta_cache = None
-        logger.info("Recorded BUY: %.4f x %s @ $%.2f (cash now $%.2f)", quantity, symbol, price, meta.cash)
+        logger.info(
+            "Recorded BUY: %.4f x %s @ $%.2f avg=$%.2f (cash now $%.2f)",
+            quantity, symbol, price, avg_cost, meta.cash,
+        )
         return {
             "symbol": symbol,
             "action": "BUY",
             "quantity": quantity,
             "price": price,
             "total": total,
+            "avg_cost": avg_cost,
             "timestamp": trade.timestamp.isoformat() if trade.timestamp else "",
         }
 
@@ -134,8 +140,9 @@ class Portfolio:
             return None
 
         total = quantity * price
-        pnl = (price - h.avg_cost) * quantity
-        pnl_pct = (price - h.avg_cost) / h.avg_cost * 100 if h.avg_cost > 0 else 0.0
+        avg_cost = h.avg_cost
+        pnl = (price - avg_cost) * quantity
+        pnl_pct = (price - avg_cost) / avg_cost * 100 if avg_cost > 0 else 0.0
 
         remaining = h.quantity - quantity
         if remaining < 0.0001:
@@ -175,6 +182,7 @@ class Portfolio:
             "quantity": quantity,
             "price": price,
             "total": total,
+            "avg_cost": avg_cost,
             "pnl": pnl,
             "pnl_pct": pnl_pct,
             "timestamp": trade.timestamp.isoformat() if trade.timestamp else "",
@@ -328,8 +336,6 @@ class Portfolio:
         realized_pnl = await self.get_realized_pnl()
         total_pnl = unrealized_pnl + realized_pnl
 
-        # Use total cost + realized gains as denominator for % (money that was invested)
-        invested = total_cost + realized_pnl  # approximate capital deployed
         initial = meta.initial_capital or current_value
 
         # Find previous day's snapshot for daily P&L

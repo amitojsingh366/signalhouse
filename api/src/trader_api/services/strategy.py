@@ -77,6 +77,15 @@ class Strategy:
         cls._shared_recommendations = recommendations
         cls._shared_recommendations_at = time.monotonic()
 
+    @classmethod
+    def invalidate_recommendations_cache(cls) -> None:
+        """Clear the shared recommendation cache.
+
+        Called after trades (buy/sell) so that subsequent signal requests
+        reflect the updated portfolio composition and diversification.
+        """
+        cls._shared_recommendations = None
+
     def get_sector(self, symbol: str) -> str:
         if symbol in self.symbol_to_sector:
             return self.symbol_to_sector[symbol]

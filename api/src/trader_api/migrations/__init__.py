@@ -32,24 +32,89 @@ def _split_sql_statements(sql: str) -> list[str]:
     current: list[str] = []
     in_single_quote = False
     in_double_quote = False
-    previous_char = ""
+    in_line_comment = False
+    in_block_comment = False
+    i = 0
 
-    for char in sql:
-        if char == "'" and not in_double_quote and previous_char != "\\":
-            in_single_quote = not in_single_quote
-        elif char == '"' and not in_single_quote and previous_char != "\\":
-            in_double_quote = not in_double_quote
+    while i < len(sql):
+        char = sql[i]
+        next_char = sql[i + 1] if i + 1 < len(sql) else ""
 
-        if char == ";" and not in_single_quote and not in_double_quote:
+        if in_line_comment:
+            current.append(char)
+            if char == "\n":
+                in_line_comment = False
+            i += 1
+            continue
+
+        if in_block_comment:
+            current.append(char)
+            if char == "*" and next_char == "/":
+                current.append(next_char)
+                in_block_comment = False
+                i += 2
+                continue
+            i += 1
+            continue
+
+        if in_single_quote:
+            current.append(char)
+            if char == "'" and next_char == "'":
+                current.append(next_char)
+                i += 2
+                continue
+            if char == "'":
+                in_single_quote = False
+            i += 1
+            continue
+
+        if in_double_quote:
+            current.append(char)
+            if char == '"' and next_char == '"':
+                current.append(next_char)
+                i += 2
+                continue
+            if char == '"':
+                in_double_quote = False
+            i += 1
+            continue
+
+        if char == "-" and next_char == "-":
+            current.append(char)
+            current.append(next_char)
+            in_line_comment = True
+            i += 2
+            continue
+
+        if char == "/" and next_char == "*":
+            current.append(char)
+            current.append(next_char)
+            in_block_comment = True
+            i += 2
+            continue
+
+        if char == "'":
+            current.append(char)
+            in_single_quote = True
+            i += 1
+            continue
+
+        if char == '"':
+            current.append(char)
+            in_double_quote = True
+            i += 1
+            continue
+
+        if char == ";":
             statement = "".join(current).strip()
             if statement:
                 statements.append(statement)
             current = []
-            previous_char = ""
+            i += 1
             continue
 
         current.append(char)
-        previous_char = char
+        i += 1
 
     trailing = "".join(current).strip()
     if trailing:

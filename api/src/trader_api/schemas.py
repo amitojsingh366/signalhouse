@@ -85,6 +85,7 @@ class TradeOut(BaseModel):
     quantity: float
     price: float
     total: float
+    avg_cost: float | None = None
     pnl: float | None = None
     pnl_pct: float | None = None
     timestamp: datetime | None = None

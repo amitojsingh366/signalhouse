@@ -46,11 +46,16 @@ final class APIClient: ObservableObject {
 
                     if inFlight[key] == nil {
                         inFlight[key] = Task {
-                            defer { Task { await clearInFlight(for: key) } }
-                            let fresh = try await fetcher()
-                            await save(fresh, for: key)
-                            onBackgroundRefresh?()
-                            return fresh
+                            do {
+                                let fresh = try await fetcher()
+                                await save(fresh, for: key)
+                                await clearInFlight(for: key)
+                                onBackgroundRefresh?()
+                                return fresh
+                            } catch {
+                                await clearInFlight(for: key)
+                                throw error
+                            }
                         }
                     }
                     return entry.data
@@ -80,8 +85,14 @@ final class APIClient: ObservableObject {
             }
 
             let task = Task<Data, Error> {
-                defer { Task { await clearInFlight(for: key) } }
-                return try await fetcher()
+                do {
+                    let fresh = try await fetcher()
+                    await clearInFlight(for: key)
+                    return fresh
+                } catch {
+                    await clearInFlight(for: key)
+                    throw error
+                }
             }
             inFlight[key] = task
             return try await task.value

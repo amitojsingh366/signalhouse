@@ -13,7 +13,6 @@ import type {
   PriceHistory,
   UploadHolding,
   PremarketResponse,
-  ProfitTakingSettingsOut,
 } from "./api";
 
 // --- Query key factory ---
@@ -32,7 +31,6 @@ export const queryKeys = {
   priceHistory: (symbol: string, period: string) => ["priceHistory", symbol, period] as const,
   insights: ["insights"] as const,
   premarket: ["premarket"] as const,
-  profitTakingSettings: ["profitTakingSettings"] as const,
 };
 
 // --- Query hooks ---
@@ -115,14 +113,6 @@ export function usePremarketMovers() {
     queryKey: queryKeys.premarket,
     queryFn: () => api.getPremarketMovers(),
     staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useProfitTakingSettings() {
-  return useQuery<ProfitTakingSettingsOut>({
-    queryKey: queryKeys.profitTakingSettings,
-    queryFn: () => api.getProfitTakingSettings(),
-    staleTime: 60 * 1000,
   });
 }
 
@@ -221,16 +211,3 @@ export function useConfirmUpload() {
   });
 }
 
-export function useUpdateProfitTakingSettings() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (hybrid_take_profit_enabled: boolean) =>
-      api.updateProfitTakingSettings(hybrid_take_profit_enabled),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.profitTakingSettings });
-      qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
-      qc.invalidateQueries({ queryKey: queryKeys.recommendations });
-      qc.invalidateQueries({ queryKey: queryKeys.status });
-    },
-  });
-}

@@ -187,9 +187,10 @@ export default function SettingsPage() {
           </label>
         </div>
         <p className="mt-3 text-xs text-slate-500">
-          When enabled, +8% take-profit sells are deferred if the symbol still has a BUY
-          signal of at least {(hybridMinBuyStrength * 100).toFixed(0)}% strength.
-          Trailing stops, stop losses, and other exits still apply.
+          When enabled, take-profit sells at the configured threshold are deferred if
+          the symbol still has a BUY signal of at least{" "}
+          {(hybridMinBuyStrength * 100).toFixed(0)}% strength. Trailing stops, stop
+          losses, and other exits still apply.
         </p>
       </div>
 

@@ -205,11 +205,13 @@ class Strategy:
 
         return result
 
-    async def _hybrid_take_profit_allows_hold(self, symbol: str) -> bool:
-        """Return True when continuation strength justifies holding past TP."""
+    async def _compute_exit_signal(
+        self, symbol: str
+    ) -> tuple[SignalResult, list[str]] | None:
+        """Compute one signal snapshot for exit decisions."""
         df = await self.market_data.get_historical_data(symbol, period="60d")
         if df is None or len(df) < 35:
-            return False
+            return None
 
         df = compute_indicators(df, self.config)
         sent = await self.sentiment.analyze(symbol)
@@ -219,8 +221,7 @@ class Strategy:
             sentiment_score=sent.non_commodity_score,
             commodity_score=sent.commodity_score,
         )
-        min_strength = self.risk.hybrid_take_profit_min_buy_strength()
-        return result.signal == Signal.BUY and result.strength >= min_strength
+        return result, sent.reasons
 
     async def _scan_one(
         self, symbol: str, sem: asyncio.Semaphore
@@ -293,6 +294,7 @@ class Strategy:
                 continue
 
             pnl_pct = (current_price - h["avg_cost"]) / h["avg_cost"] * 100
+            exit_signal_data: tuple[SignalResult, list[str]] | None = None
 
             stop_hit = self.risk.update_stops(symbol, current_price)
             if stop_hit is not None:
@@ -316,7 +318,14 @@ class Strategy:
                 hold_winner = False
                 if self.risk.hybrid_take_profit_enabled():
                     try:
-                        hold_winner = await self._hybrid_take_profit_allows_hold(symbol)
+                        exit_signal_data = await self._compute_exit_signal(symbol)
+                        if exit_signal_data is not None:
+                            exit_result, _ = exit_signal_data
+                            min_strength = self.risk.hybrid_take_profit_min_buy_strength()
+                            hold_winner = (
+                                exit_result.signal == Signal.BUY
+                                and exit_result.strength >= min_strength
+                            )
                     except Exception:
                         logger.exception(
                             "Error evaluating hybrid take-profit continuation for %s",
@@ -367,22 +376,16 @@ class Strategy:
                 continue
 
             try:
-                df = await self.market_data.get_historical_data(symbol, period="60d")
-                if df is not None and len(df) >= 35:
-                    df = compute_indicators(df, self.config)
-                    sent = await self.sentiment.analyze(symbol)
-                    result = generate_signal(
-                        df,
-                        self.config,
-                        sentiment_score=sent.non_commodity_score,
-                        commodity_score=sent.commodity_score,
-                    )
+                if exit_signal_data is None:
+                    exit_signal_data = await self._compute_exit_signal(symbol)
+                if exit_signal_data is not None:
+                    result, sent_reasons = exit_signal_data
                     if (
                         result.signal == Signal.SELL
                         and result.strength >= 0.3
                         and (days_held is None or days_held >= min_hold_days)
                     ):
-                        all_reasons = result.reasons + sent.reasons
+                        all_reasons = result.reasons + sent_reasons
                         alerts.append({
                             "symbol": symbol,
                             "reason": "Sell signal",

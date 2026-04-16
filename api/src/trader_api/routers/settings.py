@@ -21,16 +21,21 @@ router = APIRouter(
 )
 
 
+def _hybrid_min_buy_strength(config: dict) -> float:
+    raw = config.get("risk", {}).get("hybrid_take_profit_min_buy_strength", 0.5)
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return 0.5
+
+
 @router.get("/profit-taking", response_model=ProfitTakingSettingsOut)
 async def get_profit_taking_settings(db: AsyncSession = Depends(get_db)):
     config = get_config()
     enabled = await get_hybrid_take_profit_enabled(db, config)
-    config.setdefault("risk", {})["hybrid_take_profit_enabled"] = enabled
     return ProfitTakingSettingsOut(
         hybrid_take_profit_enabled=enabled,
-        hybrid_take_profit_min_buy_strength=float(
-            config.get("risk", {}).get("hybrid_take_profit_min_buy_strength", 0.5)
-        ),
+        hybrid_take_profit_min_buy_strength=_hybrid_min_buy_strength(config),
     )
 
 
@@ -47,7 +52,5 @@ async def update_profit_taking_settings(
     )
     return ProfitTakingSettingsOut(
         hybrid_take_profit_enabled=enabled,
-        hybrid_take_profit_min_buy_strength=float(
-            config.get("risk", {}).get("hybrid_take_profit_min_buy_strength", 0.5)
-        ),
+        hybrid_take_profit_min_buy_strength=_hybrid_min_buy_strength(config),
     )

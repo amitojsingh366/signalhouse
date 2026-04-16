@@ -118,8 +118,8 @@ struct SettingsView: View {
                     if let settings = tradingSettings {
                         Text(
                             settings.hybridProfitTakingEnabled
-                                ? "At +8% gain, hold instead of auto-selling when signal remains a strong BUY (\(Int(settings.hybridTakeProfitMinBuyStrength * 100))%+). Existing stop and trailing protections still apply."
-                                : "At +8% gain, winners are sold immediately to lock in profit."
+                                ? "When the take-profit target is reached, hold instead of auto-selling when signal remains a strong BUY (\(Int(settings.hybridTakeProfitMinBuyStrength * 100))%+). Existing stop and trailing protections still apply."
+                                : "When the take-profit target is reached, winners are sold immediately to lock in profit."
                         )
                         .font(.caption)
                         .foregroundStyle(Theme.textMuted)

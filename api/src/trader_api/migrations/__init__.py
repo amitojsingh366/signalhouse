@@ -26,6 +26,38 @@ def _list_sql_migrations() -> list[Path]:
     return migrations
 
 
+def _split_sql_statements(sql: str) -> list[str]:
+    """Split a SQL script into single statements for asyncpg execution."""
+    statements: list[str] = []
+    current: list[str] = []
+    in_single_quote = False
+    in_double_quote = False
+    previous_char = ""
+
+    for char in sql:
+        if char == "'" and not in_double_quote and previous_char != "\\":
+            in_single_quote = not in_single_quote
+        elif char == '"' and not in_single_quote and previous_char != "\\":
+            in_double_quote = not in_double_quote
+
+        if char == ";" and not in_single_quote and not in_double_quote:
+            statement = "".join(current).strip()
+            if statement:
+                statements.append(statement)
+            current = []
+            previous_char = ""
+            continue
+
+        current.append(char)
+        previous_char = char
+
+    trailing = "".join(current).strip()
+    if trailing:
+        statements.append(trailing)
+
+    return statements
+
+
 async def run_migrations(conn: AsyncConnection) -> None:
     """Run all unapplied SQL migrations in filename order."""
     await conn.execute(
@@ -48,8 +80,8 @@ async def run_migrations(conn: AsyncConnection) -> None:
             continue
 
         sql = migration_file.read_text(encoding="utf-8").strip()
-        if sql:
-            await conn.execute(text(sql))
+        for statement in _split_sql_statements(sql):
+            await conn.execute(text(statement))
 
         await conn.execute(
             text(

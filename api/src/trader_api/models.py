@@ -91,9 +91,27 @@ class DeviceRegistration(Base):
     daily_disabled_date: Mapped[str | None] = mapped_column(
         String(10), nullable=True
     )  # "YYYY-MM-DD" or null
+    daily_disabled_notifications_date: Mapped[str | None] = mapped_column(
+        String(10), nullable=True
+    )  # "YYYY-MM-DD" or null; mutes alert notifications for that day
+    daily_disabled_calls_date: Mapped[str | None] = mapped_column(
+        String(10), nullable=True
+    )  # "YYYY-MM-DD" or null; mutes VoIP calls for that day
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+    def notifications_muted_on(self, date: str) -> bool:
+        """True if alert notifications are muted for the given YYYY-MM-DD date."""
+        if self.daily_disabled_notifications_date is not None:
+            return self.daily_disabled_notifications_date == date
+        return self.daily_disabled_date == date
+
+    def calls_muted_on(self, date: str) -> bool:
+        """True if VoIP call notifications are muted for the given YYYY-MM-DD date."""
+        if self.daily_disabled_calls_date is not None:
+            return self.daily_disabled_calls_date == date
+        return self.daily_disabled_date == date
 
 
 class NotificationLog(Base):

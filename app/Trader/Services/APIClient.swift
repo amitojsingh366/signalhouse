@@ -417,12 +417,28 @@ final class APIClient: ObservableObject {
         return try await fetchCached("/api/notifications/preferences?device_token=\(encoded)", policy: .staleWhileRevalidate(staleTime: 30))
     }
 
-    func updateNotificationPrefs(token: String, enabled: Bool?, dailyDisabled: Bool?) async throws -> NotificationPrefsOut {
+    func updateNotificationPrefs(
+        token: String,
+        enabled: Bool?,
+        dailyDisabled: Bool?,
+        dailyDisabledNotifications: Bool? = nil,
+        dailyDisabledCalls: Bool? = nil
+    ) async throws -> NotificationPrefsOut {
         let encoded = token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? token
-        struct Body: Encodable { let enabled: Bool?; let dailyDisabled: Bool? }
+        struct Body: Encodable {
+            let enabled: Bool?
+            let dailyDisabled: Bool?
+            let dailyDisabledNotifications: Bool?
+            let dailyDisabledCalls: Bool?
+        }
         let prefs: NotificationPrefsOut = try await fetch(
             "/api/notifications/preferences?device_token=\(encoded)", method: "PUT",
-            body: Body(enabled: enabled, dailyDisabled: dailyDisabled)
+            body: Body(
+                enabled: enabled,
+                dailyDisabled: dailyDisabled,
+                dailyDisabledNotifications: dailyDisabledNotifications,
+                dailyDisabledCalls: dailyDisabledCalls
+            )
         )
         await Self.cache.invalidate("\(baseURL)/api/notifications/preferences?device_token=\(encoded)")
         return prefs

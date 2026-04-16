@@ -176,10 +176,15 @@ class APNsNotifier:
         score: float,
         device_token: str,
         push_token: str | None = None,
+        send_call: bool = True,
+        send_alert: bool = True,
     ) -> None:
         """Send VoIP call + standard alert push for a trading signal."""
         strength_pct = int(strength * 100)
         caller_name = f"{signal} {symbol} {strength_pct}%"
+        should_send_alert = send_alert and push_token is not None
+        if not send_call and not should_send_alert:
+            return
 
         call_uuid = str(uuid.uuid4())
         payload = {
@@ -213,11 +218,14 @@ class APNsNotifier:
         # Add notification_id to payload so iOS app can acknowledge
         payload["notification_id"] = notification_id
 
-        delivered = await self.send_voip_push(device_token, payload)
+        call_delivered = False
+        if send_call:
+            call_delivered = await self.send_voip_push(device_token, payload)
 
         # Also send a standard alert push so it shows in notification center
-        if push_token:
-            await self.send_alert_push(
+        alert_delivered = False
+        if should_send_alert and push_token is not None:
+            alert_delivered = await self.send_alert_push(
                 push_token,
                 title=caller_name,
                 body=f"Score {score}/9 · {strength_pct}% strength",
@@ -229,6 +237,8 @@ class APNsNotifier:
                 },
             )
 
+        delivered = call_delivered or alert_delivered
+
         # Update delivery status
         async with db_session_factory() as db:
             log_entry = await db.get(NotificationLog, notification_id)
@@ -237,7 +247,7 @@ class APNsNotifier:
                 await db.commit()
 
         # Schedule retry if not acknowledged
-        if delivered and self.max_retries > 0:
+        if send_call and call_delivered and self.max_retries > 0:
             asyncio.create_task(
                 self._retry_if_needed(
                     db_session_factory,
@@ -290,7 +300,7 @@ class APNsNotifier:
         """Send a standard alert push to all enabled devices. Returns count sent."""
         from datetime import UTC, datetime
 
-        from sqlalchemy import or_, select
+        from sqlalchemy import select
 
         from trader_api.models import DeviceRegistration
 
@@ -302,15 +312,14 @@ class APNsNotifier:
                 select(DeviceRegistration).where(
                     DeviceRegistration.enabled.is_(True),
                     DeviceRegistration.push_token.isnot(None),
-                    or_(
-                        DeviceRegistration.daily_disabled_date.is_(None),
-                        DeviceRegistration.daily_disabled_date != today,
-                    ),
                 )
             )
             devices = result.scalars().all()
 
             for device in devices:
+                if device.notifications_muted_on(today):
+                    continue
+
                 log_entry = NotificationLog(
                     device_token=device.push_token,
                     notification_type=notification_type,

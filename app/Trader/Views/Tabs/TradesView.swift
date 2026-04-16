@@ -4,6 +4,18 @@ import SwiftUI
 struct TradesView: View {
     @EnvironmentObject private var config: AppConfig
 
+    private static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let iso8601WithoutFractionalSeconds: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
     enum TradeAction: String, CaseIterable {
         case buy = "Buy"
         case sell = "Sell"
@@ -130,8 +142,27 @@ struct TradesView: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            trades = try await client.getTradeHistory()
+            let history = try await client.getTradeHistory()
+            trades = history.sorted { lhs, rhs in
+                let lhsTimestamp = tradeTimestamp(lhs)
+                let rhsTimestamp = tradeTimestamp(rhs)
+                if lhsTimestamp != rhsTimestamp {
+                    return lhsTimestamp > rhsTimestamp
+                }
+                return (lhs.id ?? 0) > (rhs.id ?? 0)
+            }
         } catch { /* pull-to-refresh */ }
+    }
+
+    private func tradeTimestamp(_ trade: TradeOut) -> Date {
+        guard let raw = trade.timestamp else { return .distantPast }
+        if let parsed = Self.iso8601WithFractionalSeconds.date(from: raw) {
+            return parsed
+        }
+        if let parsed = Self.iso8601WithoutFractionalSeconds.date(from: raw) {
+            return parsed
+        }
+        return .distantPast
     }
 }
 

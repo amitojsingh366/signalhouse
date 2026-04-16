@@ -13,6 +13,8 @@ struct SettingsView: View {
     @State private var authStatus: AuthStatusOut?
     @State private var isRegistering = false
     @State private var authError: String?
+    @State private var tradingSettings: TradingSettingsOut?
+    @State private var updatingHybridMode = false
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
@@ -97,6 +99,39 @@ struct SettingsView: View {
                             .padding(.vertical, 2)
                         }
                     }
+                }
+
+                Section {
+                    Toggle(
+                        "Hybrid Profit-Taking",
+                        isOn: Binding(
+                            get: {
+                                tradingSettings?.hybridProfitTakingEnabled ?? false
+                            },
+                            set: { newValue in
+                                Task { await setHybridProfitTaking(newValue) }
+                            }
+                        )
+                    )
+                    .disabled(updatingHybridMode || tradingSettings == nil)
+
+                    if let settings = tradingSettings {
+                        Text(
+                            settings.hybridProfitTakingEnabled
+                                ? "At +8% gain, hold instead of auto-selling when signal remains a strong BUY (\(Int(settings.hybridTakeProfitMinBuyStrength * 100))%+). Existing stop and trailing protections still apply."
+                                : "At +8% gain, winners are sold immediately to lock in profit."
+                        )
+                        .font(.caption)
+                        .foregroundStyle(Theme.textMuted)
+                    } else {
+                        Text("Controls whether take-profit always exits or can let strong trends continue.")
+                            .font(.caption)
+                            .foregroundStyle(Theme.textMuted)
+                    }
+                } header: {
+                    Text("Trading")
+                } footer: {
+                    Text("Use Hybrid mode if you want to let winners run when momentum is still strong.")
                 }
 
                 Section {
@@ -206,8 +241,12 @@ struct SettingsView: View {
 
     private func loadAll() async {
         async let authStatusTask = client.getAuthStatus()
+        async let tradingSettingsTask = client.getTradingSettings()
         do {
             authStatus = try await authStatusTask
+        } catch {}
+        do {
+            tradingSettings = try await tradingSettingsTask
         } catch {}
 
         guard let token = pushManager.deviceToken else {
@@ -282,5 +321,29 @@ struct SettingsView: View {
             return specificDate == today
         }
         return fallbackDate == today
+    }
+
+    private func setHybridProfitTaking(_ enabled: Bool) async {
+        guard let current = tradingSettings else { return }
+        updatingHybridMode = true
+        defer { updatingHybridMode = false }
+
+        let previous = current.hybridProfitTakingEnabled
+        tradingSettings = TradingSettingsOut(
+            hybridProfitTakingEnabled: enabled,
+            hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength
+        )
+
+        do {
+            let updated = try await client.updateTradingSettings(
+                hybridProfitTakingEnabled: enabled
+            )
+            tradingSettings = updated
+        } catch {
+            tradingSettings = TradingSettingsOut(
+                hybridProfitTakingEnabled: previous,
+                hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength
+            )
+        }
     }
 }

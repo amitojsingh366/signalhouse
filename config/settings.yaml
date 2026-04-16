@@ -492,6 +492,8 @@ risk:
   stop_loss_pct: 0.05          # 5% hard stop loss
   trailing_stop_pct: 0.03      # 3% trailing stop
   take_profit_pct: 0.08        # 8% gain → take profit (full sell)
+  hybrid_take_profit_enabled: false  # If true, hold past TP when BUY signal stays strong
+  hybrid_take_profit_min_buy_strength: 0.50  # Minimum BUY strength to defer TP
   tighten_stop_at_pct: 0.05    # 5% gain → tighten trailing stop to 1.5%
   tightened_trail_pct: 0.015   # Trailing stop after tighten threshold
   max_daily_loss_pct: 0.08     # 8% max daily drawdown, halt trading

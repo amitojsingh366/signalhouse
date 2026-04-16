@@ -205,6 +205,23 @@ class Strategy:
 
         return result
 
+    async def _hybrid_take_profit_allows_hold(self, symbol: str) -> bool:
+        """Return True when continuation strength justifies holding past TP."""
+        df = await self.market_data.get_historical_data(symbol, period="60d")
+        if df is None or len(df) < 35:
+            return False
+
+        df = compute_indicators(df, self.config)
+        sent = await self.sentiment.analyze(symbol)
+        result = generate_signal(
+            df,
+            self.config,
+            sentiment_score=sent.non_commodity_score,
+            commodity_score=sent.commodity_score,
+        )
+        min_strength = self.risk.hybrid_take_profit_min_buy_strength()
+        return result.signal == Signal.BUY and result.strength >= min_strength
+
     async def _scan_one(
         self, symbol: str, sem: asyncio.Semaphore
     ) -> SignalResult | None:
@@ -293,28 +310,39 @@ class Strategy:
                 })
                 continue
 
-            # Take profit — sell winners at configurable threshold
+            # Take profit — sell winners at configurable threshold.
+            # In hybrid mode, defer to trend continuation if conviction remains high.
             if self.risk.should_take_profit(symbol, current_price):
-                tp_pct = self.config["risk"].get("take_profit_pct", 0.08) * 100
-                alerts.append({
-                    "symbol": symbol,
-                    "reason": "Take profit",
-                    "detail": (
-                        f"Gain {pnl_pct:+.1f}% exceeds {tp_pct:.0f}% "
-                        f"target — lock in profits"
-                    ),
-                    "severity": "high",
-                    "current_price": current_price,
-                    "entry_price": h["avg_cost"],
-                    "pnl_pct": pnl_pct,
-                    "quantity": h["quantity"],
-                    "action": "SELL",
-                    "action_detail": (
-                        f"Sell all {h['quantity']:.4f} shares "
-                        f"— take profit at {pnl_pct:+.1f}%"
-                    ),
-                })
-                continue
+                hold_winner = False
+                if self.risk.hybrid_take_profit_enabled():
+                    try:
+                        hold_winner = await self._hybrid_take_profit_allows_hold(symbol)
+                    except Exception:
+                        logger.exception(
+                            "Error evaluating hybrid take-profit continuation for %s",
+                            symbol,
+                        )
+                if not hold_winner:
+                    tp_pct = self.config["risk"].get("take_profit_pct", 0.08) * 100
+                    alerts.append({
+                        "symbol": symbol,
+                        "reason": "Take profit",
+                        "detail": (
+                            f"Gain {pnl_pct:+.1f}% exceeds {tp_pct:.0f}% "
+                            f"target — lock in profits"
+                        ),
+                        "severity": "high",
+                        "current_price": current_price,
+                        "entry_price": h["avg_cost"],
+                        "pnl_pct": pnl_pct,
+                        "quantity": h["quantity"],
+                        "action": "SELL",
+                        "action_detail": (
+                            f"Sell all {h['quantity']:.4f} shares "
+                            f"— take profit at {pnl_pct:+.1f}%"
+                        ),
+                    })
+                    continue
 
             min_hold_days = int(self.config["strategy"].get("min_hold_days", 0))
             open_trade = self.risk.open_trades.get(symbol)

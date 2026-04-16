@@ -58,6 +58,19 @@ class PortfolioMeta(Base):
     initial_capital: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
 
+class AppSetting(Base):
+    """Persistent runtime-configurable app settings."""
+
+    __tablename__ = "app_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    value: Mapped[str] = mapped_column(String(255), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class SignalHistory(Base):
     """Store signal history for backtesting validation."""
 

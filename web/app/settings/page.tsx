@@ -25,6 +25,10 @@ export default function SettingsPage() {
   const [registered, setRegistered] = useState(false);
   const [credentials, setCredentials] = useState<CredentialInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hybridLoading, setHybridLoading] = useState(true);
+  const [hybridSaving, setHybridSaving] = useState(false);
+  const [hybridTakeProfitEnabled, setHybridTakeProfitEnabled] = useState(false);
+  const [hybridMinBuyStrength, setHybridMinBuyStrength] = useState(0.5);
   const [registering, setRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -40,6 +44,16 @@ export default function SettingsPage() {
       // Auth status endpoint should always work
     } finally {
       setLoading(false);
+    }
+
+    try {
+      const settings = await api.getProfitTakingSettings();
+      setHybridTakeProfitEnabled(settings.hybrid_take_profit_enabled);
+      setHybridMinBuyStrength(settings.hybrid_take_profit_min_buy_strength);
+    } catch {
+      // Keep local defaults if settings endpoint is unavailable.
+    } finally {
+      setHybridLoading(false);
     }
   }, []);
 
@@ -112,6 +126,28 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleHybridTakeProfitChange(enabled: boolean) {
+    setHybridSaving(true);
+    setError(null);
+    const previous = hybridTakeProfitEnabled;
+    setHybridTakeProfitEnabled(enabled);
+    try {
+      const updated = await api.updateProfitTakingSettings(enabled);
+      setHybridTakeProfitEnabled(updated.hybrid_take_profit_enabled);
+      setHybridMinBuyStrength(updated.hybrid_take_profit_min_buy_strength);
+      setSuccess(
+        updated.hybrid_take_profit_enabled
+          ? "Hybrid profit taking enabled"
+          : "Hybrid profit taking disabled"
+      );
+    } catch (e: any) {
+      setHybridTakeProfitEnabled(previous);
+      setError(e.message || "Failed to update hybrid profit taking");
+    } finally {
+      setHybridSaving(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -128,6 +164,33 @@ export default function SettingsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Settings</h1>
         <SearchTrigger />
+      </div>
+
+      <div className="glass-card p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">Profit Taking</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Hybrid mode can hold winners after the take-profit threshold when momentum
+              is still strong.
+            </p>
+          </div>
+          <label className="inline-flex items-center gap-2 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-white/20 bg-white/5"
+              checked={hybridTakeProfitEnabled}
+              disabled={hybridLoading || hybridSaving}
+              onChange={(e) => handleHybridTakeProfitChange(e.target.checked)}
+            />
+            {hybridSaving ? "Saving..." : "Enable"}
+          </label>
+        </div>
+        <p className="mt-3 text-xs text-slate-500">
+          When enabled, +8% take-profit sells are deferred if the symbol still has a BUY
+          signal of at least {(hybridMinBuyStrength * 100).toFixed(0)}% strength.
+          Trailing stops, stop losses, and other exits still apply.
+        </p>
       </div>
 
       {/* Auth status banner */}

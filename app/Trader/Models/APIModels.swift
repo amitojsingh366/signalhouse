@@ -183,6 +183,26 @@ struct StatusOut: Codable {
     let riskHaltReason: String
 }
 
+// MARK: - Trading Settings
+
+struct TradingSettingsOut: Codable {
+    let hybridProfitTakingEnabled: Bool
+    let hybridTakeProfitMinBuyStrength: Double
+
+    enum CodingKeys: String, CodingKey {
+        case hybridProfitTakingEnabled = "hybrid_take_profit_enabled"
+        case hybridTakeProfitMinBuyStrength = "hybrid_take_profit_min_buy_strength"
+    }
+}
+
+struct TradingSettingsUpdateIn: Codable {
+    let hybridProfitTakingEnabled: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case hybridProfitTakingEnabled = "hybrid_take_profit_enabled"
+    }
+}
+
 // MARK: - Upload
 
 struct UploadHolding: Codable, Identifiable {

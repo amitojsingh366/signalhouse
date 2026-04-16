@@ -173,8 +173,6 @@ class NotificationDispatcher:
         if notifier is None or not notifier.is_configured:
             return
 
-        from sqlalchemy import or_
-
         notif_config = config.get("notifications", {})
         min_strength = notif_config.get("min_strength", 0.70)
 
@@ -206,14 +204,10 @@ class NotificationDispatcher:
 
         today = datetime.now(UTC).strftime("%Y-%m-%d")
 
-        # Fetch enabled devices not muted today
+        # Fetch enabled devices; channel-level mute is applied per-device below.
         result = await db.execute(
             select(DeviceRegistration).where(
                 DeviceRegistration.enabled.is_(True),
-                or_(
-                    DeviceRegistration.daily_disabled_date.is_(None),
-                    DeviceRegistration.daily_disabled_date != today,
-                ),
             )
         )
         devices = result.scalars().all()
@@ -231,7 +225,13 @@ class NotificationDispatcher:
             if not await self.is_new(db, "push", sig_info["symbol"], fp):
                 continue
 
+            sent_any = False
             for device in devices:
+                calls_muted = device.calls_muted_on(today)
+                notifications_muted = device.notifications_muted_on(today)
+                if calls_muted and (notifications_muted or not device.push_token):
+                    continue
+
                 await notifier.notify_signal(
                     db_session_factory=_make_session_factory(),
                     symbol=sig_info["symbol"],
@@ -240,9 +240,13 @@ class NotificationDispatcher:
                     score=sig_info["score"],
                     device_token=device.device_token,
                     push_token=device.push_token,
+                    send_call=not calls_muted,
+                    send_alert=not notifications_muted,
                 )
+                sent_any = True
 
-            await self.record(db, "push", sig_info["symbol"], fp)
+            if sent_any:
+                await self.record(db, "push", sig_info["symbol"], fp)
 
         await db.commit()
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -24,6 +25,19 @@ async def init_db() -> None:
     """Create all tables if they don't exist."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Lightweight additive migration for notification channel-level mute controls.
+        await conn.execute(
+            text(
+                "ALTER TABLE device_registrations "
+                "ADD COLUMN IF NOT EXISTS daily_disabled_notifications_date VARCHAR(10)"
+            )
+        )
+        await conn.execute(
+            text(
+                "ALTER TABLE device_registrations "
+                "ADD COLUMN IF NOT EXISTS daily_disabled_calls_date VARCHAR(10)"
+            )
+        )
 
 
 async def get_db() -> AsyncSession:  # type: ignore[misc]

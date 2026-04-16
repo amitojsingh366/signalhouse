@@ -7,7 +7,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trader_api.auth import require_auth
@@ -66,16 +66,20 @@ async def test_push(req: TestPushRequest, db: AsyncSession = Depends(get_db)):
     today = datetime.now(UTC).strftime("%Y-%m-%d")
     query = select(DeviceRegistration).where(
         DeviceRegistration.enabled.is_(True),
-        or_(
-            DeviceRegistration.daily_disabled_date.is_(None),
-            DeviceRegistration.daily_disabled_date != today,
-        ),
     )
     if req.device_token:
         query = query.where(DeviceRegistration.device_token == req.device_token)
 
     result = await db.execute(query)
     devices = result.scalars().all()
+    if req.push_type == "call":
+        devices = [device for device in devices if not device.calls_muted_on(today)]
+    else:
+        devices = [
+            device
+            for device in devices
+            if device.push_token and not device.notifications_muted_on(today)
+        ]
 
     if not devices:
         raise HTTPException(status_code=404, detail="No matching devices found")
@@ -91,11 +95,12 @@ async def test_push(req: TestPushRequest, db: AsyncSession = Depends(get_db)):
                 score=req.score,
                 device_token=device.device_token,
                 push_token=device.push_token,
+                send_alert=False,
             )
             sent += 1
         else:
             token = device.push_token
-            if not token:
+            if token is None:
                 continue
             strength_pct = int(req.strength * 100)
             delivered = await notifier.send_alert_push(

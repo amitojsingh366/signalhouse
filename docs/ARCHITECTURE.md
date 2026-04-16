@@ -156,7 +156,7 @@ ORM models in `api/src/trader_api/models.py`:
 | `DailySnapshot` | date (unique), portfolio_value, cash, positions_value | Equity curve data |
 | `PortfolioMeta` | cash, initial_capital | Single-row portfolio state |
 | `SignalHistory` | symbol, signal, strength, score, reasons | Signal audit trail |
-| `DeviceRegistration` | device_token (unique), platform, enabled, daily_disabled_date | Push notification devices |
+| `DeviceRegistration` | device_token (unique), platform, enabled, daily_disabled_notifications_date, daily_disabled_calls_date | Push notification devices with per-channel daily mute controls |
 | `NotificationLog` | device_token, symbol, signal, strength, delivered, acknowledged | Push audit trail |
 | `NotificationDigest` | channel, symbol, fingerprint (SHA-256), trading_day (ET) | Central dedup: once per day per channel per symbol, re-send on data change |
 | `SignalSnooze` | symbol (unique), snoozed_at, expires_at, pnl_pct_at_snooze, indefinite, phantom_trailing_stop | Snoozed sell signals with customizable duration and optional phantom trailing stop |

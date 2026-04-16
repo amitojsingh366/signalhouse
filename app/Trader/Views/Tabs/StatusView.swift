@@ -12,7 +12,8 @@ struct StatusView: View {
     @State private var notifPrefs: NotificationPrefsOut?
     @State private var notifHistory: [NotificationLogOut] = []
     @State private var notifEnabled = true
-    @State private var isMutedToday = false
+    @State private var isNotificationsMutedToday = false
+    @State private var isCallsMutedToday = false
     @State private var authStatus: AuthStatusOut?
     @State private var isRegistering = false
     @State private var authError: String?
@@ -75,10 +76,23 @@ struct StatusView: View {
                             Task { await toggleEnabled(newValue) }
                         }
 
-                    Button(isMutedToday ? "Unmute for Today" : "Mute for Today") {
-                        Task { await toggleMuteToday() }
+                    Button(
+                        isNotificationsMutedToday
+                            ? "Unmute Notifications for Today"
+                            : "Mute Notifications for Today"
+                    ) {
+                        Task { await toggleNotificationsMuteToday() }
                     }
-                    .foregroundStyle(isMutedToday ? Theme.positive : Theme.warning)
+                    .foregroundStyle(isNotificationsMutedToday ? Theme.positive : Theme.warning)
+
+                    Button(
+                        isCallsMutedToday
+                            ? "Unmute Calls for Today"
+                            : "Mute Calls for Today"
+                    ) {
+                        Task { await toggleCallsMuteToday() }
+                    }
+                    .foregroundStyle(isCallsMutedToday ? Theme.positive : Theme.warning)
 
                     if let token = pushManager.deviceToken {
                         LabeledContent("Device Token") {
@@ -258,7 +272,16 @@ struct StatusView: View {
                 notifPrefs = prefs
                 notifEnabled = prefs.enabled
                 let today = ISO8601DateFormatter().string(from: Date()).prefix(10)
-                isMutedToday = prefs.dailyDisabledDate == String(today)
+                isNotificationsMutedToday = isMutedToday(
+                    specificDate: prefs.dailyDisabledNotificationsDate,
+                    fallbackDate: prefs.dailyDisabledDate,
+                    today: String(today)
+                )
+                isCallsMutedToday = isMutedToday(
+                    specificDate: prefs.dailyDisabledCallsDate,
+                    fallbackDate: prefs.dailyDisabledDate,
+                    today: String(today)
+                )
             } catch {
                 // Device may not be registered yet
             }
@@ -279,14 +302,41 @@ struct StatusView: View {
         }
     }
 
-    private func toggleMuteToday() async {
+    private func toggleNotificationsMuteToday() async {
         guard let token = pushManager.deviceToken else { return }
-        let newMuted = !isMutedToday
+        let newMuted = !isNotificationsMutedToday
         do {
-            let prefs = try await client.updateNotificationPrefs(token: token, enabled: nil, dailyDisabled: newMuted)
+            let prefs = try await client.updateNotificationPrefs(
+                token: token,
+                enabled: nil,
+                dailyDisabled: nil,
+                dailyDisabledNotifications: newMuted
+            )
             notifPrefs = prefs
-            isMutedToday = newMuted
+            isNotificationsMutedToday = newMuted
         } catch {}
+    }
+
+    private func toggleCallsMuteToday() async {
+        guard let token = pushManager.deviceToken else { return }
+        let newMuted = !isCallsMutedToday
+        do {
+            let prefs = try await client.updateNotificationPrefs(
+                token: token,
+                enabled: nil,
+                dailyDisabled: nil,
+                dailyDisabledCalls: newMuted
+            )
+            notifPrefs = prefs
+            isCallsMutedToday = newMuted
+        } catch {}
+    }
+
+    private func isMutedToday(specificDate: String?, fallbackDate: String?, today: String) -> Bool {
+        if let specificDate {
+            return specificDate == today
+        }
+        return fallbackDate == today
     }
 
     private func formatUptime(_ seconds: Double) -> String {

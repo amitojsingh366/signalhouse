@@ -207,6 +207,8 @@ struct NotificationPrefsOut: Codable {
     let deviceToken: String
     let enabled: Bool
     let dailyDisabledDate: String?
+    let dailyDisabledNotificationsDate: String?
+    let dailyDisabledCallsDate: String?
 }
 
 struct NotificationLogOut: Codable, Identifiable {

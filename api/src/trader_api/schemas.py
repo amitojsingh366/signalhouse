@@ -263,12 +263,16 @@ class DeviceRegisterIn(BaseModel):
 class NotificationPrefsIn(BaseModel):
     enabled: bool | None = None
     daily_disabled: bool | None = None  # True = disable for today
+    daily_disabled_notifications: bool | None = None  # True = mute alerts for today
+    daily_disabled_calls: bool | None = None  # True = mute calls for today
 
 
 class NotificationPrefsOut(BaseModel):
     device_token: str
     enabled: bool
     daily_disabled_date: str | None = None
+    daily_disabled_notifications_date: str | None = None
+    daily_disabled_calls_date: str | None = None
 
     model_config = {"from_attributes": True}
 

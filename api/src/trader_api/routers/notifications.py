@@ -71,7 +71,7 @@ async def update_preferences(
     data: NotificationPrefsIn,
     db: AsyncSession = Depends(get_db),
 ):
-    """Toggle notification preferences (enabled, daily disable)."""
+    """Toggle notification preferences (enabled + per-channel daily mute)."""
     result = await db.execute(
         select(DeviceRegistration).where(
             DeviceRegistration.device_token == device_token
@@ -83,13 +83,35 @@ async def update_preferences(
 
     if data.enabled is not None:
         device.enabled = data.enabled
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Legacy combined mute toggle: keep backward compatibility by applying to both channels.
     if data.daily_disabled is not None:
         if data.daily_disabled:
-            device.daily_disabled_date = datetime.now(timezone.utc).strftime(
-                "%Y-%m-%d"
-            )
+            device.daily_disabled_date = today
+            device.daily_disabled_notifications_date = today
+            device.daily_disabled_calls_date = today
         else:
             device.daily_disabled_date = None
+            device.daily_disabled_notifications_date = None
+            device.daily_disabled_calls_date = None
+
+    # Channel-specific mutes: override legacy value when explicitly provided.
+    if data.daily_disabled_notifications is not None:
+        if data.daily_disabled_notifications:
+            device.daily_disabled_notifications_date = today
+        else:
+            device.daily_disabled_notifications_date = None
+
+    if data.daily_disabled_calls is not None:
+        if data.daily_disabled_calls:
+            device.daily_disabled_calls_date = today
+        else:
+            device.daily_disabled_calls_date = None
+
+    # Keep legacy response field tied to alert-notification mute for old clients.
+    device.daily_disabled_date = device.daily_disabled_notifications_date
 
     await db.commit()
     await db.refresh(device)

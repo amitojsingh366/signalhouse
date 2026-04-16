@@ -1,22 +1,11 @@
 import SwiftUI
 
-/// Status page matching web's status/page.tsx + notification preferences.
+/// Status page for runtime/system health only.
 struct StatusView: View {
     @EnvironmentObject private var config: AppConfig
-    @EnvironmentObject private var pushManager: PushManager
-
-    @EnvironmentObject private var authManager: AuthManager
 
     @State private var status: StatusOut?
     @State private var isLoading = true
-    @State private var notifPrefs: NotificationPrefsOut?
-    @State private var notifHistory: [NotificationLogOut] = []
-    @State private var notifEnabled = true
-    @State private var isNotificationsMutedToday = false
-    @State private var isCallsMutedToday = false
-    @State private var authStatus: AuthStatusOut?
-    @State private var isRegistering = false
-    @State private var authError: String?
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
@@ -68,281 +57,32 @@ struct StatusView: View {
                         }
                     }
                 }
-
-                // Notification preferences
-                Section {
-                    Toggle("Push Notifications", isOn: $notifEnabled)
-                        .onChange(of: notifEnabled) { _, newValue in
-                            Task { await toggleEnabled(newValue) }
-                        }
-
-                    Button(
-                        isNotificationsMutedToday
-                            ? "Unmute Notifications for Today"
-                            : "Mute Notifications for Today"
-                    ) {
-                        Task { await toggleNotificationsMuteToday() }
-                    }
-                    .foregroundStyle(isNotificationsMutedToday ? Theme.positive : Theme.warning)
-
-                    Button(
-                        isCallsMutedToday
-                            ? "Unmute Calls for Today"
-                            : "Mute Calls for Today"
-                    ) {
-                        Task { await toggleCallsMuteToday() }
-                    }
-                    .foregroundStyle(isCallsMutedToday ? Theme.positive : Theme.warning)
-
-                    if let token = pushManager.deviceToken {
-                        LabeledContent("Device Token") {
-                            Text(String(token.prefix(12)) + "...")
-                                .font(.caption)
-                                .foregroundStyle(Theme.textDimmed)
-                        }
-                    } else {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle")
-                                .foregroundStyle(Theme.warning)
-                            Text("VoIP push not registered")
-                                .font(.caption)
-                                .foregroundStyle(Theme.textMuted)
-                        }
-                    }
-                } header: {
-                    Text("Notifications")
-                } footer: {
-                    Text("When enabled, high-confidence signals will trigger a phone call via CallKit to get your attention, even in Do Not Disturb mode.")
-                }
-
-                // Notification history
-                if !notifHistory.isEmpty {
-                    Section("Recent Notifications") {
-                        ForEach(notifHistory) { notif in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(notif.callerName)
-                                        .fontWeight(.medium)
-                                    Text(notif.sentAt)
-                                        .font(.caption2)
-                                        .foregroundStyle(Theme.textDimmed)
-                                }
-                                Spacer()
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    SignalBadgeView(signal: notif.signal, strength: notif.strength)
-                                    HStack(spacing: 4) {
-                                        if notif.delivered {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .font(.caption2)
-                                                .foregroundStyle(Theme.positive)
-                                        }
-                                        if notif.acknowledged {
-                                            Image(systemName: "phone.fill")
-                                                .font(.caption2)
-                                                .foregroundStyle(Theme.positive)
-                                        }
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 2)
-                        }
-                    }
-                }
-
-                // Authentication
-                Section {
-                    if let authStatus {
-                        HStack {
-                            Text("Status")
-                            Spacer()
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(authStatus.registered ? Theme.positive : Theme.warning)
-                                    .frame(width: 8, height: 8)
-                                Text(authStatus.registered ? "Active" : "Disabled")
-                            }
-                        }
-
-                        ForEach(authStatus.credentials) { cred in
-                            HStack {
-                                Image(systemName: "key.fill")
-                                    .foregroundStyle(Theme.brand)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(cred.name)
-                                        .fontWeight(.medium)
-                                    if let date = cred.createdAt {
-                                        Text(date.prefix(10))
-                                            .font(.caption2)
-                                            .foregroundStyle(Theme.textDimmed)
-                                    }
-                                }
-                                Spacer()
-                            }
-                        }
-                    }
-
-                    Button {
-                        Task { await registerPasskey() }
-                    } label: {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                            Text(isRegistering ? "Registering..." : "Register Passkey")
-                        }
-                    }
-                    .disabled(isRegistering)
-                    .foregroundStyle(Theme.brand)
-
-                    if authManager.authRequired {
-                        Button {
-                            Task { await loginWithPasskey() }
-                        } label: {
-                            HStack {
-                                Image(systemName: "key.fill")
-                                Text("Re-authenticate")
-                            }
-                        }
-                        .foregroundStyle(Theme.brand)
-                    }
-
-                    if let authError {
-                        Text(authError)
-                            .font(.caption)
-                            .foregroundStyle(Theme.negative)
-                    }
-                } header: {
-                    Text("Authentication")
-                } footer: {
-                    Text("Passkeys protect your API with biometric authentication. Once registered, all requests require a valid token.")
-                }
-
-                // Connection info
-                Section("Connection") {
-                    LabeledContent("API Server") {
-                        Text(config.apiBaseURL ?? "Not set")
-                            .font(.caption)
-                            .foregroundStyle(Theme.textDimmed)
-                    }
-                    Button("Disconnect & Reset", role: .destructive) {
-                        config.reset()
-                    }
-                }
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Status")
-            .refreshable { await loadAll() }
-            .task { await loadAll() }
+            .refreshable { await loadStatus() }
+            .task { await loadStatus() }
         }
     }
 
-    private func registerPasskey() async {
-        isRegistering = true
-        authError = nil
-        defer { isRegistering = false }
-
-        do {
-            try await authManager.register(client: client)
-            authStatus = try? await client.getAuthStatus()
-        } catch {
-            authError = error.localizedDescription
-        }
-    }
-
-    private func loginWithPasskey() async {
-        authError = nil
-        do {
-            try await authManager.login(client: client)
-        } catch {
-            authError = error.localizedDescription
-        }
-    }
-
-    private func loadAll() async {
+    private func loadStatus() async {
         isLoading = true
         defer { isLoading = false }
 
-        async let s = client.getStatus()
-        async let a = client.getAuthStatus()
-        do { status = try await s } catch {}
-        do { authStatus = try await a } catch {}
-
-        // Load notification prefs if we have a device token
-        if let token = pushManager.deviceToken {
-            do {
-                let prefs = try await client.getNotificationPrefs(token: token)
-                notifPrefs = prefs
-                notifEnabled = prefs.enabled
-                let today = ISO8601DateFormatter().string(from: Date()).prefix(10)
-                isNotificationsMutedToday = isMutedToday(
-                    specificDate: prefs.dailyDisabledNotificationsDate,
-                    fallbackDate: prefs.dailyDisabledDate,
-                    today: String(today)
-                )
-                isCallsMutedToday = isMutedToday(
-                    specificDate: prefs.dailyDisabledCallsDate,
-                    fallbackDate: prefs.dailyDisabledDate,
-                    today: String(today)
-                )
-            } catch {
-                // Device may not be registered yet
-            }
-
-            do {
-                notifHistory = try await client.getNotificationHistory(token: token)
-            } catch {}
-        }
-    }
-
-    private func toggleEnabled(_ enabled: Bool) async {
-        guard let token = pushManager.deviceToken else { return }
         do {
-            let prefs = try await client.updateNotificationPrefs(token: token, enabled: enabled, dailyDisabled: nil)
-            notifPrefs = prefs
-        } catch {
-            notifEnabled = !enabled  // revert
-        }
-    }
-
-    private func toggleNotificationsMuteToday() async {
-        guard let token = pushManager.deviceToken else { return }
-        let newMuted = !isNotificationsMutedToday
-        do {
-            let prefs = try await client.updateNotificationPrefs(
-                token: token,
-                enabled: nil,
-                dailyDisabled: nil,
-                dailyDisabledNotifications: newMuted
-            )
-            notifPrefs = prefs
-            isNotificationsMutedToday = newMuted
+            status = try await client.getStatus()
         } catch {}
-    }
-
-    private func toggleCallsMuteToday() async {
-        guard let token = pushManager.deviceToken else { return }
-        let newMuted = !isCallsMutedToday
-        do {
-            let prefs = try await client.updateNotificationPrefs(
-                token: token,
-                enabled: nil,
-                dailyDisabled: nil,
-                dailyDisabledCalls: newMuted
-            )
-            notifPrefs = prefs
-            isCallsMutedToday = newMuted
-        } catch {}
-    }
-
-    private func isMutedToday(specificDate: String?, fallbackDate: String?, today: String) -> Bool {
-        if let specificDate {
-            return specificDate == today
-        }
-        return fallbackDate == today
     }
 
     private func formatUptime(_ seconds: Double) -> String {
-        let h = Int(seconds) / 3600
-        let m = (Int(seconds) % 3600) / 60
-        if h > 0 { return "\(h)h \(m)m" }
-        return "\(m)m"
+        // Round to nearest minute so UI doesn't look stale while seconds tick.
+        let totalMinutes = Int((seconds / 60).rounded())
+        let days = totalMinutes / (24 * 60)
+        let hours = (totalMinutes % (24 * 60)) / 60
+        let minutes = totalMinutes % 60
+
+        if days > 0 { return "\(days)d \(hours)h \(minutes)m" }
+        if hours > 0 { return "\(hours)h \(minutes)m" }
+        return "\(minutes)m"
     }
 }

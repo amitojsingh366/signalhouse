@@ -173,6 +173,12 @@ struct MainTabView: View {
                     Label("Status", systemImage: "waveform.path.ecg")
                 }
                 .tag(6)
+
+            SettingsView()
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                .tag(7)
         }
         .onChange(of: pushManager.deepLink) { _, link in
             guard let link else { return }

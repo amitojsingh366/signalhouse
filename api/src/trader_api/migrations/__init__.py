@@ -1,27 +1,33 @@
-"""Lightweight migration engine for additive DB schema updates."""
+"""Lightweight SQL migration engine for additive DB schema updates."""
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+import re
 from datetime import UTC, datetime
+from pathlib import Path
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from . import m20260416_split_notification_channel_mutes
+MIGRATION_FILE_PATTERN = re.compile(r"^\d{4}_[a-z0-9_]+\.sql$")
 
-MigrationFunc = Callable[[AsyncConnection], Awaitable[None]]
 
-MIGRATIONS: tuple[tuple[str, MigrationFunc], ...] = (
-    (
-        m20260416_split_notification_channel_mutes.MIGRATION_NAME,
-        m20260416_split_notification_channel_mutes.upgrade,
-    ),
-)
+def _migration_dir() -> Path:
+    return Path(__file__).resolve().parent
+
+
+def _list_sql_migrations() -> list[Path]:
+    """Return numbered SQL migrations sorted by filename order."""
+    files = sorted(_migration_dir().glob("*.sql"))
+    migrations: list[Path] = []
+    for file in files:
+        if MIGRATION_FILE_PATTERN.match(file.name):
+            migrations.append(file)
+    return migrations
 
 
 async def run_migrations(conn: AsyncConnection) -> None:
-    """Run all unapplied migrations in declaration order."""
+    """Run all unapplied SQL migrations in filename order."""
     await conn.execute(
         text(
             """
@@ -36,11 +42,15 @@ async def run_migrations(conn: AsyncConnection) -> None:
     result = await conn.execute(text("SELECT name FROM schema_migrations"))
     applied = {row[0] for row in result}
 
-    for name, migration in MIGRATIONS:
+    for migration_file in _list_sql_migrations():
+        name = migration_file.name
         if name in applied:
             continue
 
-        await migration(conn)
+        sql = migration_file.read_text(encoding="utf-8").strip()
+        if sql:
+            await conn.execute(text(sql))
+
         await conn.execute(
             text(
                 "INSERT INTO schema_migrations (name, applied_at) "

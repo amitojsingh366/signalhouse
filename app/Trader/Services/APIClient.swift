@@ -233,6 +233,11 @@ final class APIClient: ObservableObject {
         await Self.cache.invalidate(prefix: "\(baseURL)/api/signals/insights")
     }
 
+    private func invalidateSettingsQueries() async {
+        await Self.cache.invalidate("\(baseURL)/api/settings/profit-taking")
+        await invalidateSignalsQueries()
+    }
+
     private func invalidateTradeQueries() async {
         await Self.cache.invalidate(prefix: "\(baseURL)/api/trades/history")
         await invalidatePortfolioQueries()
@@ -365,6 +370,25 @@ final class APIClient: ObservableObject {
 
     func getStatus() async throws -> StatusOut {
         try await fetchCached("/api/status", policy: .staleWhileRevalidate(staleTime: 20))
+    }
+
+    // MARK: - Settings
+
+    func getTradingSettings() async throws -> TradingSettingsOut {
+        try await fetchCached("/api/settings/profit-taking", policy: .staleWhileRevalidate(staleTime: 30))
+    }
+
+    func updateTradingSettings(hybridProfitTakingEnabled: Bool) async throws -> TradingSettingsOut {
+        struct Body: Encodable {
+            let hybridTakeProfitEnabled: Bool
+        }
+        let out: TradingSettingsOut = try await fetch(
+            "/api/settings/profit-taking",
+            method: "PUT",
+            body: Body(hybridTakeProfitEnabled: hybridProfitTakingEnabled)
+        )
+        await invalidateSettingsQueries()
+        return out
     }
 
     // MARK: - Upload

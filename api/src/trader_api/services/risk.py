@@ -135,6 +135,18 @@ class RiskManager:
         gain = (current_price - trade.entry_price) / trade.entry_price
         return gain >= take_profit_pct
 
+    def hybrid_take_profit_enabled(self) -> bool:
+        """Whether take-profit can defer to strong continuation signals."""
+        return bool(self.risk.get("hybrid_take_profit_enabled", False))
+
+    def hybrid_take_profit_min_buy_strength(self) -> float:
+        """Minimum BUY strength required to defer take-profit in hybrid mode."""
+        raw = self.risk.get("hybrid_take_profit_min_buy_strength", 0.5)
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return 0.5
+
     def get_gain_pct(self, symbol: str, current_price: float) -> float | None:
         """Return current gain % from entry, or None if not tracked."""
         trade = self.open_trades.get(symbol)

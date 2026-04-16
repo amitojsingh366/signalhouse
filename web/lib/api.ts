@@ -204,6 +204,11 @@ export interface StatusOut {
   risk_halt_reason: string;
 }
 
+export interface ProfitTakingSettingsOut {
+  hybrid_take_profit_enabled: boolean;
+  hybrid_take_profit_min_buy_strength: number;
+}
+
 export interface UploadHolding {
   symbol: string;
   quantity: number;
@@ -332,6 +337,15 @@ export const api = {
 
   // Status
   getStatus: () => fetchAPI<StatusOut>("/api/status"),
+
+  // Settings
+  getProfitTakingSettings: () =>
+    fetchAPI<ProfitTakingSettingsOut>("/api/settings/profit-taking"),
+  updateProfitTakingSettings: (hybrid_take_profit_enabled: boolean) =>
+    fetchAPI<ProfitTakingSettingsOut>("/api/settings/profit-taking", {
+      method: "PUT",
+      body: JSON.stringify({ hybrid_take_profit_enabled }),
+    }),
 
   // Upload
   parseScreenshot: async (file: File): Promise<UploadHolding[]> => {

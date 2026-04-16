@@ -183,6 +183,13 @@ struct StatusOut: Codable {
     let riskHaltReason: String
 }
 
+// MARK: - Trading Settings
+
+struct TradingSettingsOut: Codable {
+    let hybridProfitTakingEnabled: Bool
+    let hybridTakeProfitMinBuyStrength: Double
+}
+
 // MARK: - Upload
 
 struct UploadHolding: Codable, Identifiable {

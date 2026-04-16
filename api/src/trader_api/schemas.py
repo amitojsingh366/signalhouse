@@ -225,6 +225,15 @@ class StatusOut(BaseModel):
     risk_halt_reason: str
 
 
+class ProfitTakingSettingsOut(BaseModel):
+    hybrid_take_profit_enabled: bool
+    hybrid_take_profit_min_buy_strength: float
+
+
+class ProfitTakingSettingsIn(BaseModel):
+    hybrid_take_profit_enabled: bool
+
+
 # --- Upload ---
 
 class UploadHolding(BaseModel):

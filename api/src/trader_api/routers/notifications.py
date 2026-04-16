@@ -85,9 +85,11 @@ async def update_preferences(
         device.enabled = data.enabled
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    mute_preferences_updated = False
 
     # Legacy combined mute toggle: keep backward compatibility by applying to both channels.
     if data.daily_disabled is not None:
+        mute_preferences_updated = True
         if data.daily_disabled:
             device.daily_disabled_date = today
             device.daily_disabled_notifications_date = today
@@ -99,19 +101,23 @@ async def update_preferences(
 
     # Channel-specific mutes: override legacy value when explicitly provided.
     if data.daily_disabled_notifications is not None:
+        mute_preferences_updated = True
         if data.daily_disabled_notifications:
             device.daily_disabled_notifications_date = today
         else:
             device.daily_disabled_notifications_date = None
 
     if data.daily_disabled_calls is not None:
+        mute_preferences_updated = True
         if data.daily_disabled_calls:
             device.daily_disabled_calls_date = today
         else:
             device.daily_disabled_calls_date = None
 
     # Keep legacy response field tied to alert-notification mute for old clients.
-    device.daily_disabled_date = device.daily_disabled_notifications_date
+    # Avoid touching legacy state on unrelated updates (e.g. enabled only).
+    if mute_preferences_updated:
+        device.daily_disabled_date = device.daily_disabled_notifications_date
 
     await db.commit()
     await db.refresh(device)

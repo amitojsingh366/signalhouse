@@ -9,6 +9,7 @@ import {
   RefreshCw,
   CheckCircle,
   AlertTriangle,
+  TrendingUp,
 } from "lucide-react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 import { api, setAuthToken, getAuthToken } from "@/lib/api";
@@ -166,34 +167,6 @@ export default function SettingsPage() {
         <SearchTrigger />
       </div>
 
-      <div className="glass-card p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold">Profit Taking</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Hybrid mode can hold winners after the take-profit threshold when momentum
-              is still strong.
-            </p>
-          </div>
-          <label className="inline-flex items-center gap-2 text-sm text-slate-300">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-white/20 bg-white/5"
-              checked={hybridTakeProfitEnabled}
-              disabled={hybridLoading || hybridSaving}
-              onChange={(e) => handleHybridTakeProfitChange(e.target.checked)}
-            />
-            {hybridSaving ? "Saving..." : "Enable"}
-          </label>
-        </div>
-        <p className="mt-3 text-xs text-slate-500">
-          When enabled, take-profit sells at the configured threshold are deferred if
-          the symbol still has a BUY signal of at least{" "}
-          {(hybridMinBuyStrength * 100).toFixed(0)}% strength. Trailing stops, stop
-          losses, and other exits still apply.
-        </p>
-      </div>
-
       {/* Auth status banner */}
       <div
         className={cn(
@@ -328,6 +301,51 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      <div className="glass-card p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-brand-500/20 p-3">
+              <TrendingUp className="h-5 w-5 text-brand-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Profit Taking</h2>
+              <p className="mt-1 text-sm text-slate-400">
+                Hybrid mode can hold winners after the take-profit threshold when
+                momentum is still strong.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {hybridSaving && (
+              <span className="text-xs text-slate-500">Saving...</span>
+            )}
+            <label
+              className={cn(
+                "relative inline-flex items-center",
+                hybridLoading || hybridSaving
+                  ? "cursor-not-allowed opacity-60"
+                  : "cursor-pointer"
+              )}
+            >
+              <input
+                type="checkbox"
+                className="peer sr-only"
+                checked={hybridTakeProfitEnabled}
+                disabled={hybridLoading || hybridSaving}
+                onChange={(e) => handleHybridTakeProfitChange(e.target.checked)}
+              />
+              <span className="h-6 w-11 rounded-full bg-white/10 transition-colors duration-200 peer-checked:bg-brand-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-500/50 peer-disabled:bg-white/5 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:duration-200 peer-checked:after:translate-x-5" />
+            </label>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-slate-500">
+          When enabled, take-profit sells at the configured threshold are deferred if
+          the symbol still has a BUY signal of at least{" "}
+          {(hybridMinBuyStrength * 100).toFixed(0)}% strength. Trailing stops, stop
+          losses, and other exits still apply.
+        </p>
+      </div>
     </div>
   );
 }

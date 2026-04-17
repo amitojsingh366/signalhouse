@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from trader_api.models import AppSetting
 
 HYBRID_TAKE_PROFIT_KEY = "risk.hybrid_take_profit_enabled"
+OVERSOLD_FASTLANE_KEY = "strategy.oversold_fastlane.enabled"
 
 
 def _parse_bool(value: str | None, default: bool) -> bool:
@@ -30,6 +31,25 @@ def _serialize_bool(value: bool) -> str:
 def _default_hybrid_enabled(config: dict[str, Any]) -> bool:
     risk_cfg = config.get("risk", {})
     return bool(risk_cfg.get("hybrid_take_profit_enabled", False))
+
+
+def _default_oversold_fastlane_enabled(config: dict[str, Any]) -> bool:
+    strategy_cfg = config.get("strategy", {})
+    oversold_cfg = strategy_cfg.get("oversold_fastlane", {})
+    if isinstance(oversold_cfg, dict):
+        return bool(oversold_cfg.get("enabled", True))
+    return True
+
+
+def _set_oversold_fastlane_enabled_in_config(
+    config: dict[str, Any], enabled: bool
+) -> None:
+    strategy_cfg = config.setdefault("strategy", {})
+    oversold_cfg = strategy_cfg.get("oversold_fastlane")
+    if not isinstance(oversold_cfg, dict):
+        oversold_cfg = {}
+        strategy_cfg["oversold_fastlane"] = oversold_cfg
+    oversold_cfg["enabled"] = enabled
 
 
 async def get_hybrid_take_profit_enabled(
@@ -66,7 +86,43 @@ async def set_hybrid_take_profit_enabled(
     return enabled
 
 
+async def get_oversold_fastlane_enabled(
+    db: AsyncSession, config: dict[str, Any]
+) -> bool:
+    """Return persisted oversold fast-lane toggle, or config default."""
+    default = _default_oversold_fastlane_enabled(config)
+    result = await db.execute(
+        select(AppSetting).where(AppSetting.key == OVERSOLD_FASTLANE_KEY)
+    )
+    setting = result.scalar_one_or_none()
+    if setting is None:
+        return default
+    return _parse_bool(setting.value, default=default)
+
+
+async def set_oversold_fastlane_enabled(
+    db: AsyncSession, config: dict[str, Any], enabled: bool
+) -> bool:
+    """Persist oversold fast-lane toggle and apply it to in-memory config."""
+    result = await db.execute(
+        select(AppSetting).where(AppSetting.key == OVERSOLD_FASTLANE_KEY)
+    )
+    setting = result.scalar_one_or_none()
+    serialized = _serialize_bool(enabled)
+
+    if setting is None:
+        db.add(AppSetting(key=OVERSOLD_FASTLANE_KEY, value=serialized))
+    else:
+        setting.value = serialized
+
+    await db.commit()
+    _set_oversold_fastlane_enabled_in_config(config, enabled)
+    return enabled
+
+
 async def load_runtime_settings(db: AsyncSession, config: dict[str, Any]) -> None:
     """Load persisted runtime settings into the active in-memory config."""
     enabled = await get_hybrid_take_profit_enabled(db, config)
     config.setdefault("risk", {})["hybrid_take_profit_enabled"] = enabled
+    oversold_enabled = await get_oversold_fastlane_enabled(db, config)
+    _set_oversold_fastlane_enabled_in_config(config, oversold_enabled)

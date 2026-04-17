@@ -15,9 +15,12 @@ struct SettingsView: View {
     @State private var authError: String?
     @State private var tradingSettings = TradingSettingsOut(
         hybridTakeProfitEnabled: false,
-        hybridTakeProfitMinBuyStrength: 0.5
+        hybridTakeProfitMinBuyStrength: 0.5,
+        oversoldFastlaneEnabled: true
     )
     @State private var updatingHybridMode = false
+    @State private var updatingOversoldMode = false
+    @State private var strategyRefreshTask: Task<Void, Never>?
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
@@ -103,12 +106,33 @@ struct SettingsView: View {
                             }
                         )
                     )
-                    .disabled(updatingHybridMode)
+                    .disabled(updatingHybridMode || updatingOversoldMode)
 
                     Text(
                         tradingSettings.hybridTakeProfitEnabled
                             ? "When the take-profit target is reached, hold instead of auto-selling when signal remains a strong BUY (\(Int(tradingSettings.hybridTakeProfitMinBuyStrength * 100))%+). Existing stop and trailing protections still apply."
                             : "When the take-profit target is reached, winners are sold immediately to lock in profit."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Theme.textMuted)
+
+                    Toggle(
+                        "Oversold Fast-Lane",
+                        isOn: Binding(
+                            get: {
+                                tradingSettings.oversoldFastlaneEnabled
+                            },
+                            set: { newValue in
+                                Task { await setOversoldFastlane(newValue) }
+                            }
+                        )
+                    )
+                    .disabled(updatingHybridMode || updatingOversoldMode)
+
+                    Text(
+                        tradingSettings.oversoldFastlaneEnabled
+                            ? "Allows earlier BUY recommendations for guarded oversold reversals below the standard scan threshold. Bearish-crossover and sentiment guards still apply."
+                            : "Only the standard BUY scan threshold is used. Oversold fast-lane entries are disabled."
                     )
                     .font(.caption)
                     .foregroundStyle(Theme.textMuted)
@@ -211,6 +235,10 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .refreshable { await loadAll() }
             .task { await loadAll() }
+            .onDisappear {
+                strategyRefreshTask?.cancel()
+                strategyRefreshTask = nil
+            }
         }
     }
 
@@ -328,7 +356,8 @@ struct SettingsView: View {
         let previous = current.hybridTakeProfitEnabled
         tradingSettings = TradingSettingsOut(
             hybridTakeProfitEnabled: enabled,
-            hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength
+            hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength,
+            oversoldFastlaneEnabled: current.oversoldFastlaneEnabled
         )
 
         do {
@@ -336,11 +365,55 @@ struct SettingsView: View {
                 hybridTakeProfitEnabled: enabled
             )
             tradingSettings = updated
+            scheduleStrategyRefresh()
         } catch {
             tradingSettings = TradingSettingsOut(
                 hybridTakeProfitEnabled: previous,
-                hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength
+                hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength,
+                oversoldFastlaneEnabled: current.oversoldFastlaneEnabled
             )
+        }
+    }
+
+    private func setOversoldFastlane(_ enabled: Bool) async {
+        updatingOversoldMode = true
+        defer { updatingOversoldMode = false }
+
+        let current = tradingSettings
+        let previous = current.oversoldFastlaneEnabled
+        tradingSettings = TradingSettingsOut(
+            hybridTakeProfitEnabled: current.hybridTakeProfitEnabled,
+            hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength,
+            oversoldFastlaneEnabled: enabled
+        )
+
+        do {
+            let updated = try await client.updateTradingSettings(
+                oversoldFastlaneEnabled: enabled
+            )
+            tradingSettings = updated
+            scheduleStrategyRefresh()
+        } catch {
+            tradingSettings = TradingSettingsOut(
+                hybridTakeProfitEnabled: current.hybridTakeProfitEnabled,
+                hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength,
+                oversoldFastlaneEnabled: previous
+            )
+        }
+    }
+
+    private func scheduleStrategyRefresh() {
+        strategyRefreshTask?.cancel()
+        strategyRefreshTask = Task {
+            do {
+                try await Task.sleep(nanoseconds: 600_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
+            }
         }
     }
 }

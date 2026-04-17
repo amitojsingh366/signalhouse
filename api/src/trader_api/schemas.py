@@ -228,10 +228,12 @@ class StatusOut(BaseModel):
 class ProfitTakingSettingsOut(BaseModel):
     hybrid_take_profit_enabled: bool
     hybrid_take_profit_min_buy_strength: float
+    oversold_fastlane_enabled: bool
 
 
 class ProfitTakingSettingsIn(BaseModel):
-    hybrid_take_profit_enabled: bool
+    hybrid_take_profit_enabled: bool | None = None
+    oversold_fastlane_enabled: bool | None = None
 
 
 # --- Upload ---

@@ -148,6 +148,78 @@ class Strategy:
         avg_dollar_volume = float((tail["close"] * tail["volume"]).mean())
         return avg_dollar_volume >= min_dollar_volume
 
+    def _oversold_fastlane_allows_buy(
+        self,
+        result: SignalResult,
+        standard_buy_strength: float = 0.35,
+    ) -> bool:
+        """Allow earlier BUYs for guarded oversold-reversal setups."""
+        cfg = self.config["strategy"].get("oversold_fastlane", {})
+        enabled = bool(cfg.get("enabled", True)) if isinstance(cfg, dict) else True
+        if not enabled or result.signal != Signal.BUY:
+            return False
+
+        min_strength = (
+            float(cfg.get("min_strength", 0.30))
+            if isinstance(cfg, dict)
+            else 0.30
+        )
+        max_negative_sentiment = (
+            float(cfg.get("max_negative_sentiment", -0.25))
+            if isinstance(cfg, dict)
+            else -0.25
+        )
+        min_technical_score = (
+            float(cfg.get("min_technical_score", 0.5))
+            if isinstance(cfg, dict)
+            else 0.5
+        )
+        require_recovery_signal = (
+            bool(cfg.get("require_recovery_signal", False))
+            if isinstance(cfg, dict)
+            else False
+        )
+        block_on_bearish_crossover = (
+            bool(cfg.get("block_on_bearish_crossover", True))
+            if isinstance(cfg, dict)
+            else True
+        )
+
+        # Fast-lane only applies below the standard BUY threshold.
+        if result.strength >= standard_buy_strength or result.strength < min_strength:
+            return False
+
+        has_oversold_marker = any(
+            marker in reason
+            for reason in result.reasons
+            for marker in ("RSI oversold", "lower Bollinger Band")
+        )
+        if not has_oversold_marker:
+            return False
+
+        has_recovery_signal = any(
+            marker in reason
+            for reason in result.reasons
+            for marker in (
+                "EMA bullish crossover",
+                "MACD histogram turned positive",
+                "MACD histogram persistently positive",
+            )
+        )
+        if require_recovery_signal and not has_recovery_signal:
+            return False
+
+        if (
+            block_on_bearish_crossover
+            and any("EMA bearish crossover" in reason for reason in result.reasons)
+        ):
+            return False
+
+        return (
+            result.sentiment_score >= max_negative_sentiment
+            and result.technical_score >= min_technical_score
+        )
+
     async def get_sector_exposure(
         self, live_prices: dict[str, float]
     ) -> dict[str, dict[str, Any]]:
@@ -246,13 +318,27 @@ class Strategy:
             if atr == atr:
                 result.meta["atr"] = float(atr)
 
-            if result.signal == Signal.BUY and result.strength >= 0.35:
+            standard_buy_strength = 0.35
+            standard_buy = (
+                result.signal == Signal.BUY
+                and result.strength >= standard_buy_strength
+            )
+            oversold_fastlane_buy = self._oversold_fastlane_allows_buy(
+                result,
+                standard_buy_strength=standard_buy_strength,
+            )
+
+            if standard_buy or oversold_fastlane_buy:
                 if not self._passes_liquidity_filter(df):
                     return None
                 result.reasons.extend(sent.reasons)
                 result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
                 if atr == atr:
                     result.reasons.append(f"ATR: ${atr:.2f}")
+                if oversold_fastlane_buy and not standard_buy:
+                    result.reasons.append(
+                        "Oversold fast-lane: early BUY allowed below standard scan threshold"
+                    )
                 return result
             elif result.signal == Signal.SELL and result.strength >= 0.3:
                 result.reasons.extend(sent.reasons)

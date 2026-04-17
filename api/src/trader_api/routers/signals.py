@@ -115,6 +115,7 @@ async def get_recommendations(n: int = 5, db: AsyncSession = Depends(get_db)):
         watchlist_sells=watchlist_sells,
         funding=recs.get("funding", []),
         sector_exposure=recs.get("sector_exposure", {}),
+        buy_block_reason=recs.get("buy_block_reason", ""),
     )
 
 

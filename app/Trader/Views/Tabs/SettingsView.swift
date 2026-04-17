@@ -13,7 +13,10 @@ struct SettingsView: View {
     @State private var authStatus: AuthStatusOut?
     @State private var isRegistering = false
     @State private var authError: String?
-    @State private var tradingSettings: TradingSettingsOut?
+    @State private var tradingSettings = TradingSettingsOut(
+        hybridTakeProfitEnabled: false,
+        hybridTakeProfitMinBuyStrength: 0.5
+    )
     @State private var updatingHybridMode = false
 
     private var client: APIClient {
@@ -23,6 +26,98 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    if let authStatus {
+                        HStack {
+                            Text("Status")
+                            Spacer()
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(authStatus.registered ? Theme.positive : Theme.warning)
+                                    .frame(width: 8, height: 8)
+                                Text(authStatus.registered ? "Active" : "Disabled")
+                            }
+                        }
+
+                        ForEach(authStatus.credentials) { cred in
+                            HStack {
+                                Image(systemName: "key.fill")
+                                    .foregroundStyle(Theme.brand)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(cred.name)
+                                        .fontWeight(.medium)
+                                    if let date = cred.createdAt {
+                                        Text(date.prefix(10))
+                                            .font(.caption2)
+                                            .foregroundStyle(Theme.textDimmed)
+                                    }
+                                }
+                                Spacer()
+                            }
+                        }
+                    }
+
+                    Button {
+                        Task { await registerPasskey() }
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                            Text(isRegistering ? "Registering..." : "Register Passkey")
+                        }
+                    }
+                    .disabled(isRegistering)
+                    .foregroundStyle(Theme.brand)
+
+                    if authManager.authRequired {
+                        Button {
+                            Task { await loginWithPasskey() }
+                        } label: {
+                            HStack {
+                                Image(systemName: "key.fill")
+                                Text("Re-authenticate")
+                            }
+                        }
+                        .foregroundStyle(Theme.brand)
+                    }
+
+                    if let authError {
+                        Text(authError)
+                            .font(.caption)
+                            .foregroundStyle(Theme.negative)
+                    }
+                } header: {
+                    Text("Authentication")
+                } footer: {
+                    Text("Passkeys protect your API with biometric authentication. Once registered, all requests require a valid token.")
+                }
+
+                Section {
+                    Toggle(
+                        "Hybrid Profit-Taking",
+                        isOn: Binding(
+                            get: {
+                                tradingSettings.hybridTakeProfitEnabled
+                            },
+                            set: { newValue in
+                                Task { await setHybridProfitTaking(newValue) }
+                            }
+                        )
+                    )
+                    .disabled(updatingHybridMode)
+
+                    Text(
+                        tradingSettings.hybridTakeProfitEnabled
+                            ? "When the take-profit target is reached, hold instead of auto-selling when signal remains a strong BUY (\(Int(tradingSettings.hybridTakeProfitMinBuyStrength * 100))%+). Existing stop and trailing protections still apply."
+                            : "When the take-profit target is reached, winners are sold immediately to lock in profit."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(Theme.textMuted)
+                } header: {
+                    Text("Trading")
+                } footer: {
+                    Text("Use Hybrid mode if you want to let winners run when momentum is still strong.")
+                }
+
                 Section {
                     Toggle("Push Notifications", isOn: $notifEnabled)
                         .onChange(of: notifEnabled) { _, newValue in
@@ -99,104 +194,6 @@ struct SettingsView: View {
                             .padding(.vertical, 2)
                         }
                     }
-                }
-
-                Section {
-                    Toggle(
-                        "Hybrid Profit-Taking",
-                        isOn: Binding(
-                            get: {
-                                tradingSettings?.hybridTakeProfitEnabled ?? false
-                            },
-                            set: { newValue in
-                                Task { await setHybridProfitTaking(newValue) }
-                            }
-                        )
-                    )
-                    .disabled(updatingHybridMode || tradingSettings == nil)
-
-                    if let settings = tradingSettings {
-                        Text(
-                            settings.hybridTakeProfitEnabled
-                                ? "When the take-profit target is reached, hold instead of auto-selling when signal remains a strong BUY (\(Int(settings.hybridTakeProfitMinBuyStrength * 100))%+). Existing stop and trailing protections still apply."
-                                : "When the take-profit target is reached, winners are sold immediately to lock in profit."
-                        )
-                        .font(.caption)
-                        .foregroundStyle(Theme.textMuted)
-                    } else {
-                        Text("Controls whether take-profit always exits or can let strong trends continue.")
-                            .font(.caption)
-                            .foregroundStyle(Theme.textMuted)
-                    }
-                } header: {
-                    Text("Trading")
-                } footer: {
-                    Text("Use Hybrid mode if you want to let winners run when momentum is still strong.")
-                }
-
-                Section {
-                    if let authStatus {
-                        HStack {
-                            Text("Status")
-                            Spacer()
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(authStatus.registered ? Theme.positive : Theme.warning)
-                                    .frame(width: 8, height: 8)
-                                Text(authStatus.registered ? "Active" : "Disabled")
-                            }
-                        }
-
-                        ForEach(authStatus.credentials) { cred in
-                            HStack {
-                                Image(systemName: "key.fill")
-                                    .foregroundStyle(Theme.brand)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(cred.name)
-                                        .fontWeight(.medium)
-                                    if let date = cred.createdAt {
-                                        Text(date.prefix(10))
-                                            .font(.caption2)
-                                            .foregroundStyle(Theme.textDimmed)
-                                    }
-                                }
-                                Spacer()
-                            }
-                        }
-                    }
-
-                    Button {
-                        Task { await registerPasskey() }
-                    } label: {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                            Text(isRegistering ? "Registering..." : "Register Passkey")
-                        }
-                    }
-                    .disabled(isRegistering)
-                    .foregroundStyle(Theme.brand)
-
-                    if authManager.authRequired {
-                        Button {
-                            Task { await loginWithPasskey() }
-                        } label: {
-                            HStack {
-                                Image(systemName: "key.fill")
-                                Text("Re-authenticate")
-                            }
-                        }
-                        .foregroundStyle(Theme.brand)
-                    }
-
-                    if let authError {
-                        Text(authError)
-                            .font(.caption)
-                            .foregroundStyle(Theme.negative)
-                    }
-                } header: {
-                    Text("Authentication")
-                } footer: {
-                    Text("Passkeys protect your API with biometric authentication. Once registered, all requests require a valid token.")
                 }
 
                 Section("Connection") {
@@ -324,10 +321,10 @@ struct SettingsView: View {
     }
 
     private func setHybridProfitTaking(_ enabled: Bool) async {
-        guard let current = tradingSettings else { return }
         updatingHybridMode = true
         defer { updatingHybridMode = false }
 
+        let current = tradingSettings
         let previous = current.hybridTakeProfitEnabled
         tradingSettings = TradingSettingsOut(
             hybridTakeProfitEnabled: enabled,

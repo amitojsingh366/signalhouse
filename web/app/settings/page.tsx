@@ -30,6 +30,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [hybridLoading, setHybridLoading] = useState(true);
   const [hybridSaving, setHybridSaving] = useState(false);
+  const [oversoldSaving, setOversoldSaving] = useState(false);
   const [hybridTakeProfitEnabled, setHybridTakeProfitEnabled] = useState(false);
   const [hybridMinBuyStrength, setHybridMinBuyStrength] = useState(0.5);
   const [oversoldFastlaneEnabled, setOversoldFastlaneEnabled] = useState(true);
@@ -51,6 +52,8 @@ export default function SettingsPage() {
       refreshTimerRef.current = null;
     }, 600);
   }, [qc]);
+
+  const isSavingSettings = hybridSaving || oversoldSaving;
 
   const loadStatus = useCallback(async () => {
     try {
@@ -180,7 +183,7 @@ export default function SettingsPage() {
   }
 
   async function handleOversoldFastlaneChange(enabled: boolean) {
-    setHybridSaving(true);
+    setOversoldSaving(true);
     setError(null);
     const previous = oversoldFastlaneEnabled;
     setOversoldFastlaneEnabled(enabled);
@@ -201,7 +204,7 @@ export default function SettingsPage() {
       setOversoldFastlaneEnabled(previous);
       setError(e.message || "Failed to update oversold fast-lane");
     } finally {
-      setHybridSaving(false);
+      setOversoldSaving(false);
     }
   }
 
@@ -373,13 +376,13 @@ export default function SettingsPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {hybridSaving && (
+            {isSavingSettings && (
               <span className="text-xs text-slate-500">Saving...</span>
             )}
             <label
               className={cn(
                 "relative inline-flex items-center",
-                hybridLoading || hybridSaving
+                hybridLoading || isSavingSettings
                   ? "cursor-not-allowed opacity-60"
                   : "cursor-pointer"
               )}
@@ -388,7 +391,7 @@ export default function SettingsPage() {
                 type="checkbox"
                 className="peer sr-only"
                 checked={hybridTakeProfitEnabled}
-                disabled={hybridLoading || hybridSaving}
+                disabled={hybridLoading || isSavingSettings}
                 onChange={(e) => handleHybridTakeProfitChange(e.target.checked)}
               />
               <span className="h-6 w-11 rounded-full bg-white/10 transition-colors duration-200 peer-checked:bg-brand-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-500/50 peer-disabled:bg-white/5 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:duration-200 peer-checked:after:translate-x-5" />
@@ -414,7 +417,7 @@ export default function SettingsPage() {
             <label
               className={cn(
                 "relative inline-flex items-center",
-                hybridLoading || hybridSaving
+                hybridLoading || isSavingSettings
                   ? "cursor-not-allowed opacity-60"
                   : "cursor-pointer"
               )}
@@ -423,7 +426,7 @@ export default function SettingsPage() {
                 type="checkbox"
                 className="peer sr-only"
                 checked={oversoldFastlaneEnabled}
-                disabled={hybridLoading || hybridSaving}
+                disabled={hybridLoading || isSavingSettings}
                 onChange={(e) => handleOversoldFastlaneChange(e.target.checked)}
               />
               <span className="h-6 w-11 rounded-full bg-white/10 transition-colors duration-200 peer-checked:bg-brand-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-500/50 peer-disabled:bg-white/5 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:duration-200 peer-checked:after:translate-x-5" />

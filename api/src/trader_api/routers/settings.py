@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trader_api.auth import require_auth
@@ -11,7 +11,9 @@ from trader_api.deps import get_config
 from trader_api.schemas import ProfitTakingSettingsIn, ProfitTakingSettingsOut
 from trader_api.services.settings import (
     get_hybrid_take_profit_enabled,
+    get_oversold_fastlane_enabled,
     set_hybrid_take_profit_enabled,
+    set_oversold_fastlane_enabled,
 )
 
 router = APIRouter(
@@ -33,9 +35,11 @@ def _hybrid_min_buy_strength(config: dict) -> float:
 async def get_profit_taking_settings(db: AsyncSession = Depends(get_db)):
     config = get_config()
     enabled = await get_hybrid_take_profit_enabled(db, config)
+    oversold_enabled = await get_oversold_fastlane_enabled(db, config)
     return ProfitTakingSettingsOut(
         hybrid_take_profit_enabled=enabled,
         hybrid_take_profit_min_buy_strength=_hybrid_min_buy_strength(config),
+        oversold_fastlane_enabled=oversold_enabled,
     )
 
 
@@ -45,12 +49,30 @@ async def update_profit_taking_settings(
     db: AsyncSession = Depends(get_db),
 ):
     config = get_config()
-    enabled = await set_hybrid_take_profit_enabled(
-        db,
-        config,
-        body.hybrid_take_profit_enabled,
-    )
+    if (
+        body.hybrid_take_profit_enabled is None
+        and body.oversold_fastlane_enabled is None
+    ):
+        raise HTTPException(status_code=400, detail="No settings provided")
+
+    enabled = await get_hybrid_take_profit_enabled(db, config)
+    if body.hybrid_take_profit_enabled is not None:
+        enabled = await set_hybrid_take_profit_enabled(
+            db,
+            config,
+            body.hybrid_take_profit_enabled,
+        )
+
+    oversold_enabled = await get_oversold_fastlane_enabled(db, config)
+    if body.oversold_fastlane_enabled is not None:
+        oversold_enabled = await set_oversold_fastlane_enabled(
+            db,
+            config,
+            body.oversold_fastlane_enabled,
+        )
+
     return ProfitTakingSettingsOut(
         hybrid_take_profit_enabled=enabled,
         hybrid_take_profit_min_buy_strength=_hybrid_min_buy_strength(config),
+        oversold_fastlane_enabled=oversold_enabled,
     )

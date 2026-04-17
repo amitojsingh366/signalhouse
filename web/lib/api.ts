@@ -207,6 +207,7 @@ export interface StatusOut {
 export interface ProfitTakingSettingsOut {
   hybrid_take_profit_enabled: boolean;
   hybrid_take_profit_min_buy_strength: number;
+  oversold_fastlane_enabled: boolean;
 }
 
 export interface UploadHolding {
@@ -341,10 +342,13 @@ export const api = {
   // Settings
   getProfitTakingSettings: () =>
     fetchAPI<ProfitTakingSettingsOut>("/api/settings/profit-taking"),
-  updateProfitTakingSettings: (hybrid_take_profit_enabled: boolean) =>
+  updateProfitTakingSettings: (settings: {
+    hybrid_take_profit_enabled?: boolean;
+    oversold_fastlane_enabled?: boolean;
+  }) =>
     fetchAPI<ProfitTakingSettingsOut>("/api/settings/profit-taking", {
       method: "PUT",
-      body: JSON.stringify({ hybrid_take_profit_enabled }),
+      body: JSON.stringify(settings),
     }),
 
   // Upload

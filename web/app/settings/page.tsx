@@ -30,6 +30,7 @@ export default function SettingsPage() {
   const [hybridSaving, setHybridSaving] = useState(false);
   const [hybridTakeProfitEnabled, setHybridTakeProfitEnabled] = useState(false);
   const [hybridMinBuyStrength, setHybridMinBuyStrength] = useState(0.5);
+  const [oversoldFastlaneEnabled, setOversoldFastlaneEnabled] = useState(true);
   const [registering, setRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -51,6 +52,7 @@ export default function SettingsPage() {
       const settings = await api.getProfitTakingSettings();
       setHybridTakeProfitEnabled(settings.hybrid_take_profit_enabled);
       setHybridMinBuyStrength(settings.hybrid_take_profit_min_buy_strength);
+      setOversoldFastlaneEnabled(settings.oversold_fastlane_enabled);
     } catch {
       // Keep local defaults if settings endpoint is unavailable.
     } finally {
@@ -133,9 +135,12 @@ export default function SettingsPage() {
     const previous = hybridTakeProfitEnabled;
     setHybridTakeProfitEnabled(enabled);
     try {
-      const updated = await api.updateProfitTakingSettings(enabled);
+      const updated = await api.updateProfitTakingSettings({
+        hybrid_take_profit_enabled: enabled,
+      });
       setHybridTakeProfitEnabled(updated.hybrid_take_profit_enabled);
       setHybridMinBuyStrength(updated.hybrid_take_profit_min_buy_strength);
+      setOversoldFastlaneEnabled(updated.oversold_fastlane_enabled);
       setSuccess(
         updated.hybrid_take_profit_enabled
           ? "Hybrid profit taking enabled"
@@ -144,6 +149,31 @@ export default function SettingsPage() {
     } catch (e: any) {
       setHybridTakeProfitEnabled(previous);
       setError(e.message || "Failed to update hybrid profit taking");
+    } finally {
+      setHybridSaving(false);
+    }
+  }
+
+  async function handleOversoldFastlaneChange(enabled: boolean) {
+    setHybridSaving(true);
+    setError(null);
+    const previous = oversoldFastlaneEnabled;
+    setOversoldFastlaneEnabled(enabled);
+    try {
+      const updated = await api.updateProfitTakingSettings({
+        oversold_fastlane_enabled: enabled,
+      });
+      setHybridTakeProfitEnabled(updated.hybrid_take_profit_enabled);
+      setHybridMinBuyStrength(updated.hybrid_take_profit_min_buy_strength);
+      setOversoldFastlaneEnabled(updated.oversold_fastlane_enabled);
+      setSuccess(
+        updated.oversold_fastlane_enabled
+          ? "Oversold fast-lane enabled"
+          : "Oversold fast-lane disabled"
+      );
+    } catch (e: any) {
+      setOversoldFastlaneEnabled(previous);
+      setError(e.message || "Failed to update oversold fast-lane");
     } finally {
       setHybridSaving(false);
     }
@@ -345,6 +375,40 @@ export default function SettingsPage() {
           {(hybridMinBuyStrength * 100).toFixed(0)}% strength. Trailing stops, stop
           losses, and other exits still apply.
         </p>
+
+        <div className="mt-5 border-t border-white/10 pt-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-medium text-white">Oversold Fast-Lane</h3>
+              <p className="mt-1 text-sm text-slate-400">
+                Allow earlier BUY recommendations for guarded oversold reversal setups,
+                even below the normal 35% scan threshold.
+              </p>
+            </div>
+            <label
+              className={cn(
+                "relative inline-flex items-center",
+                hybridLoading || hybridSaving
+                  ? "cursor-not-allowed opacity-60"
+                  : "cursor-pointer"
+              )}
+            >
+              <input
+                type="checkbox"
+                className="peer sr-only"
+                checked={oversoldFastlaneEnabled}
+                disabled={hybridLoading || hybridSaving}
+                onChange={(e) => handleOversoldFastlaneChange(e.target.checked)}
+              />
+              <span className="h-6 w-11 rounded-full bg-white/10 transition-colors duration-200 peer-checked:bg-brand-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-500/50 peer-disabled:bg-white/5 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:duration-200 peer-checked:after:translate-x-5" />
+            </label>
+          </div>
+          <p className="mt-3 text-xs text-slate-500">
+            {oversoldFastlaneEnabled
+              ? "Enabled: oversold candidates can pass scan at lower strength if protective guards are met (oversold trigger, bearish-crossover block, and sentiment floor)."
+              : "Disabled: BUY recommendations only use the standard scan threshold and skip the oversold fast-lane path."}
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -188,6 +188,7 @@ struct StatusOut: Codable {
 struct TradingSettingsOut: Codable {
     let hybridTakeProfitEnabled: Bool
     let hybridTakeProfitMinBuyStrength: Double
+    let oversoldFastlaneEnabled: Bool
 
     // Accept both current API key ("hybrid_take_profit_enabled") and
     // legacy key ("hybrid_profit_taking_enabled") to avoid UI regressions
@@ -196,11 +197,17 @@ struct TradingSettingsOut: Codable {
         case hybridTakeProfitEnabled
         case hybridTakeProfitMinBuyStrength
         case hybridProfitTakingEnabled
+        case oversoldFastlaneEnabled
     }
 
-    init(hybridTakeProfitEnabled: Bool, hybridTakeProfitMinBuyStrength: Double) {
+    init(
+        hybridTakeProfitEnabled: Bool,
+        hybridTakeProfitMinBuyStrength: Double,
+        oversoldFastlaneEnabled: Bool
+    ) {
         self.hybridTakeProfitEnabled = hybridTakeProfitEnabled
         self.hybridTakeProfitMinBuyStrength = hybridTakeProfitMinBuyStrength
+        self.oversoldFastlaneEnabled = oversoldFastlaneEnabled
     }
 
     init(from decoder: Decoder) throws {
@@ -214,6 +221,10 @@ struct TradingSettingsOut: Codable {
             Double.self,
             forKey: .hybridTakeProfitMinBuyStrength
         )
+        oversoldFastlaneEnabled = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .oversoldFastlaneEnabled
+        ) ?? true
     }
 
     func encode(to encoder: Encoder) throws {
@@ -223,6 +234,7 @@ struct TradingSettingsOut: Codable {
             hybridTakeProfitMinBuyStrength,
             forKey: .hybridTakeProfitMinBuyStrength
         )
+        try container.encode(oversoldFastlaneEnabled, forKey: .oversoldFastlaneEnabled)
     }
 }
 

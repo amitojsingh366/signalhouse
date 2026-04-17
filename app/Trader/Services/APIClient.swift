@@ -378,14 +378,21 @@ final class APIClient: ObservableObject {
         try await fetchCached("/api/settings/profit-taking", policy: .staleWhileRevalidate(staleTime: 30))
     }
 
-    func updateTradingSettings(hybridTakeProfitEnabled: Bool) async throws -> TradingSettingsOut {
+    func updateTradingSettings(
+        hybridTakeProfitEnabled: Bool? = nil,
+        oversoldFastlaneEnabled: Bool? = nil
+    ) async throws -> TradingSettingsOut {
         struct Body: Encodable {
-            let hybridTakeProfitEnabled: Bool
+            let hybridTakeProfitEnabled: Bool?
+            let oversoldFastlaneEnabled: Bool?
         }
         let out: TradingSettingsOut = try await fetch(
             "/api/settings/profit-taking",
             method: "PUT",
-            body: Body(hybridTakeProfitEnabled: hybridTakeProfitEnabled)
+            body: Body(
+                hybridTakeProfitEnabled: hybridTakeProfitEnabled,
+                oversoldFastlaneEnabled: oversoldFastlaneEnabled
+            )
         )
         await invalidateSettingsQueries()
         return out

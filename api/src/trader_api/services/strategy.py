@@ -160,9 +160,9 @@ class Strategy:
             return False
 
         min_strength = (
-            float(cfg.get("min_strength", 0.28))
+            float(cfg.get("min_strength", 0.30))
             if isinstance(cfg, dict)
-            else 0.28
+            else 0.30
         )
         max_negative_sentiment = (
             float(cfg.get("max_negative_sentiment", -0.25))

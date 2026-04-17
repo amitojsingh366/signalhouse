@@ -405,7 +405,12 @@ struct SettingsView: View {
     private func scheduleStrategyRefresh() {
         strategyRefreshTask?.cancel()
         strategyRefreshTask = Task {
-            try? await Task.sleep(nanoseconds: 600_000_000)
+            do {
+                try await Task.sleep(nanoseconds: 600_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
             await MainActor.run {
                 NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
             }

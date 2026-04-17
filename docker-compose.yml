@@ -24,16 +24,17 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      - DATABASE_URL=postgresql+asyncpg://trader:${POSTGRES_PASSWORD:-trader}@postgres:5432/trader
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://trader:${POSTGRES_PASSWORD:-trader}@postgres:5432/trader}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - APNS_KEY_PATH=/app/config/AuthKey.p8
+      - APNS_KEY_PATH=${APNS_KEY_PATH:-/app/config/AuthKey.p8}
       - APNS_KEY_ID=${APNS_KEY_ID:-}
       - APNS_TEAM_ID=${APNS_TEAM_ID:-}
       - APNS_BUNDLE_ID=${APNS_BUNDLE_ID:-}
       - APNS_SANDBOX=${APNS_SANDBOX:-false}
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
-      - WEBAUTHN_RP_ID=${WEBAUTHN_RP_ID:-localhost}
+      - DOMAIN=${DOMAIN:-localhost}
       - WEBAUTHN_RP_NAME=${WEBAUTHN_RP_NAME:-signalhouse}
+      - WEBAUTHN_EXPECTED_ORIGINS=${WEBAUTHN_EXPECTED_ORIGINS:-}
     volumes:
       - ./config:/app/config:ro
     expose:
@@ -48,7 +49,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      - DATABASE_URL=postgresql+asyncpg://trader:${POSTGRES_PASSWORD:-trader}@postgres:5432/trader
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://trader:${POSTGRES_PASSWORD:-trader}@postgres:5432/trader}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
       - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}

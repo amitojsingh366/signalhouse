@@ -36,19 +36,39 @@ from trader_api.models import WebAuthnCredential
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 # Config from env
-RP_ID = os.environ.get("WEBAUTHN_RP_ID", "localhost")
 RP_NAME = os.environ.get("WEBAUTHN_RP_NAME", "signalhouse")
-EXPECTED_ORIGINS = [
-    f"https://{RP_ID}",
-    # localhost for dev
-    "http://localhost:3000",
-    "http://localhost:8000",
-]
+
+
+def _resolve_rp_id() -> str:
+    """Resolve WebAuthn RP ID from shared DOMAIN env."""
+    return os.environ.get("DOMAIN") or "localhost"
+
+
+def _resolve_expected_origins(rp_id: str) -> list[str]:
+    """Build allowed WebAuthn origins from env and safe defaults."""
+    configured = os.environ.get("WEBAUTHN_EXPECTED_ORIGINS", "")
+    origins = {
+        origin.strip()
+        for origin in configured.split(",")
+        if origin.strip()
+    }
+
+    origins.add(f"https://{rp_id}")
+
+    # Localhost origins for local development and local self-hosting.
+    origins.update(
+        {
+            "http://localhost:3000",
+            "http://localhost:8000",
+        }
+    )
+
+    return sorted(origins)
 
 # Single-user challenge store — one active challenge per flow type
 # (registration or authentication). Simple and correct for single-instance apps.
-_registration_challenge: bytes | None = None
-_authentication_challenge: bytes | None = None
+_registration_state: dict[str, Any] | None = None
+_authentication_state: dict[str, Any] | None = None
 
 # Fixed user for single-user system
 _USER_ID = b"trader-owner"
@@ -81,6 +101,8 @@ async def auth_status(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
 @router.post("/register/options")
 async def register_options(db: AsyncSession = Depends(get_db)) -> dict:
     """Generate WebAuthn registration options (challenge)."""
+    rp_id = _resolve_rp_id()
+
     # Get existing credential IDs to exclude
     result = await db.execute(select(WebAuthnCredential.credential_id))
     existing_ids = result.scalars().all()
@@ -90,7 +112,7 @@ async def register_options(db: AsyncSession = Depends(get_db)) -> dict:
     ]
 
     options = generate_registration_options(
-        rp_id=RP_ID,
+        rp_id=rp_id,
         rp_name=RP_NAME,
         user_id=_USER_ID,
         user_name=_USER_NAME,
@@ -106,8 +128,12 @@ async def register_options(db: AsyncSession = Depends(get_db)) -> dict:
         ],
     )
 
-    global _registration_challenge
-    _registration_challenge = options.challenge
+    global _registration_state
+    _registration_state = {
+        "challenge": options.challenge,
+        "rp_id": rp_id,
+        "expected_origins": _resolve_expected_origins(rp_id),
+    }
 
     return json.loads(options_to_json(options))
 
@@ -118,19 +144,19 @@ async def register_verify(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Verify WebAuthn registration response and store credential."""
-    global _registration_challenge
-    if _registration_challenge is None:
+    global _registration_state
+    if _registration_state is None:
         raise HTTPException(status_code=400, detail="No pending registration challenge")
 
-    challenge = _registration_challenge
-    _registration_challenge = None  # consume it
+    state = _registration_state
+    _registration_state = None  # consume it
 
     try:
         verification = verify_registration_response(
             credential=body,
-            expected_challenge=challenge,
-            expected_rp_id=RP_ID,
-            expected_origin=EXPECTED_ORIGINS,
+            expected_challenge=state["challenge"],
+            expected_rp_id=state["rp_id"],
+            expected_origin=state["expected_origins"],
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Registration failed: {e}")
@@ -160,6 +186,8 @@ async def register_verify(
 @router.post("/login/options")
 async def login_options(db: AsyncSession = Depends(get_db)) -> dict:
     """Generate WebAuthn authentication options."""
+    rp_id = _resolve_rp_id()
+
     registered = await has_any_credential(db)
     if not registered:
         raise HTTPException(status_code=400, detail="No passkey registered")
@@ -185,13 +213,17 @@ async def login_options(db: AsyncSession = Depends(get_db)) -> dict:
         allow_credentials.append(desc)
 
     options = generate_authentication_options(
-        rp_id=RP_ID,
+        rp_id=rp_id,
         allow_credentials=allow_credentials,
         user_verification=UserVerificationRequirement.PREFERRED,
     )
 
-    global _authentication_challenge
-    _authentication_challenge = options.challenge
+    global _authentication_state
+    _authentication_state = {
+        "challenge": options.challenge,
+        "rp_id": rp_id,
+        "expected_origins": _resolve_expected_origins(rp_id),
+    }
 
     return json.loads(options_to_json(options))
 
@@ -202,12 +234,12 @@ async def login_verify(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Verify WebAuthn authentication response and issue JWT."""
-    global _authentication_challenge
-    if _authentication_challenge is None:
+    global _authentication_state
+    if _authentication_state is None:
         raise HTTPException(status_code=400, detail="No pending authentication challenge")
 
-    challenge = _authentication_challenge
-    _authentication_challenge = None  # consume it
+    state = _authentication_state
+    _authentication_state = None  # consume it
 
     # Look up credential
     raw_id = body.get("rawId", "")
@@ -230,9 +262,9 @@ async def login_verify(
     try:
         verification = verify_authentication_response(
             credential=body,
-            expected_challenge=challenge,
-            expected_rp_id=RP_ID,
-            expected_origin=EXPECTED_ORIGINS,
+            expected_challenge=state["challenge"],
+            expected_rp_id=state["rp_id"],
+            expected_origin=state["expected_origins"],
             credential_public_key=stored.public_key,
             credential_current_sign_count=stored.sign_count,
         )

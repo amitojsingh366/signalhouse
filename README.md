@@ -136,6 +136,9 @@ cp .env.example .env
 # Fill in: DISCORD_BOT_TOKEN, DISCORD_CHANNEL_ID, DISCORD_GUILD_ID,
 #          ANTHROPIC_API_KEY, POSTGRES_PASSWORD, JWT_SECRET
 # Optional: APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID (iOS push)
+# Passkeys use DOMAIN as WebAuthn RP ID: set DOMAIN to your host
+# (or DOMAIN=localhost for local self-hosting).
+# Optional: DATABASE_URL to override the compose default connection string.
 ```
 
 ### Local Development

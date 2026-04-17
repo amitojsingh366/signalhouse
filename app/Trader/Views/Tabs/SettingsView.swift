@@ -106,7 +106,7 @@ struct SettingsView: View {
                         "Hybrid Profit-Taking",
                         isOn: Binding(
                             get: {
-                                tradingSettings?.hybridProfitTakingEnabled ?? false
+                                tradingSettings?.hybridTakeProfitEnabled ?? false
                             },
                             set: { newValue in
                                 Task { await setHybridProfitTaking(newValue) }
@@ -117,7 +117,7 @@ struct SettingsView: View {
 
                     if let settings = tradingSettings {
                         Text(
-                            settings.hybridProfitTakingEnabled
+                            settings.hybridTakeProfitEnabled
                                 ? "When the take-profit target is reached, hold instead of auto-selling when signal remains a strong BUY (\(Int(settings.hybridTakeProfitMinBuyStrength * 100))%+). Existing stop and trailing protections still apply."
                                 : "When the take-profit target is reached, winners are sold immediately to lock in profit."
                         )
@@ -328,20 +328,20 @@ struct SettingsView: View {
         updatingHybridMode = true
         defer { updatingHybridMode = false }
 
-        let previous = current.hybridProfitTakingEnabled
+        let previous = current.hybridTakeProfitEnabled
         tradingSettings = TradingSettingsOut(
-            hybridProfitTakingEnabled: enabled,
+            hybridTakeProfitEnabled: enabled,
             hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength
         )
 
         do {
             let updated = try await client.updateTradingSettings(
-                hybridProfitTakingEnabled: enabled
+                hybridTakeProfitEnabled: enabled
             )
             tradingSettings = updated
         } catch {
             tradingSettings = TradingSettingsOut(
-                hybridProfitTakingEnabled: previous,
+                hybridTakeProfitEnabled: previous,
                 hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength
             )
         }

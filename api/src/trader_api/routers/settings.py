@@ -9,6 +9,7 @@ from trader_api.auth import require_auth
 from trader_api.database import get_db
 from trader_api.deps import get_config
 from trader_api.schemas import ProfitTakingSettingsIn, ProfitTakingSettingsOut
+from trader_api.services.strategy import Strategy
 from trader_api.services.settings import (
     get_hybrid_take_profit_enabled,
     get_oversold_fastlane_enabled,
@@ -70,6 +71,10 @@ async def update_profit_taking_settings(
             config,
             body.oversold_fastlane_enabled,
         )
+
+    # Settings toggles change recommendation behavior; clear shared strategy cache
+    # so next signal/action fetch recomputes with updated strategy switches.
+    Strategy.invalidate_recommendations_cache()
 
     return ProfitTakingSettingsOut(
         hybrid_take_profit_enabled=enabled,

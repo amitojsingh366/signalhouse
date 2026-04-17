@@ -20,6 +20,7 @@ struct SettingsView: View {
     )
     @State private var updatingHybridMode = false
     @State private var updatingOversoldMode = false
+    @State private var strategyRefreshTask: Task<Void, Never>?
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
@@ -234,6 +235,10 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .refreshable { await loadAll() }
             .task { await loadAll() }
+            .onDisappear {
+                strategyRefreshTask?.cancel()
+                strategyRefreshTask = nil
+            }
         }
     }
 
@@ -360,6 +365,7 @@ struct SettingsView: View {
                 hybridTakeProfitEnabled: enabled
             )
             tradingSettings = updated
+            scheduleStrategyRefresh()
         } catch {
             tradingSettings = TradingSettingsOut(
                 hybridTakeProfitEnabled: previous,
@@ -386,12 +392,23 @@ struct SettingsView: View {
                 oversoldFastlaneEnabled: enabled
             )
             tradingSettings = updated
+            scheduleStrategyRefresh()
         } catch {
             tradingSettings = TradingSettingsOut(
                 hybridTakeProfitEnabled: current.hybridTakeProfitEnabled,
                 hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength,
                 oversoldFastlaneEnabled: previous
             )
+        }
+    }
+
+    private func scheduleStrategyRefresh() {
+        strategyRefreshTask?.cancel()
+        strategyRefreshTask = Task {
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            await MainActor.run {
+                NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
+            }
         }
     }
 }

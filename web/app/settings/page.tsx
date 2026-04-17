@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Shield,
   Key,
@@ -12,7 +12,9 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
+import { useQueryClient } from "@tanstack/react-query";
 import { api, setAuthToken, getAuthToken } from "@/lib/api";
+import { queryKeys } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import { SearchTrigger } from "@/components/ui/search-trigger";
 
@@ -35,6 +37,20 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [hasToken, setHasToken] = useState(false);
+  const refreshTimerRef = useRef<number | null>(null);
+  const qc = useQueryClient();
+
+  const scheduleStrategyRefresh = useCallback(() => {
+    if (refreshTimerRef.current != null) {
+      window.clearTimeout(refreshTimerRef.current);
+    }
+    refreshTimerRef.current = window.setTimeout(() => {
+      qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
+      qc.invalidateQueries({ queryKey: queryKeys.recommendations });
+      qc.invalidateQueries({ queryKey: ["signal"] });
+      refreshTimerRef.current = null;
+    }, 600);
+  }, [qc]);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -63,6 +79,14 @@ export default function SettingsPage() {
   useEffect(() => {
     loadStatus();
   }, [loadStatus]);
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current != null) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
+    };
+  }, []);
 
   async function handleRegister() {
     setRegistering(true);
@@ -146,6 +170,7 @@ export default function SettingsPage() {
           ? "Hybrid profit taking enabled"
           : "Hybrid profit taking disabled"
       );
+      scheduleStrategyRefresh();
     } catch (e: any) {
       setHybridTakeProfitEnabled(previous);
       setError(e.message || "Failed to update hybrid profit taking");
@@ -171,6 +196,7 @@ export default function SettingsPage() {
           ? "Oversold fast-lane enabled"
           : "Oversold fast-lane disabled"
       );
+      scheduleStrategyRefresh();
     } catch (e: any) {
       setOversoldFastlaneEnabled(previous);
       setError(e.message || "Failed to update oversold fast-lane");

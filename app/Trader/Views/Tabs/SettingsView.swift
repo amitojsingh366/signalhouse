@@ -14,7 +14,7 @@ struct SettingsView: View {
     @State private var isRegistering = false
     @State private var authError: String?
     @State private var tradingSettings = TradingSettingsOut(
-        hybridProfitTakingEnabled: false,
+        hybridTakeProfitEnabled: false,
         hybridTakeProfitMinBuyStrength: 0.5
     )
     @State private var updatingHybridMode = false
@@ -96,7 +96,7 @@ struct SettingsView: View {
                         "Hybrid Profit-Taking",
                         isOn: Binding(
                             get: {
-                                tradingSettings.hybridProfitTakingEnabled
+                                tradingSettings.hybridTakeProfitEnabled
                             },
                             set: { newValue in
                                 Task { await setHybridProfitTaking(newValue) }
@@ -106,7 +106,7 @@ struct SettingsView: View {
                     .disabled(updatingHybridMode)
 
                     Text(
-                        tradingSettings.hybridProfitTakingEnabled
+                        tradingSettings.hybridTakeProfitEnabled
                             ? "When the take-profit target is reached, hold instead of auto-selling when signal remains a strong BUY (\(Int(tradingSettings.hybridTakeProfitMinBuyStrength * 100))%+). Existing stop and trailing protections still apply."
                             : "When the take-profit target is reached, winners are sold immediately to lock in profit."
                     )
@@ -325,20 +325,20 @@ struct SettingsView: View {
         defer { updatingHybridMode = false }
 
         let current = tradingSettings
-        let previous = current.hybridProfitTakingEnabled
+        let previous = current.hybridTakeProfitEnabled
         tradingSettings = TradingSettingsOut(
-            hybridProfitTakingEnabled: enabled,
+            hybridTakeProfitEnabled: enabled,
             hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength
         )
 
         do {
             let updated = try await client.updateTradingSettings(
-                hybridProfitTakingEnabled: enabled
+                hybridTakeProfitEnabled: enabled
             )
             tradingSettings = updated
         } catch {
             tradingSettings = TradingSettingsOut(
-                hybridProfitTakingEnabled: previous,
+                hybridTakeProfitEnabled: previous,
                 hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength
             )
         }

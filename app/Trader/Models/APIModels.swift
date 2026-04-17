@@ -186,8 +186,44 @@ struct StatusOut: Codable {
 // MARK: - Trading Settings
 
 struct TradingSettingsOut: Codable {
-    let hybridProfitTakingEnabled: Bool
+    let hybridTakeProfitEnabled: Bool
     let hybridTakeProfitMinBuyStrength: Double
+
+    // Accept both current API key ("hybrid_take_profit_enabled") and
+    // legacy key ("hybrid_profit_taking_enabled") to avoid UI regressions
+    // when clients/server are on slightly different versions.
+    private enum CodingKeys: String, CodingKey {
+        case hybridTakeProfitEnabled
+        case hybridTakeProfitMinBuyStrength
+        case hybridProfitTakingEnabled
+    }
+
+    init(hybridTakeProfitEnabled: Bool, hybridTakeProfitMinBuyStrength: Double) {
+        self.hybridTakeProfitEnabled = hybridTakeProfitEnabled
+        self.hybridTakeProfitMinBuyStrength = hybridTakeProfitMinBuyStrength
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let enabled = try container.decodeIfPresent(Bool.self, forKey: .hybridTakeProfitEnabled) {
+            hybridTakeProfitEnabled = enabled
+        } else {
+            hybridTakeProfitEnabled = try container.decode(Bool.self, forKey: .hybridProfitTakingEnabled)
+        }
+        hybridTakeProfitMinBuyStrength = try container.decode(
+            Double.self,
+            forKey: .hybridTakeProfitMinBuyStrength
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(hybridTakeProfitEnabled, forKey: .hybridTakeProfitEnabled)
+        try container.encode(
+            hybridTakeProfitMinBuyStrength,
+            forKey: .hybridTakeProfitMinBuyStrength
+        )
+    }
 }
 
 // MARK: - Upload

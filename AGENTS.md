@@ -42,7 +42,7 @@ docker compose logs -f
 
 # Docker — local (no Caddy, ports exposed to localhost)
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
-# Optional local web port override (host + container): WEB_PORT=3100 WEB_HOST_PORT=3100
+# Optional local web port override (host + container): WEB_PORT=3100
 
 # Tests & lint
 pytest

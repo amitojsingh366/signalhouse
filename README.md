@@ -178,6 +178,8 @@ For running on your own machine with the same proxy pathing as production (Caddy
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 ```
 
+Local override replaces base Caddy port publishing with HTTP-only local binding (`CADDY_LOCAL_HTTP_PORT:80`), so it does not also bind host 80/443.
+
 Set `NEXT_PUBLIC_API_URL` to empty (recommended) so the browser uses same-origin `/api` through Caddy.
 Example local custom Caddy host port: `CADDY_LOCAL_HTTP_PORT=2004 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build`.
 

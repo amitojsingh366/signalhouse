@@ -412,7 +412,8 @@ Tabs 0–3 appear in the main tab bar; tabs 4–6 appear in the iOS "More" secti
 | `caddy` | Caddy | 80, 443 | Routes `/api/*` → api, `/*` → web |
 
 **Domain:** Set via `DOMAIN` env var in your Caddy config. SSL terminated by Cloudflare (or Caddy auto-HTTPS), proxied to Caddy.
-**Web port:** `WEB_PORT` controls the port the web container listens on (and the Caddy upstream). In local compose override, host-side mapping defaults to the same value as `WEB_PORT`.
+**Web port:** `WEB_PORT` controls the port the web container listens on (and the Caddy upstream).
+**Caddy host ports:** `CADDY_HTTP_PORT` and `CADDY_HTTPS_PORT` control where Caddy binds on the host (defaults `80`/`443`). In local compose override, HTTP binding is set by `CADDY_LOCAL_HTTP_PORT` (default `3000`) and HTTPS is disabled.
 
 ### Deploy
 

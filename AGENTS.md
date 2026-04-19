@@ -40,9 +40,10 @@ bun run build          # verify before deploying
 docker compose up -d --build
 docker compose logs -f
 
-# Docker — local (no Caddy, ports exposed to localhost)
+# Docker — local (Caddy enabled; web + api both proxied through it)
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
-# Optional local web port override (host + container): WEB_PORT=3100
+# Optional local web port override (container + Caddy upstream): WEB_PORT=3100
+# Optional local Caddy listen port (host): CADDY_LOCAL_HTTP_PORT=2004
 
 # Tests & lint
 pytest

@@ -160,7 +160,7 @@ cd web && bun install && bun run dev
 ### Docker (Production)
 
 ```bash
-docker compose up -d --build    # postgres, api, bot, web, caddy
+docker compose up -d --build    # postgres, api, bot, web, caddy (all traffic via Caddy)
 docker compose logs -f
 ```
 
@@ -168,17 +168,18 @@ Bot startup behavior is env-driven:
 - If `DISCORD_BOT_TOKEN`, `DISCORD_CHANNEL_ID`, or `DISCORD_GUILD_ID` are missing, the bot container exits cleanly and does not block API/web.
 - If those vars are set, the bot starts normally; if it later crashes, Docker restarts only the bot container and API/web keep running.
 - Web startup port is env-driven via `WEB_PORT` (container listen port, default `3000`).
+- Caddy host ports are env-driven via `CADDY_HTTP_PORT` and `CADDY_HTTPS_PORT`.
 
 ### Docker (Local / Self-Hosted)
 
-For running on your own machine without a domain or Caddy — exposes API on `:8000` and web on `:3000` directly:
+For running on your own machine with the same proxy pathing as production (Caddy enabled) — Caddy exposes app traffic on `CADDY_LOCAL_HTTP_PORT` (default `3000`) and routes `/api/*` internally:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 ```
 
-When `NEXT_PUBLIC_API_URL` is not set, the web dashboard defaults to `http://localhost:8000`. No extra configuration needed.
-For local host port mapping, `WEB_PORT` now drives both container and host-side web port in local compose. Example: `WEB_PORT=2004 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build`.
+Set `NEXT_PUBLIC_API_URL` to empty (recommended) so the browser uses same-origin `/api` through Caddy.
+Example local custom Caddy host port: `CADDY_LOCAL_HTTP_PORT=2004 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build`.
 
 ### iOS App
 

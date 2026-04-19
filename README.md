@@ -178,7 +178,7 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 ```
 
 When `NEXT_PUBLIC_API_URL` is not set, the web dashboard defaults to `http://localhost:8000`. No extra configuration needed.
-For local host port mapping, set `WEB_HOST_PORT` (defaults to `3000`) and optionally `WEB_PORT` if you also want the container/Caddy upstream port changed.
+For local host port mapping, `WEB_PORT` now drives both container and host-side web port in local compose. Example: `WEB_PORT=2004 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build`.
 
 ### iOS App
 

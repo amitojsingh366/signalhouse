@@ -7,7 +7,7 @@ services:
 
   web:
     ports:
-      - "${WEB_HOST_PORT:-3000}:${WEB_PORT:-3000}"
+      - "${WEB_PORT:-3000}:${WEB_PORT:-3000}"
 
   caddy:
     profiles:

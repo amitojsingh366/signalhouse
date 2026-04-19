@@ -36,10 +36,8 @@ cd web && bun install
 bun run dev
 bun run build          # verify before deploying
 
-# Docker — production default (web-first: postgres, api, web, caddy)
+# Docker — production (bot auto-starts only when Discord env vars are set)
 docker compose up -d --build
-# Include Discord bot (optional)
-docker compose --profile bot up -d --build
 docker compose logs -f
 
 # Docker — local (no Caddy, ports exposed to localhost)

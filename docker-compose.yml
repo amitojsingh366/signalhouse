@@ -44,9 +44,7 @@ services:
     build:
       context: .
       dockerfile: bot/Dockerfile
-    restart: unless-stopped
-    profiles:
-      - bot
+    restart: on-failure
     depends_on:
       postgres:
         condition: service_healthy

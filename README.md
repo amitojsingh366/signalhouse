@@ -160,10 +160,13 @@ cd web && bun install && bun run dev
 ### Docker (Production)
 
 ```bash
-docker compose up -d --build    # postgres, api, web, caddy (default)
-docker compose --profile bot up -d --build  # includes optional discord bot
+docker compose up -d --build    # postgres, api, bot, web, caddy
 docker compose logs -f
 ```
+
+Bot startup behavior is env-driven:
+- If `DISCORD_BOT_TOKEN`, `DISCORD_CHANNEL_ID`, or `DISCORD_GUILD_ID` are missing, the bot container exits cleanly and does not block API/web.
+- If those vars are set, the bot starts normally; if it later crashes, Docker restarts only the bot container and API/web keep running.
 
 ### Docker (Local / Self-Hosted)
 
@@ -171,8 +174,6 @@ For running on your own machine without a domain or Caddy — exposes API on `:8
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
-# Include Discord bot locally (optional)
-docker compose --profile bot -f docker-compose.yml -f docker-compose.local.yml up -d --build
 ```
 
 When `NEXT_PUBLIC_API_URL` is not set, the web dashboard defaults to `http://localhost:8000`. No extra configuration needed.

@@ -172,13 +172,13 @@ Bot startup behavior is env-driven:
 
 ### Docker (Local / Self-Hosted)
 
-For running on your own machine with the same proxy pathing as production (Caddy enabled) — Caddy exposes app traffic on `CADDY_LOCAL_HTTP_PORT` (default `3000`) and routes `/api/*` internally:
+For running on your own machine with the same proxy pathing as production (Caddy enabled) — local compose uses a dedicated `Caddyfile.local` so local hosting stays HTTP-only and keeps `host:port` access (`http://localhost:<port>` / `http://<LAN-IP>:<port>`). Caddy exposes app traffic on `CADDY_LOCAL_HTTP_PORT` (default `3000`) and routes `/api/*` internally:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 ```
 
-Local override replaces base Caddy port publishing with HTTP-only local binding (`CADDY_LOCAL_HTTP_PORT:80`), so it does not also bind host 80/443.
+Local override replaces base Caddy port publishing with HTTP-only local binding (`CADDY_LOCAL_HTTP_PORT:80`) and swaps in `Caddyfile.local` (no auto HTTPS redirect/domain rewrite), so it does not also bind host 80/443.
 
 Set `NEXT_PUBLIC_API_URL` to empty (recommended) so the browser uses same-origin `/api` through Caddy.
 Example local custom Caddy host port: `CADDY_LOCAL_HTTP_PORT=2004 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build`.

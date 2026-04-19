@@ -107,7 +107,8 @@ trader/
 │   └── settings.local.yaml           # Secrets (gitignored)
 │
 ├── docker-compose.yml                # 5 services; web port configurable via WEB_PORT
-├── Caddyfile                         # Reverse proxy: /api/* → api:8000, /* → web:${WEB_PORT}
+├── Caddyfile                         # Production reverse proxy (domain/HTTPS)
+├── Caddyfile.local                   # Local reverse proxy (HTTP-only, host:port friendly)
 └── .env.example                      # Required env vars
 ```
 
@@ -413,7 +414,8 @@ Tabs 0–3 appear in the main tab bar; tabs 4–6 appear in the iOS "More" secti
 
 **Domain:** Set via `DOMAIN` env var in your Caddy config. SSL terminated by Cloudflare (or Caddy auto-HTTPS), proxied to Caddy.
 **Web port:** `WEB_PORT` controls the port the web container listens on (and the Caddy upstream).
-**Caddy host ports:** `CADDY_HTTP_PORT` and `CADDY_HTTPS_PORT` control where Caddy binds on the host (defaults `80`/`443`). In local compose override, base `ports` are replaced (not appended), so Caddy binds only HTTP on `CADDY_LOCAL_HTTP_PORT` (default `3000`) and does not publish HTTPS.
+**Caddy host ports:** `CADDY_HTTP_PORT` and `CADDY_HTTPS_PORT` control where Caddy binds on the host (defaults `80`/`443`).
+**Local Caddy behavior:** `docker-compose.local.yml` replaces both base Caddy `ports` and `volumes`, mounting `Caddyfile.local` and binding only HTTP on `CADDY_LOCAL_HTTP_PORT` (default `3000`). This avoids local auto-HTTPS redirects and preserves host:port URLs for LAN/IP access.
 
 ### Deploy
 

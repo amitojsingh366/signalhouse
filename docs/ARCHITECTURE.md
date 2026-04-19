@@ -106,7 +106,7 @@ trader/
 │   ├── settings.yaml                 # Symbol universe (~333), risk params, schedules
 │   └── settings.local.yaml           # Secrets (gitignored)
 │
-├── docker-compose.yml                # 5 services: postgres, api, bot, web, caddy
+├── docker-compose.yml                # 5 services with env-driven optional bot runtime
 ├── Caddyfile                         # Reverse proxy: /api/* → api:8000, /* → web:3000
 └── .env.example                      # Required env vars
 ```
@@ -401,13 +401,13 @@ Tabs 0–3 appear in the main tab bar; tabs 4–6 appear in the iOS "More" secti
 
 ## Docker Deployment
 
-`docker-compose.yml` orchestrates 5 services:
+`docker-compose.yml` orchestrates 5 services by default:
 
 | Service | Image | Port | Notes |
 |---------|-------|------|-------|
 | `postgres` | PostgreSQL 16 Alpine | 5432 (internal) | Healthcheck, persistent `pgdata` volume |
 | `api` | Custom (FastAPI) | 8000 (internal) | Depends on postgres |
-| `bot` | Custom (discord.py) | — | Depends on postgres |
+| `bot` | Custom (discord.py) | — | Starts by default; self-skips when Discord env vars are missing |
 | `web` | Custom (Next.js) | 3000 (internal) | Depends on api, Bun for builds |
 | `caddy` | Caddy | 80, 443 | Routes `/api/*` → api, `/*` → web |
 
@@ -419,6 +419,8 @@ Tabs 0–3 appear in the main tab bar; tabs 4–6 appear in the iOS "More" secti
 git push origin main
 ssh user@your-server "cd ~/trader && git pull origin main && docker compose up -d --build"
 ```
+
+Discord automation is env-driven: if required Discord vars are set, bot starts; if missing, bot exits cleanly without impacting API/web.
 
 ---
 

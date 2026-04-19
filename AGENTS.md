@@ -36,7 +36,7 @@ cd web && bun install
 bun run dev
 bun run build          # verify before deploying
 
-# Docker — production (all 5 services: postgres, api, bot, web, caddy)
+# Docker — production (bot auto-starts only when Discord env vars are set)
 docker compose up -d --build
 docker compose logs -f
 

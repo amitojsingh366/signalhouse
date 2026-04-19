@@ -25,7 +25,11 @@ COPY bot/pyproject.toml /app/bot/pyproject.toml
 COPY bot/src/ /app/bot/src/
 RUN pip install --no-cache-dir /app/bot
 
+# Optional start guard: skip bot boot when Discord vars are missing
+COPY bot/docker-entrypoint.sh /usr/local/bin/bot-entrypoint.sh
+RUN chmod +x /usr/local/bin/bot-entrypoint.sh
+
 # Config directory mounted as volume at runtime
 RUN mkdir -p /app/config
 
-CMD ["python", "-m", "trader_bot.main"]
+CMD ["/usr/local/bin/bot-entrypoint.sh"]

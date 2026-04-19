@@ -132,6 +132,7 @@ class RecommendationOut(BaseModel):
     watchlist_sells: list[SignalOut] = []
     funding: list[dict] = []
     sector_exposure: dict = {}
+    buy_block_reason: str = ""
 
 
 class ActionOut(BaseModel):

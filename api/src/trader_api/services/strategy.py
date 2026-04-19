@@ -609,23 +609,11 @@ class Strategy:
         for sig in watchlist_sells:
             sig.reasons.append("Not held — sell signal for watchlist")
 
-        if halted or not regime_allows_buys:
-            block_reason = (
-                f"Risk halt active — {self.risk.halt_reason}"
-                if halted
-                else (regime_reason or "Regime filter blocked new buys")
-            )
-            result = {
-                "buys": [],
-                "sells": sells[:n],
-                "watchlist_sells": watchlist_sells[:n],
-                "funding": [],
-                "sector_exposure": exposure,
-                "buy_block_reason": block_reason,
-            }
-            self._cached_recommendations = result
-            self._set_shared_recommendations(result)
-            return result
+        block_reason = ""
+        if halted:
+            block_reason = f"Risk halt active — {self.risk.halt_reason}"
+        elif not regime_allows_buys:
+            block_reason = regime_reason or "Regime filter blocked new buys"
 
         # Track sector-capped buys but don't penalize yet — swaps within
         # the same sector shouldn't be penalized since they replace exposure
@@ -650,7 +638,7 @@ class Strategy:
         swap_exempted: set[str] = set()
         meta = await self.portfolio._get_meta()
         cash = meta.cash
-        if top_buys and held_symbols and cash < 50.0:
+        if top_buys and held_symbols and cash < 50.0 and not halted and regime_allows_buys:
             ranked_to_sell = await self._rank_holdings_to_sell(prices)
             if ranked_to_sell:
                 for buy_sig in top_buys:
@@ -713,6 +701,7 @@ class Strategy:
             "watchlist_sells": watchlist_sells[:n],
             "funding": funding,
             "sector_exposure": exposure,
+            "buy_block_reason": block_reason,
         }
         self._cached_recommendations = result
         self._set_shared_recommendations(result)

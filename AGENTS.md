@@ -44,6 +44,7 @@ docker compose logs -f
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 # Optional local web port override (container + Caddy upstream): WEB_PORT=3100
 # Optional local Caddy listen port (host): CADDY_LOCAL_HTTP_PORT=2004
+# Local override replaces caddy ports (no extra 80/443 publishes)
 
 # Tests & lint
 pytest

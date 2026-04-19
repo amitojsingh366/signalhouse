@@ -2,5 +2,7 @@
 # Usage: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 services:
   caddy:
-    ports:
+    # Replace base caddy port bindings (80/443) to avoid privileged/conflicting
+    # host ports in local development.
+    ports: !override
       - "${CADDY_LOCAL_HTTP_PORT:-3000}:80"

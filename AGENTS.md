@@ -36,8 +36,10 @@ cd web && bun install
 bun run dev
 bun run build          # verify before deploying
 
-# Docker — production (all 5 services: postgres, api, bot, web, caddy)
+# Docker — production default (web-first: postgres, api, web, caddy)
 docker compose up -d --build
+# Include Discord bot (optional)
+docker compose --profile bot up -d --build
 docker compose logs -f
 
 # Docker — local (no Caddy, ports exposed to localhost)

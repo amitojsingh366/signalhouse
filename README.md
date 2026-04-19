@@ -133,8 +133,9 @@ All services share one PostgreSQL database.
 
 ```bash
 cp .env.example .env
-# Fill in: DISCORD_BOT_TOKEN, DISCORD_CHANNEL_ID, DISCORD_GUILD_ID,
-#          ANTHROPIC_API_KEY, POSTGRES_PASSWORD, JWT_SECRET
+# Fill in: ANTHROPIC_API_KEY, POSTGRES_PASSWORD, JWT_SECRET
+# Optional (only when running Discord bot profile):
+# DISCORD_BOT_TOKEN, DISCORD_CHANNEL_ID, DISCORD_GUILD_ID
 # Optional: APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID (iOS push)
 # Passkeys use DOMAIN as WebAuthn RP ID: set DOMAIN to your host
 # (or DOMAIN=localhost for local self-hosting).
@@ -159,7 +160,8 @@ cd web && bun install && bun run dev
 ### Docker (Production)
 
 ```bash
-docker compose up -d --build    # postgres, api, bot, web, caddy
+docker compose up -d --build    # postgres, api, web, caddy (default)
+docker compose --profile bot up -d --build  # includes optional discord bot
 docker compose logs -f
 ```
 
@@ -169,6 +171,8 @@ For running on your own machine without a domain or Caddy — exposes API on `:8
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+# Include Discord bot locally (optional)
+docker compose --profile bot -f docker-compose.yml -f docker-compose.local.yml up -d --build
 ```
 
 When `NEXT_PUBLIC_API_URL` is not set, the web dashboard defaults to `http://localhost:8000`. No extra configuration needed.

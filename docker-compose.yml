@@ -67,8 +67,9 @@ services:
       - api
     environment:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+      - PORT=${WEB_PORT:-3000}
     expose:
-      - "3000"
+      - "${WEB_PORT:-3000}"
 
   caddy:
     image: caddy:2-alpine
@@ -82,6 +83,7 @@ services:
     environment:
       - APPLE_TEAM_ID=${APNS_TEAM_ID:-XXXXXXXXXX}
       - DOMAIN=${DOMAIN:-localhost}
+      - WEB_PORT=${WEB_PORT:-3000}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

@@ -12,6 +12,6 @@
 
 	# Everything else — proxy to Next.js
 	handle {
-		reverse_proxy web:3000
+		reverse_proxy web:{$WEB_PORT:3000}
 	}
 }

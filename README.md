@@ -167,6 +167,7 @@ docker compose logs -f
 Bot startup behavior is env-driven:
 - If `DISCORD_BOT_TOKEN`, `DISCORD_CHANNEL_ID`, or `DISCORD_GUILD_ID` are missing, the bot container exits cleanly and does not block API/web.
 - If those vars are set, the bot starts normally; if it later crashes, Docker restarts only the bot container and API/web keep running.
+- Web startup port is env-driven via `WEB_PORT` (container listen port, default `3000`).
 
 ### Docker (Local / Self-Hosted)
 
@@ -177,6 +178,7 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 ```
 
 When `NEXT_PUBLIC_API_URL` is not set, the web dashboard defaults to `http://localhost:8000`. No extra configuration needed.
+For local host port mapping, set `WEB_HOST_PORT` (defaults to `3000`) and optionally `WEB_PORT` if you also want the container/Caddy upstream port changed.
 
 ### iOS App
 

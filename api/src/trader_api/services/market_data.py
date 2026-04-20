@@ -248,13 +248,16 @@ class MarketData:
             if pair is None:
                 continue
             latest, prev = pair
-            change_pct = ((latest - prev) / prev * 100.0) if prev > 0 else 0.0
+            # Internal convention: store percentage moves as fractions (e.g., 0.05 for +5%)
+            # to match get_premarket_movers and avoid mixed units in this service.
+            change_fraction = ((latest - prev) / prev) if prev > 0 else 0.0
             as_of_idx = df.index[-1]
             as_of = as_of_idx.to_pydatetime() if hasattr(as_of_idx, "to_pydatetime") else as_of_idx
             quote = {
                 "symbol": symbol,
                 "price": latest,
-                "change_pct": change_pct,
+                "change_pct": change_fraction,
+                "change_pct_percent": change_fraction * 100.0,
                 "as_of": as_of,
             }
             self._quote_cache[symbol] = (time.monotonic(), quote)

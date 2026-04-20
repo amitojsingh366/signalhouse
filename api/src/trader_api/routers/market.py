@@ -107,7 +107,10 @@ async def get_ticker_strip():
                     prefix=prefix,
                     decimals=decimals,
                 ),
-                change_pct=float(quote["change_pct"]),
+                # Public ticker-strip API keeps percent points for backward compatibility.
+                change_pct=float(
+                    quote.get("change_pct_percent", float(quote["change_pct"]) * 100.0)
+                ),
                 change_label=None,
                 as_of=quote["as_of"],
             )

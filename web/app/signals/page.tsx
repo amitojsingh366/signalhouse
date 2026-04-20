@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useCallback, useRef, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Zap, RefreshCw, AlertTriangle, ArrowRight, TrendingDown, TrendingUp, BellOff, Bell, ChevronDown, ChevronUp, Clock, ShieldAlert, X, DollarSign } from "lucide-react";
+import { Zap, RefreshCw, AlertTriangle, ArrowRight, TrendingUp, BellOff, Bell, ChevronDown, ChevronUp, Clock, X, DollarSign } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useActionPlan, useSymbols, useSignalCheck, queryKeys } from "@/lib/hooks";
 import type { ActionItem } from "@/lib/api";
@@ -142,236 +142,182 @@ function ActionCard({
 }) {
   const { mask } = usePrivacy();
   const sym = actionSymbol(action);
-  const isSnoozed = action.snoozed;
+  const isSnoozed = !!action.snoozed;
   const [showSnoozePopup, setShowSnoozePopup] = useState(false);
+  const isSell = action.type === "SELL";
+  const isSwap = action.type === "SWAP";
+  const isBuy = action.type === "BUY";
+  const isUrgent = action.urgency === "urgent";
+  const isActionable = action.actionable !== false;
 
-  if (action.type === "SELL") {
-    const isUrgent = action.urgency === "urgent";
-    const isLow = action.urgency === "low";
-    return (
-      <div className={cn(
-        "glass-card border transition-all",
-        isSnoozed ? "border-slate-700/30 bg-white/[0.01] opacity-60"
-          : isUrgent ? "border-red-500/30 bg-red-500/[0.05]"
-          : isLow ? "border-slate-500/20 bg-white/[0.02]"
-          : "border-amber-500/20 bg-amber-500/[0.03]"
-      )}>
-        <button onClick={onToggle} className="w-full p-4 text-left">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <TrendingDown className={cn("h-4 w-4", isSnoozed ? "text-slate-500" : isUrgent ? "text-red-400" : isLow ? "text-slate-400" : "text-amber-400")} />
-              <span className="text-lg font-semibold">{action.symbol}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {isSnoozed && (
-                <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-slate-500/20 text-slate-400">
-                  SNOOZED
+  const score = action.score ?? (isBuy && action.strength != null ? action.strength * 9 : undefined);
+  const scoreText = score == null ? "—" : `${score >= 0 ? "+" : ""}${score.toFixed(1)}`;
+  const scoreClass = score == null ? "" : score >= 0 ? "pos" : "neg";
+
+  const labelSymbol = isSwap
+    ? `${action.sell_symbol ?? "—"} → ${action.buy_symbol ?? "—"}`
+    : (action.symbol ?? "—");
+  const priceValue = isSwap ? action.sell_price : action.price;
+  const deltaPct = isSwap ? action.sell_pnl_pct : action.pnl_pct;
+  const reasonTags = (action.reasons ?? [])
+    .filter((r) => !r.startsWith("Price:") && !r.startsWith("ATR:"))
+    .slice(0, 4);
+
+  const metaItems: string[] = [];
+  if (isSell) {
+    if (action.shares != null) metaItems.push(`Shares ${mask(action.shares.toFixed(4))}`);
+    if (action.price != null) metaItems.push(`Price ${formatCurrency(action.price)}`);
+    if (action.dollar_amount != null) metaItems.push(`Value ${mask(formatCurrency(action.dollar_amount))}`);
+    if (action.entry_price != null) metaItems.push(`Entry ${formatCurrency(action.entry_price)}`);
+  } else if (isSwap) {
+    if (action.sell_shares != null) metaItems.push(`Sell ${mask(action.sell_shares.toFixed(4))} ${action.sell_symbol ?? ""}`.trim());
+    if (action.buy_shares != null) metaItems.push(`Buy ${action.buy_shares.toFixed(4)} ${action.buy_symbol ?? ""}`.trim());
+    if (action.sell_amount != null) metaItems.push(`From ${mask(formatCurrency(action.sell_amount))}`);
+    if (action.buy_amount != null) metaItems.push(`To ~${mask(formatCurrency(action.buy_amount))}`);
+    if (action.buy_strength != null) metaItems.push(`Conviction ${(action.buy_strength * 100).toFixed(0)}%`);
+  } else {
+    if (isActionable && action.shares != null) metaItems.push(`Shares ${action.shares.toFixed(4)}`);
+    if (action.price != null) metaItems.push(`Price ~${formatCurrency(action.price)}`);
+    if (isActionable && action.dollar_amount != null) metaItems.push(`Cost ${mask(formatCurrency(action.dollar_amount))}`);
+    if (isActionable && action.pct_of_portfolio != null) {
+      metaItems.push(`${mask(action.pct_of_portfolio.toFixed(1))}% of portfolio`);
+    }
+    if (!isActionable) metaItems.push("Not actionable: insufficient cash or max positions reached");
+  }
+
+  return (
+    <div
+      className={cn(
+        "signal-action-card",
+        isUrgent && "urgent",
+        isSwap && "swap",
+        isBuy && isActionable && "buy",
+        isBuy && !isActionable && "signal-only",
+        isSnoozed && "snoozed"
+      )}
+    >
+      <button onClick={onToggle} className="w-full text-left">
+        <div className="signal-action-head">
+          <div className="signal-action-score">
+            <div className={cn("v", scoreClass)}>{scoreText}</div>
+            <div className="of">/ 9</div>
+          </div>
+          <div className="signal-action-who">
+            <div className="sym">
+              <span className="t">{labelSymbol}</span>
+              {action.sector && <span className="sector">{action.sector}</span>}
+              {isSell && (
+                <span className={cn("pill-badge", isUrgent ? "pb-urgent" : "pb-sell")}>
+                  {isUrgent ? "URGENT" : "SELL"}
                 </span>
               )}
-              <span className={cn(
-                "rounded-full px-2 py-0.5 text-xs font-medium",
-                isSnoozed ? "bg-slate-500/20 text-slate-500"
-                  : isUrgent ? "bg-red-500/20 text-red-400" : isLow ? "bg-slate-500/20 text-slate-400" : "bg-amber-500/20 text-amber-400"
-              )}>
-                {isUrgent ? "URGENT" : action.reason}
-              </span>
+              {isSwap && <span className="pill-badge pb-swap">SWAP</span>}
+              {isBuy && (
+                <span className={cn("pill-badge", isActionable ? "pb-buy" : "pb-so")}>
+                  {isActionable
+                    ? action.strength != null
+                      ? `BUY ${(action.strength * 100).toFixed(0)}%`
+                      : "BUY"
+                    : "SIGNAL ONLY"}
+                </span>
+              )}
+              {isSnoozed && <span className="pill-badge pb-snooze">SNOOZED</span>}
             </div>
+            <div className="reason">{action.detail}</div>
           </div>
-          <p className="mb-3 text-sm font-medium text-white">{action.detail}</p>
-          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
-            <span>Shares: {mask(String(action.shares?.toFixed(4) ?? ""))}</span>
-            <span>Price: {formatCurrency(action.price ?? 0)}</span>
-            <span>Value: {mask(formatCurrency(action.dollar_amount ?? 0))}</span>
-            {action.pnl_pct != null && (
-              <span className={cn("font-medium", action.pnl_pct >= 0 ? "text-emerald-400" : "text-red-400")}>
-                {mask(formatPercent(action.pnl_pct))}
-              </span>
+          <div className="signal-action-price">
+            <div className="p">{priceValue != null ? (isBuy ? `~${formatCurrency(priceValue)}` : formatCurrency(priceValue)) : "—"}</div>
+            {deltaPct != null ? (
+              <div className={cn("d", deltaPct >= 0 ? "text-emerald-400" : "text-red-400")}>
+                {mask(formatPercent(deltaPct))}
+              </div>
+            ) : (
+              <div className="d">{action.reason}</div>
             )}
           </div>
-        </button>
-        {/* Snooze button */}
-        <div className="relative flex items-center gap-2 px-4 pb-3">
-          {isSnoozed ? (
+        </div>
+
+        {metaItems.length > 0 && (
+          <div className="signal-action-meta">
+            {metaItems.map((item) => (
+              <span key={item}>{item}</span>
+            ))}
+          </div>
+        )}
+
+        {reasonTags.length > 0 && (
+          <div className="signal-action-reasons">
+            {reasonTags.map((reason) => (
+              <span key={reason} className="tag">
+                <ScoreTag text={reason} />
+              </span>
+            ))}
+          </div>
+        )}
+
+        {isBuy && (
+          <div className="px-4 pb-2">
+            <ScoreBreakdown
+              total={action.score}
+              technical={action.technical_score}
+              sentiment={action.sentiment_score}
+              commodity={action.commodity_score}
+            />
+          </div>
+        )}
+      </button>
+
+      <div className="signal-action-foot">
+        <div className="relative flex items-center gap-2">
+          {isSnoozed && onUnsnooze && sym && (
             <button
-              onClick={(e) => { e.stopPropagation(); onUnsnooze?.(sym); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onUnsnooze(sym);
+              }}
               disabled={snoozing}
-              className="flex items-center gap-1 rounded-md border border-slate-600/30 px-2 py-1 text-xs text-slate-400 hover:text-white hover:border-white/20 transition-colors"
+              className="flex items-center gap-1 rounded-md border border-slate-600/30 px-2 py-1 text-xs text-slate-400 transition-colors hover:border-white/20 hover:text-white"
             >
-              <Bell className="h-3 w-3" /> Unsnooze
+              <Bell className="h-3 w-3" />
+              Unsnooze
             </button>
-          ) : (
+          )}
+          {!isSnoozed && onSnooze && sym && (
             <>
               <button
-                onClick={(e) => { e.stopPropagation(); setShowSnoozePopup(!showSnoozePopup); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowSnoozePopup(!showSnoozePopup);
+                }}
                 disabled={snoozing}
-                className="flex items-center gap-1 rounded-md border border-slate-600/30 px-2 py-1 text-xs text-slate-400 hover:text-white hover:border-white/20 transition-colors"
+                className="flex items-center gap-1 rounded-md border border-slate-600/30 px-2 py-1 text-xs text-slate-400 transition-colors hover:border-white/20 hover:text-white"
               >
-                <BellOff className="h-3 w-3" /> Snooze
+                <BellOff className="h-3 w-3" />
+                Snooze
               </button>
               {showSnoozePopup && (
                 <SnoozePopup
                   symbol={sym}
-                  onConfirm={(s, h, ind, pts) => { onSnooze?.(s, h, ind, pts); setShowSnoozePopup(false); }}
+                  onConfirm={(s, h, ind, pts) => {
+                    onSnooze(s, h, ind, pts);
+                    setShowSnoozePopup(false);
+                  }}
                   onClose={() => setShowSnoozePopup(false)}
                 />
               )}
             </>
           )}
-          <span className="ml-auto text-[10px] text-slate-600">
-            {expanded ? "click to hide chart" : "click to view chart"}
-          </span>
         </div>
-        {expanded && sym && <div className="px-2 pb-3"><PriceChart symbol={sym} /></div>}
-      </div>
-    );
-  }
-
-  if (action.type === "SWAP") {
-    const sellSym = action.sell_symbol ?? "";
-    return (
-      <div className={cn(
-        "glass-card border transition-all",
-        isSnoozed ? "border-slate-700/30 bg-white/[0.01] opacity-60"
-          : "border-brand-500/20 bg-brand-500/[0.03]"
-      )}>
-        <button onClick={onToggle} className="w-full p-4 text-left">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ArrowRight className="h-4 w-4 text-brand-400" />
-              <span className="text-lg font-semibold">
-                {action.sell_symbol} <span className="text-slate-500 mx-1">&rarr;</span> {action.buy_symbol}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              {isSnoozed && (
-                <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-slate-500/20 text-slate-400">
-                  SNOOZED
-                </span>
-              )}
-              <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-brand-500/20 text-brand-400">
-                SWAP
-              </span>
-            </div>
-          </div>
-          <p className="mb-3 text-sm font-medium text-white">{action.detail}</p>
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="rounded-lg bg-red-500/[0.05] border border-red-500/10 p-2">
-              <p className="font-medium text-red-400 mb-1">Sell {action.sell_symbol}</p>
-              <p className="text-slate-400">{mask(String(action.sell_shares?.toFixed(4) ?? ""))} shares @ {formatCurrency(action.sell_price ?? 0)}</p>
-              <p className="text-slate-400">{mask(formatCurrency(action.sell_amount ?? 0))}
-                {action.sell_pnl_pct != null && (
-                  <span className={cn("ml-1", action.sell_pnl_pct >= 0 ? "text-emerald-400" : "text-red-400")}>
-                    {mask(formatPercent(action.sell_pnl_pct))}
-                  </span>
-                )}
-              </p>
-            </div>
-            <div className="rounded-lg bg-emerald-500/[0.05] border border-emerald-500/10 p-2">
-              <p className="font-medium text-emerald-400 mb-1">Buy {action.buy_symbol}</p>
-              <p className="text-slate-400">{action.buy_shares} shares @ ~{formatCurrency(action.buy_price ?? 0)}</p>
-              <p className="text-slate-400">{mask(formatCurrency(action.buy_amount ?? 0))}
-                {action.buy_strength != null && (
-                  <span className="ml-1 text-emerald-400">{(action.buy_strength * 100).toFixed(0)}% signal</span>
-                )}
-              </p>
-            </div>
-          </div>
+        <button onClick={onToggle} className="toggle">
+          {expanded ? "Hide chart" : "View chart"}
         </button>
-        {/* Snooze button */}
-        <div className="relative flex items-center gap-2 px-4 pb-3">
-          {isSnoozed ? (
-            <button
-              onClick={(e) => { e.stopPropagation(); onUnsnooze?.(sellSym); }}
-              disabled={snoozing}
-              className="flex items-center gap-1 rounded-md border border-slate-600/30 px-2 py-1 text-xs text-slate-400 hover:text-white hover:border-white/20 transition-colors"
-            >
-              <Bell className="h-3 w-3" /> Unsnooze
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={(e) => { e.stopPropagation(); setShowSnoozePopup(!showSnoozePopup); }}
-                disabled={snoozing}
-                className="flex items-center gap-1 rounded-md border border-slate-600/30 px-2 py-1 text-xs text-slate-400 hover:text-white hover:border-white/20 transition-colors"
-              >
-                <BellOff className="h-3 w-3" /> Snooze
-              </button>
-              {showSnoozePopup && (
-                <SnoozePopup
-                  symbol={sellSym}
-                  onConfirm={(s, h, ind, pts) => { onSnooze?.(s, h, ind, pts); setShowSnoozePopup(false); }}
-                  onClose={() => setShowSnoozePopup(false)}
-                />
-              )}
-            </>
-          )}
-          <span className="ml-auto text-[10px] text-slate-600">
-            {expanded ? "click to hide chart" : "click to view chart"}
-          </span>
-        </div>
-        {expanded && sellSym && <div className="px-2 pb-3"><PriceChart symbol={sellSym} /></div>}
       </div>
-    );
-  }
 
-  // BUY
-  const isActionable = action.actionable !== false;
-  return (
-    <div className={cn(
-      "glass-card border",
-      isActionable
-        ? "border-emerald-500/20 bg-emerald-500/[0.03]"
-        : "border-slate-500/20 bg-white/[0.02] opacity-75"
-    )}>
-      <button onClick={onToggle} className="w-full p-4 text-left">
-        <div className="mb-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TrendingUp className={cn("h-4 w-4", isActionable ? "text-emerald-400" : "text-slate-500")} />
-            <span className="text-lg font-semibold">{action.symbol}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {!isActionable && (
-              <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-amber-500/20 text-amber-400">
-                SIGNAL ONLY
-              </span>
-            )}
-            {action.strength != null && (
-              <SignalBadge signal="BUY" strength={action.strength} />
-            )}
-          </div>
+      {expanded && sym && (
+        <div className="px-2 pb-3">
+          <PriceChart symbol={sym} />
         </div>
-        <p className={cn("mb-3 text-sm font-medium", isActionable ? "text-white" : "text-amber-400/90")}>{action.detail}</p>
-        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
-          {isActionable && <span>Shares: {action.shares}</span>}
-          <span>Price: ~{formatCurrency(action.price ?? 0)}</span>
-          {isActionable && <span>Cost: {mask(formatCurrency(action.dollar_amount ?? 0))}</span>}
-          {isActionable && action.pct_of_portfolio != null && (
-            <span>{mask(`${action.pct_of_portfolio.toFixed(1)}%`)} of portfolio</span>
-          )}
-          {action.sector && <span className="text-slate-500">{action.sector}</span>}
-        </div>
-        {action.reasons && action.reasons.length > 0 && (
-          <ul className="mt-2 space-y-0.5">
-            {action.reasons.filter(r => !r.startsWith("Price:") && !r.startsWith("ATR:")).slice(0, 4).map((r, i) => (
-              <li key={i} className="text-xs text-slate-500">
-                <ScoreTag text={r} />
-              </li>
-            ))}
-          </ul>
-        )}
-        <ScoreBreakdown
-          total={action.score}
-          technical={action.technical_score}
-          sentiment={action.sentiment_score}
-          commodity={action.commodity_score}
-        />
-      </button>
-      <div className="px-4 pb-3">
-        <span className="text-[10px] text-slate-600">
-          {expanded ? "click to hide chart" : "click to view chart"}
-        </span>
-      </div>
-      {expanded && sym && <div className="px-2 pb-3"><PriceChart symbol={sym} /></div>}
+      )}
     </div>
   );
 }
@@ -643,7 +589,7 @@ function SignalsContent() {
                 Sells
               </h2>
               <p className="mb-3 text-xs text-slate-500">Execute these first — stops, profit-taking, and exit signals</p>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="signal-action-grid">
                 {activeSells.map((a, i) => {
                   const key = `sell-${a.symbol}-${i}`;
                   return (
@@ -670,7 +616,7 @@ function SignalsContent() {
                 Swaps
               </h2>
               <p className="mb-3 text-xs text-slate-500">Replace weaker holdings with stronger opportunities</p>
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="signal-action-grid">
                 {activeSwaps.map((a, i) => {
                   const key = `swap-${a.sell_symbol}-${i}`;
                   return (
@@ -697,7 +643,7 @@ function SignalsContent() {
                 Buys
               </h2>
               <p className="mb-3 text-xs text-slate-500">New positions — you have the cash and slots to execute these</p>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="signal-action-grid">
                 {actionableBuys.map((a, i) => {
                   const key = `buy-${a.symbol}-${i}`;
                   return (
@@ -723,7 +669,7 @@ function SignalsContent() {
               <p className="mb-3 text-xs text-slate-500">
                 Strong buy signals, but not enough cash to act on — free up funds or add cash to unlock
               </p>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="signal-action-grid">
                 {signalOnlyBuys.map((a, i) => {
                   const key = `signal-${a.symbol}-${i}`;
                   return (
@@ -751,7 +697,7 @@ function SignalsContent() {
                 {showSnoozed ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
               </button>
               {showSnoozed && (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="signal-action-grid">
                   {snoozedActions.map((a, i) => {
                     const sym = a.symbol || a.sell_symbol || "";
                     const key = `snoozed-${sym}-${i}`;

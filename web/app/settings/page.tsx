@@ -15,6 +15,10 @@ import {
   Database,
   Palette,
   LineChart,
+  Download,
+  ImageIcon,
+  MessageCircle,
+  Smartphone,
 } from "lucide-react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 import { useQueryClient } from "@tanstack/react-query";
@@ -437,17 +441,93 @@ export default function SettingsPage() {
           )}
 
           {tab === "Notifications" && (
-            <div className="card">
-              <div className="head">
-                <h3>Delivery rules</h3>
-                <span className="sub">iOS + Discord</span>
+            <>
+              <div className="card">
+                <div className="head">
+                  <h3>Delivery Rules</h3>
+                  <span className="sub">iOS VoIP push + Discord</span>
+                </div>
+                <div className="body space-y-1">
+                  <StaticToggleRow
+                    title="URGENT exits and drawdown halts"
+                    description="Immediate VoIP push and Discord notification for stop losses and risk halts."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="BUY >= 50% conviction"
+                    description="iOS push and Discord DM for top-tier opportunities."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="BUY 35-50% conviction"
+                    description="iOS push only for lower-conviction candidates."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="SWAP recommendations"
+                    description="Notify when a stronger replacement is available for an existing holding."
+                    initialOn={false}
+                  />
+                  <StaticToggleRow
+                    title="Daily morning brief"
+                    description="Scheduled summary at 8:30 ET."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="Weekly performance digest"
+                    description="Sunday digest with PnL and hit-rate recap."
+                    initialOn={false}
+                    isLast
+                  />
+                </div>
               </div>
-              <div className="body space-y-3 text-sm text-slate-300">
-                <p>URGENT exits notify immediately.</p>
-                <p>BUY signals notify based on configured strength thresholds.</p>
-                <p>Cooldown and retry behavior are configurable in Trading settings.</p>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="card">
+                  <div className="head">
+                    <h3>Channels</h3>
+                    <span className="sub">linked</span>
+                  </div>
+                  <div className="body space-y-3">
+                    <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                      <div className="flex items-center gap-2 text-sm text-slate-300">
+                        <Smartphone className="h-4 w-4 text-brand-300" />
+                        iOS push + VoIP
+                      </div>
+                      <span className="pill-badge pb-buy">ACTIVE</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                      <div className="flex items-center gap-2 text-sm text-slate-300">
+                        <MessageCircle className="h-4 w-4 text-brand-300" />
+                        Discord DM
+                      </div>
+                      <span className="pill-badge pb-buy">ACTIVE</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card">
+                  <div className="head">
+                    <h3>Alert Timing</h3>
+                    <span className="sub">tradeoffs</span>
+                  </div>
+                  <div className="body space-y-3 text-sm">
+                    <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                      <span className="text-slate-400">Cooldown</span>
+                      <span className="font-mono text-slate-200">60 min</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                      <span className="text-slate-400">Retry delay</span>
+                      <span className="font-mono text-slate-200">30 sec</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                      <span className="text-slate-400">Max retries</span>
+                      <span className="font-mono text-slate-200">1</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           {tab === "Connections" && (
@@ -456,37 +536,252 @@ export default function SettingsPage() {
                 <h3>Connections</h3>
                 <span className="sub">integrations</span>
               </div>
-              <div className="body text-sm text-slate-400">
-                Brokerage screenshot upload and Discord integration are active.
+              <div className="space-y-3 p-5">
+                <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3">
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-2">
+                    <ImageIcon className="h-4 w-4 text-slate-300" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">Brokerage screenshots</p>
+                    <p className="text-xs text-slate-500">OCR uploads enabled for Wealthsimple and Questrade formats.</p>
+                  </div>
+                  <button className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:bg-white/10">
+                    Manage
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3">
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-2">
+                    <MessageCircle className="h-4 w-4 text-slate-300" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">Discord</p>
+                    <p className="text-xs text-slate-500">Slash commands and real-time recommendations are active.</p>
+                  </div>
+                  <button className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:bg-white/10">
+                    Reconnect
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3">
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-2">
+                    <Smartphone className="h-4 w-4 text-slate-300" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">iOS app</p>
+                    <p className="text-xs text-slate-500">Push delivery active on iPhone 15 Pro with VoIP priority.</p>
+                  </div>
+                  <span className="pill-badge pb-buy">ACTIVE</span>
+                </div>
               </div>
             </div>
           )}
 
           {tab === "Data" && (
-            <div className="card">
-              <div className="head">
-                <h3>Data</h3>
-                <span className="sub">feeds & backups</span>
+            <>
+              <div className="card">
+                <div className="head">
+                  <h3>Price Feed</h3>
+                  <span className="sub">primary + fallback</span>
+                </div>
+                <div className="grid gap-4 p-5 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Primary feed</label>
+                    <select className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none">
+                      <option>Yahoo Finance (15 min)</option>
+                      <option>Alpha Vantage</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Fallback feed</label>
+                    <select className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none">
+                      <option>Questrade API</option>
+                      <option>IEX Cloud</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Scan interval</label>
+                    <input
+                      defaultValue="15 minutes (09:30-16:00 ET)"
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Symbol universe</label>
+                    <input
+                      defaultValue="TSX + CBOE CDR + CAD-hedged ETFs"
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="body text-sm text-slate-400">
-                Price feeds and scan cadence are managed by backend configuration.
+
+              <div className="card">
+                <div className="head">
+                  <h3>News & Sentiment Inputs</h3>
+                  <span className="sub">source health</span>
+                </div>
+                <div className="body space-y-1">
+                  <StaticToggleRow
+                    title="Reuters finance feed"
+                    description="Currently degraded, backup feed active."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="Yahoo headlines"
+                    description="Primary headline stream for catalyst extraction."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="Analyst rating aggregation"
+                    description="Consensus and revisions for sentiment scoring."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="Social sentiment stream"
+                    description="Optional source for additional context."
+                    initialOn={false}
+                    isLast
+                  />
+                </div>
               </div>
-            </div>
+
+              <div className="card">
+                <div className="head">
+                  <h3>Backups</h3>
+                  <span className="sub">automatic</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 p-5 text-sm">
+                  <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-slate-300">
+                    Daily snapshot at 00:00 ET
+                  </span>
+                  <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-slate-300">
+                    30-day retention
+                  </span>
+                  <button className="ml-auto inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 transition-colors hover:bg-white/10">
+                    <Download className="h-3.5 w-3.5" />
+                    Download latest
+                  </button>
+                </div>
+              </div>
+            </>
           )}
 
           {tab === "Appearance" && (
-            <div className="card">
-              <div className="head">
-                <h3>Appearance</h3>
-                <span className="sub">theme</span>
+            <>
+              <div className="card">
+                <div className="head">
+                  <h3>Appearance</h3>
+                  <span className="sub">personal</span>
+                </div>
+                <div className="grid gap-4 p-5 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Theme</label>
+                    <select className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none">
+                      <option>Dark (default)</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Density</label>
+                    <select className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none">
+                      <option>Comfortable</option>
+                      <option>Dense</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Monospace font</label>
+                    <select className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none">
+                      <option>JetBrains Mono</option>
+                      <option>IBM Plex Mono</option>
+                      <option>SF Mono</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Number format</label>
+                    <select className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none">
+                      <option>1,234.56</option>
+                      <option>1 234,56</option>
+                    </select>
+                  </div>
+                </div>
               </div>
-              <div className="body text-sm text-slate-400">
-                Dark trading layout is active. Density and visual variants can be extended here.
+
+              <div className="card">
+                <div className="head">
+                  <h3>Accessibility & Layout</h3>
+                  <span className="sub">client-side</span>
+                </div>
+                <div className="body space-y-1">
+                  <StaticToggleRow
+                    title="Reduce motion"
+                    description="Disable sparkline animation and smooth transitions."
+                    initialOn={false}
+                  />
+                  <StaticToggleRow
+                    title="Show pre-market tab"
+                    description="Display scan-specific navigation during 04:00-09:30 ET."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="Compact numeric chips"
+                    description="Use denser badges and tighter number blocks on cards."
+                    initialOn={false}
+                    isLast
+                  />
+                </div>
               </div>
-            </div>
+
+              <div className="rounded-lg border border-brand-500/25 bg-brand-500/10 p-4 text-sm text-brand-200">
+                Appearance changes preview locally in this web client. Core trading behavior is unaffected.
+              </div>
+            </>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function PreviewToggle({ initialOn = false }: { initialOn?: boolean }) {
+  const [on, setOn] = useState(initialOn);
+  return (
+    <button
+      type="button"
+      onClick={() => setOn((v) => !v)}
+      className={cn(
+        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+        on ? "bg-brand-500" : "bg-white/10"
+      )}
+      aria-pressed={on}
+    >
+      <span
+        className={cn(
+          "h-5 w-5 rounded-full bg-white transition-transform",
+          on ? "translate-x-5" : "translate-x-0.5"
+        )}
+      />
+    </button>
+  );
+}
+
+function StaticToggleRow({
+  title,
+  description,
+  initialOn,
+  isLast = false,
+}: {
+  title: string;
+  description: string;
+  initialOn: boolean;
+  isLast?: boolean;
+}) {
+  return (
+    <div className={cn("flex items-center gap-4 py-3", !isLast && "border-b border-white/5")}>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-white">{title}</p>
+        <p className="mt-1 text-xs text-slate-500">{description}</p>
+      </div>
+      <PreviewToggle initialOn={initialOn} />
     </div>
   );
 }

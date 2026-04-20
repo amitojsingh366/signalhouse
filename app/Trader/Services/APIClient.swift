@@ -234,7 +234,7 @@ final class APIClient: ObservableObject {
     }
 
     private func invalidateSettingsQueries() async {
-        await Self.cache.invalidate("\(baseURL)/api/settings/profit-taking")
+        await Self.cache.invalidate("\(baseURL)/api/settings/config")
         await invalidateSignalsQueries()
     }
 
@@ -374,25 +374,16 @@ final class APIClient: ObservableObject {
 
     // MARK: - Settings
 
-    func getTradingSettings() async throws -> TradingSettingsOut {
-        try await fetchCached("/api/settings/profit-taking", policy: .staleWhileRevalidate(staleTime: 30))
+    func getSettingsConfig() async throws -> SettingsConfigOut {
+        try await fetchCached("/api/settings/config", policy: .staleWhileRevalidate(staleTime: 30))
     }
 
-    func updateTradingSettings(
-        hybridTakeProfitEnabled: Bool? = nil,
-        oversoldFastlaneEnabled: Bool? = nil
-    ) async throws -> TradingSettingsOut {
-        struct Body: Encodable {
-            let hybridTakeProfitEnabled: Bool?
-            let oversoldFastlaneEnabled: Bool?
-        }
-        let out: TradingSettingsOut = try await fetch(
-            "/api/settings/profit-taking",
+    func updateSettings(_ updates: [String: SettingValue]) async throws -> SettingsConfigOut {
+        struct Body: Encodable { let updates: [String: SettingValue] }
+        let out: SettingsConfigOut = try await fetch(
+            "/api/settings/config",
             method: "PUT",
-            body: Body(
-                hybridTakeProfitEnabled: hybridTakeProfitEnabled,
-                oversoldFastlaneEnabled: oversoldFastlaneEnabled
-            )
+            body: Body(updates: updates)
         )
         await invalidateSettingsQueries()
         return out

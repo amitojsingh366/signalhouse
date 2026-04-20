@@ -1,4 +1,4 @@
-"""Runtime settings API endpoints."""
+"""Runtime settings API — generic editable config via registry."""
 
 from __future__ import annotations
 
@@ -8,14 +8,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from trader_api.auth import require_auth
 from trader_api.database import get_db
 from trader_api.deps import get_config
-from trader_api.schemas import ProfitTakingSettingsIn, ProfitTakingSettingsOut
-from trader_api.services.strategy import Strategy
-from trader_api.services.settings import (
-    get_hybrid_take_profit_enabled,
-    get_oversold_fastlane_enabled,
-    set_hybrid_take_profit_enabled,
-    set_oversold_fastlane_enabled,
+from trader_api.schemas import (
+    SettingGroup,
+    SettingItem,
+    SettingsConfigOut,
+    SettingsUpdateIn,
 )
+from trader_api.services.editable_settings import (
+    GROUPS,
+    REGISTRY,
+    REGISTRY_BY_KEY,
+    get_setting_value,
+    set_setting_value,
+)
+from trader_api.services.strategy import Strategy
 
 router = APIRouter(
     prefix="/api/settings",
@@ -24,60 +30,54 @@ router = APIRouter(
 )
 
 
-def _hybrid_min_buy_strength(config: dict) -> float:
-    raw = config.get("risk", {}).get("hybrid_take_profit_min_buy_strength", 0.5)
-    try:
-        return float(raw)
-    except (TypeError, ValueError):
-        return 0.5
+def _serialize_config(config: dict) -> SettingsConfigOut:
+    items_by_group: dict[str, list[SettingItem]] = {g["id"]: [] for g in GROUPS}
+    for setting in REGISTRY:
+        items_by_group.setdefault(setting.group, []).append(
+            SettingItem(
+                key=setting.key,
+                type=setting.type,
+                group=setting.group,
+                label=setting.label,
+                description=setting.description,
+                value=get_setting_value(config, setting),
+                min=setting.min,
+                max=setting.max,
+                step=setting.step,
+            )
+        )
+    groups = [
+        SettingGroup(id=g["id"], label=g["label"], items=items_by_group.get(g["id"], []))
+        for g in GROUPS
+    ]
+    return SettingsConfigOut(groups=groups)
 
 
-@router.get("/profit-taking", response_model=ProfitTakingSettingsOut)
-async def get_profit_taking_settings(db: AsyncSession = Depends(get_db)):
-    config = get_config()
-    enabled = await get_hybrid_take_profit_enabled(db, config)
-    oversold_enabled = await get_oversold_fastlane_enabled(db, config)
-    return ProfitTakingSettingsOut(
-        hybrid_take_profit_enabled=enabled,
-        hybrid_take_profit_min_buy_strength=_hybrid_min_buy_strength(config),
-        oversold_fastlane_enabled=oversold_enabled,
-    )
+@router.get("/config", response_model=SettingsConfigOut)
+async def get_settings_config():
+    return _serialize_config(get_config())
 
 
-@router.put("/profit-taking", response_model=ProfitTakingSettingsOut)
-async def update_profit_taking_settings(
-    body: ProfitTakingSettingsIn,
+@router.put("/config", response_model=SettingsConfigOut)
+async def update_settings_config(
+    body: SettingsUpdateIn,
     db: AsyncSession = Depends(get_db),
 ):
-    config = get_config()
-    if (
-        body.hybrid_take_profit_enabled is None
-        and body.oversold_fastlane_enabled is None
-    ):
+    if not body.updates:
         raise HTTPException(status_code=400, detail="No settings provided")
 
-    enabled = await get_hybrid_take_profit_enabled(db, config)
-    if body.hybrid_take_profit_enabled is not None:
-        enabled = await set_hybrid_take_profit_enabled(
-            db,
-            config,
-            body.hybrid_take_profit_enabled,
+    config = get_config()
+    unknown = [k for k in body.updates if k not in REGISTRY_BY_KEY]
+    if unknown:
+        raise HTTPException(
+            status_code=400, detail=f"Unknown setting keys: {', '.join(unknown)}"
         )
 
-    oversold_enabled = await get_oversold_fastlane_enabled(db, config)
-    if body.oversold_fastlane_enabled is not None:
-        oversold_enabled = await set_oversold_fastlane_enabled(
-            db,
-            config,
-            body.oversold_fastlane_enabled,
-        )
+    try:
+        for key, value in body.updates.items():
+            await set_setting_value(db, config, REGISTRY_BY_KEY[key], value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # Settings toggles change recommendation behavior; clear shared strategy cache
-    # so next signal/action fetch recomputes with updated strategy switches.
     Strategy.invalidate_recommendations_cache()
-
-    return ProfitTakingSettingsOut(
-        hybrid_take_profit_enabled=enabled,
-        hybrid_take_profit_min_buy_strength=_hybrid_min_buy_strength(config),
-        oversold_fastlane_enabled=oversold_enabled,
-    )
+    return _serialize_config(config)

@@ -13,7 +13,7 @@ struct SettingsView: View {
     @State private var authStatus: AuthStatusOut?
     @State private var isRegistering = false
     @State private var authError: String?
-    @State private var tradingSettings = TradingSettingsOut(
+    @State private var tradingSettings = TradingSettings(
         hybridTakeProfitEnabled: false,
         hybridTakeProfitMinBuyStrength: 0.5,
         oversoldFastlaneEnabled: true
@@ -266,12 +266,12 @@ struct SettingsView: View {
 
     private func loadAll() async {
         async let authStatusTask = client.getAuthStatus()
-        async let tradingSettingsTask = client.getTradingSettings()
+        async let settingsConfigTask = client.getSettingsConfig()
         do {
             authStatus = try await authStatusTask
         } catch {}
         do {
-            tradingSettings = try await tradingSettingsTask
+            tradingSettings = TradingSettings.from(try await settingsConfigTask)
         } catch {}
 
         guard let token = pushManager.deviceToken else {
@@ -352,26 +352,17 @@ struct SettingsView: View {
         updatingHybridMode = true
         defer { updatingHybridMode = false }
 
-        let current = tradingSettings
-        let previous = current.hybridTakeProfitEnabled
-        tradingSettings = TradingSettingsOut(
-            hybridTakeProfitEnabled: enabled,
-            hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength,
-            oversoldFastlaneEnabled: current.oversoldFastlaneEnabled
-        )
+        let previous = tradingSettings.hybridTakeProfitEnabled
+        tradingSettings.hybridTakeProfitEnabled = enabled
 
         do {
-            let updated = try await client.updateTradingSettings(
-                hybridTakeProfitEnabled: enabled
-            )
-            tradingSettings = updated
+            let updated = try await client.updateSettings([
+                "risk.hybrid_take_profit_enabled": .bool(enabled)
+            ])
+            tradingSettings = TradingSettings.from(updated)
             scheduleStrategyRefresh()
         } catch {
-            tradingSettings = TradingSettingsOut(
-                hybridTakeProfitEnabled: previous,
-                hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength,
-                oversoldFastlaneEnabled: current.oversoldFastlaneEnabled
-            )
+            tradingSettings.hybridTakeProfitEnabled = previous
         }
     }
 
@@ -379,26 +370,17 @@ struct SettingsView: View {
         updatingOversoldMode = true
         defer { updatingOversoldMode = false }
 
-        let current = tradingSettings
-        let previous = current.oversoldFastlaneEnabled
-        tradingSettings = TradingSettingsOut(
-            hybridTakeProfitEnabled: current.hybridTakeProfitEnabled,
-            hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength,
-            oversoldFastlaneEnabled: enabled
-        )
+        let previous = tradingSettings.oversoldFastlaneEnabled
+        tradingSettings.oversoldFastlaneEnabled = enabled
 
         do {
-            let updated = try await client.updateTradingSettings(
-                oversoldFastlaneEnabled: enabled
-            )
-            tradingSettings = updated
+            let updated = try await client.updateSettings([
+                "strategy.oversold_fastlane.enabled": .bool(enabled)
+            ])
+            tradingSettings = TradingSettings.from(updated)
             scheduleStrategyRefresh()
         } catch {
-            tradingSettings = TradingSettingsOut(
-                hybridTakeProfitEnabled: current.hybridTakeProfitEnabled,
-                hybridTakeProfitMinBuyStrength: current.hybridTakeProfitMinBuyStrength,
-                oversoldFastlaneEnabled: previous
-            )
+            tradingSettings.oversoldFastlaneEnabled = previous
         }
     }
 

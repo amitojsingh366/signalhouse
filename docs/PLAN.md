@@ -37,6 +37,8 @@ _Check off items as they're completed. Break large items into sub-items as neede
 
 - [x] Cash-aware actions + iOS tab reorganization — `actionable` field on BUY actions (false if insufficient cash/slots), separate "Signals" section on web + iOS, actionPlan auto-refreshes on trade/cash/holding changes, Trades promoted to tab 3, Pre-Market to More
 - [x] Fix equity curve + price chart rendering — iOS: explicit tight Y-axis domain with 10% padding (EquityChartView, SignalDetailView, ActionDetailView), Web: use `formatCurrency` for equity chart Y-axis tick labels
+- [x] Treat manual portfolio edits as capital adjustments, not PnL — `total_pnl = current_value - initial_capital` with `initial_capital` shifted on `delete_holding` (−cost basis), `update_cash` (±delta), `update_holding` (±cost delta), and re-sync. All `DailySnapshot` rows shifted by the same market-value delta so daily PnL stays stable. Empty-state (no holdings, no cash) returns zeros cleanly; fallback to `realized + unrealized` when no baseline is set.
+- [x] Consolidate settings page under a single Trading section; expose editable `settings.yaml` values — new `editable_settings` registry of dotted-path config keys (type, group, label, description, min/max/step) persisted in `app_settings`. Replaced `/api/settings/profit-taking` with generic `GET` / `PUT /api/settings/config`; router mutates the live config dict so Strategy/RiskManager pick up changes on next read. Web settings page now has one Trading card (TrendingUp icon) with grouped bool toggles + numeric inputs (commit on blur/Enter, optimistic update w/ rollback, TanStack Query invalidation). iOS `SettingsView` kept its 2-toggle UX but migrated onto the same generic endpoint via `TradingSettings.from(SettingsConfigOut)`.
 
 ---
 

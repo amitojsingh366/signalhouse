@@ -225,15 +225,30 @@ class StatusOut(BaseModel):
     risk_halt_reason: str
 
 
-class ProfitTakingSettingsOut(BaseModel):
-    hybrid_take_profit_enabled: bool
-    hybrid_take_profit_min_buy_strength: float
-    oversold_fastlane_enabled: bool
+class SettingItem(BaseModel):
+    key: str
+    type: str  # "bool" | "int" | "float"
+    group: str
+    label: str
+    description: str
+    value: bool | int | float | None
+    min: float | None = None
+    max: float | None = None
+    step: float | None = None
 
 
-class ProfitTakingSettingsIn(BaseModel):
-    hybrid_take_profit_enabled: bool | None = None
-    oversold_fastlane_enabled: bool | None = None
+class SettingGroup(BaseModel):
+    id: str
+    label: str
+    items: list[SettingItem]
+
+
+class SettingsConfigOut(BaseModel):
+    groups: list[SettingGroup]
+
+
+class SettingsUpdateIn(BaseModel):
+    updates: dict[str, bool | int | float]
 
 
 # --- Upload ---

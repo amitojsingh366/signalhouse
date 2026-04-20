@@ -195,12 +195,19 @@ class Portfolio:
             for sym in list(risk.open_trades.keys()):
                 risk.register_exit(sym)
 
+        # Compute old total cost basis before wiping holdings so we can adjust
+        # initial_capital on re-syncs (treat the change as a capital adjustment,
+        # not a PnL event).
+        old_result = await self.db.execute(select(Holding))
+        old_cost_basis = sum(h.quantity * h.avg_cost for h in old_result.scalars().all())
+
         # Delete all existing holdings
         result = await self.db.execute(select(Holding))
         for h in result.scalars().all():
             await self.db.delete(h)
 
         total_value = 0.0
+        new_cost_basis = 0.0
         for h in parsed_holdings:
             symbol = h["symbol"]
             quantity = h["quantity"]
@@ -215,6 +222,7 @@ class Portfolio:
             )
             self.db.add(holding)
             total_value += value
+            new_cost_basis += quantity * avg_cost
 
             if risk is not None:
                 risk.register_entry(symbol, avg_cost, quantity)
@@ -222,6 +230,11 @@ class Portfolio:
         meta = await self._get_meta()
         if meta.initial_capital == 0:
             meta.initial_capital = total_value + meta.cash
+        else:
+            # Re-sync: treat cost-basis change as a capital adjustment so PnL
+            # is preserved (user is correcting holdings, not realizing gains).
+            cost_delta = new_cost_basis - old_cost_basis
+            meta.initial_capital = max(0.0, meta.initial_capital + cost_delta)
 
         await self.db.commit()
         self._meta_cache = None
@@ -230,22 +243,58 @@ class Portfolio:
             len(parsed_holdings), total_value,
         )
 
+    async def _shift_snapshots(self, portfolio_delta: float, cash_delta: float = 0.0) -> None:
+        """Shift existing DailySnapshots by a manual capital adjustment.
+
+        Keeps daily_pnl comparisons (today vs yesterday) stable when the user
+        edits cash or deletes a holding — those are not market moves.
+        """
+        if portfolio_delta == 0.0 and cash_delta == 0.0:
+            return
+        positions_delta = portfolio_delta - cash_delta
+        result = await self.db.execute(select(DailySnapshot))
+        for snap in result.scalars().all():
+            snap.portfolio_value += portfolio_delta
+            snap.cash += cash_delta
+            snap.positions_value += positions_delta
+
     async def update_holding(
-        self, symbol: str, quantity: float | None = None, avg_cost: float | None = None
+        self,
+        symbol: str,
+        quantity: float | None = None,
+        avg_cost: float | None = None,
+        market_price: float | None = None,
     ) -> dict[str, Any] | None:
-        """Update quantity and/or avg_cost for an existing holding."""
+        """Update quantity and/or avg_cost for an existing holding.
+
+        Treated as a user-initiated correction, not a trade: initial_capital
+        and snapshot history are shifted so PnL and daily-PnL remain stable.
+        """
         result = await self.db.execute(select(Holding).where(Holding.symbol == symbol))
         h = result.scalar_one_or_none()
         if h is None:
             return None
+
+        old_qty = h.quantity
+        old_cost = h.avg_cost
+        price = market_price if market_price is not None else old_cost
 
         if quantity is not None:
             h.quantity = quantity
         if avg_cost is not None:
             h.avg_cost = avg_cost
 
+        cost_delta = (h.quantity * h.avg_cost) - (old_qty * old_cost)
+        value_delta = (h.quantity - old_qty) * price  # avg_cost changes don't move market value
+
+        meta = await self._get_meta()
+        if meta.initial_capital > 0 or cost_delta > 0:
+            meta.initial_capital = max(0.0, meta.initial_capital + cost_delta)
+        await self._shift_snapshots(portfolio_delta=value_delta)
+
         await self.db.commit()
         await self.db.refresh(h)
+        self._meta_cache = None
         logger.info("Updated holding %s: qty=%.4f avg_cost=%.2f", symbol, h.quantity, h.avg_cost)
         return {
             "symbol": h.symbol,
@@ -254,24 +303,49 @@ class Portfolio:
             "entry_date": h.entry_date.isoformat() if h.entry_date else "",
         }
 
-    async def delete_holding(self, symbol: str) -> bool:
-        """Delete a holding entirely."""
+    async def delete_holding(self, symbol: str, market_price: float | None = None) -> bool:
+        """Delete a holding entirely.
+
+        Treated as a correction (user never really held it), not a liquidation:
+        cost basis is removed from initial_capital and all snapshots are shifted
+        by the holding's current market value so PnL and daily-PnL don't jump.
+        """
         result = await self.db.execute(select(Holding).where(Holding.symbol == symbol))
         h = result.scalar_one_or_none()
         if h is None:
             return False
+
+        cost_basis = h.quantity * h.avg_cost
+        price = market_price if market_price is not None else h.avg_cost
+        market_value = h.quantity * price
+
         await self.db.delete(h)
+
+        meta = await self._get_meta()
+        if meta.initial_capital > 0:
+            meta.initial_capital = max(0.0, meta.initial_capital - cost_basis)
+        await self._shift_snapshots(portfolio_delta=-market_value)
+
         await self.db.commit()
+        self._meta_cache = None
         logger.info("Deleted holding %s", symbol)
         return True
 
     async def update_cash(self, cash: float) -> float:
-        """Set the cash balance directly."""
+        """Set the cash balance directly.
+
+        Treated as a deposit/withdrawal, not PnL: initial_capital and snapshot
+        history are shifted by the delta so total/daily PnL are unaffected.
+        """
         meta = await self._get_meta()
+        delta = cash - meta.cash
         meta.cash = cash
+        if meta.initial_capital > 0 or delta > 0:
+            meta.initial_capital = max(0.0, meta.initial_capital + delta)
+        await self._shift_snapshots(portfolio_delta=delta, cash_delta=delta)
         await self.db.commit()
         self._meta_cache = None
-        logger.info("Updated cash to $%.2f", cash)
+        logger.info("Updated cash to $%.2f (delta $%.2f)", cash, delta)
         return cash
 
     async def get_realized_pnl(self) -> float:
@@ -322,21 +396,26 @@ class Portfolio:
         current_value = await self.get_portfolio_value(live_prices)
         meta = await self._get_meta()
 
-        # Unrealized P&L: market value of current holdings - cost basis
-        holdings = await self.get_holdings_dict()
-        positions_value = 0.0
-        total_cost = 0.0
-        for symbol, h in holdings.items():
-            price = live_prices.get(symbol, h["avg_cost"])
-            positions_value += h["quantity"] * price
-            total_cost += h["quantity"] * h["avg_cost"]
-        unrealized_pnl = positions_value - total_cost
-
-        # Realized P&L: sum of profit/loss from all completed sell trades
-        realized_pnl = await self.get_realized_pnl()
-        total_pnl = unrealized_pnl + realized_pnl
-
-        initial = meta.initial_capital or current_value
+        # total_pnl = current_value - initial_capital. initial_capital is
+        # shifted on manual edits (delete holding, cash edit) so those are
+        # treated as capital adjustments, not PnL events. Fall back to
+        # realized+unrealized when no baseline is set (user hasn't synced
+        # a snapshot or set cash yet).
+        if meta.initial_capital > 0:
+            initial = meta.initial_capital
+            total_pnl = current_value - initial
+        else:
+            holdings = await self.get_holdings_dict()
+            positions_value = 0.0
+            total_cost = 0.0
+            for symbol, h in holdings.items():
+                price = live_prices.get(symbol, h["avg_cost"])
+                positions_value += h["quantity"] * price
+                total_cost += h["quantity"] * h["avg_cost"]
+            unrealized_pnl = positions_value - total_cost
+            realized_pnl = await self.get_realized_pnl()
+            total_pnl = unrealized_pnl + realized_pnl
+            initial = current_value
 
         # Find previous day's snapshot for daily P&L
         # Skip today's snapshot (if it exists) so we compare against yesterday

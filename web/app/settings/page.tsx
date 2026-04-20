@@ -13,7 +13,13 @@ import {
 } from "lucide-react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, setAuthToken, getAuthToken } from "@/lib/api";
+import {
+  api,
+  setAuthToken,
+  getAuthToken,
+  type SettingGroup,
+  type SettingItem,
+} from "@/lib/api";
 import { queryKeys } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import { SearchTrigger } from "@/components/ui/search-trigger";
@@ -28,12 +34,9 @@ export default function SettingsPage() {
   const [registered, setRegistered] = useState(false);
   const [credentials, setCredentials] = useState<CredentialInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [hybridLoading, setHybridLoading] = useState(true);
-  const [hybridSaving, setHybridSaving] = useState(false);
-  const [oversoldSaving, setOversoldSaving] = useState(false);
-  const [hybridTakeProfitEnabled, setHybridTakeProfitEnabled] = useState(false);
-  const [hybridMinBuyStrength, setHybridMinBuyStrength] = useState(0.5);
-  const [oversoldFastlaneEnabled, setOversoldFastlaneEnabled] = useState(true);
+  const [tradingLoading, setTradingLoading] = useState(true);
+  const [groups, setGroups] = useState<SettingGroup[]>([]);
+  const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
   const [registering, setRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -53,8 +56,6 @@ export default function SettingsPage() {
     }, 600);
   }, [qc]);
 
-  const isSavingSettings = hybridSaving || oversoldSaving;
-
   const loadStatus = useCallback(async () => {
     try {
       const status = await api.getAuthStatus();
@@ -68,14 +69,12 @@ export default function SettingsPage() {
     }
 
     try {
-      const settings = await api.getProfitTakingSettings();
-      setHybridTakeProfitEnabled(settings.hybrid_take_profit_enabled);
-      setHybridMinBuyStrength(settings.hybrid_take_profit_min_buy_strength);
-      setOversoldFastlaneEnabled(settings.oversold_fastlane_enabled);
+      const cfg = await api.getSettingsConfig();
+      setGroups(cfg.groups);
     } catch {
-      // Keep local defaults if settings endpoint is unavailable.
+      // Keep empty on error
     } finally {
-      setHybridLoading(false);
+      setTradingLoading(false);
     }
   }, []);
 
@@ -97,16 +96,10 @@ export default function SettingsPage() {
     setSuccess(null);
 
     try {
-      // 1. Get registration options from server
       const options = await api.getRegisterOptions();
-
-      // 2. Create credential via browser WebAuthn API
       const credential = await startRegistration({ optionsJSON: options as any });
-
-      // 3. Send credential to server for verification
       const result = await api.verifyRegistration(credential as any);
 
-      // 4. Store the token
       setAuthToken(result.token);
       setHasToken(true);
       setSuccess("Passkey registered successfully");
@@ -156,55 +149,34 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleHybridTakeProfitChange(enabled: boolean) {
-    setHybridSaving(true);
-    setError(null);
-    const previous = hybridTakeProfitEnabled;
-    setHybridTakeProfitEnabled(enabled);
-    try {
-      const updated = await api.updateProfitTakingSettings({
-        hybrid_take_profit_enabled: enabled,
-      });
-      setHybridTakeProfitEnabled(updated.hybrid_take_profit_enabled);
-      setHybridMinBuyStrength(updated.hybrid_take_profit_min_buy_strength);
-      setOversoldFastlaneEnabled(updated.oversold_fastlane_enabled);
-      setSuccess(
-        updated.hybrid_take_profit_enabled
-          ? "Hybrid profit taking enabled"
-          : "Hybrid profit taking disabled"
-      );
-      scheduleStrategyRefresh();
-    } catch (e: any) {
-      setHybridTakeProfitEnabled(previous);
-      setError(e.message || "Failed to update hybrid profit taking");
-    } finally {
-      setHybridSaving(false);
-    }
-  }
+  const markSaving = useCallback((key: string, on: boolean) => {
+    setSavingKeys((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
 
-  async function handleOversoldFastlaneChange(enabled: boolean) {
-    setOversoldSaving(true);
+  async function saveSetting(key: string, value: number | boolean) {
+    const previous = groups;
+    setGroups((gs) =>
+      gs.map((g) => ({
+        ...g,
+        items: g.items.map((it) => (it.key === key ? { ...it, value } : it)),
+      }))
+    );
+    markSaving(key, true);
     setError(null);
-    const previous = oversoldFastlaneEnabled;
-    setOversoldFastlaneEnabled(enabled);
     try {
-      const updated = await api.updateProfitTakingSettings({
-        oversold_fastlane_enabled: enabled,
-      });
-      setHybridTakeProfitEnabled(updated.hybrid_take_profit_enabled);
-      setHybridMinBuyStrength(updated.hybrid_take_profit_min_buy_strength);
-      setOversoldFastlaneEnabled(updated.oversold_fastlane_enabled);
-      setSuccess(
-        updated.oversold_fastlane_enabled
-          ? "Oversold fast-lane enabled"
-          : "Oversold fast-lane disabled"
-      );
+      const updated = await api.updateSettingsConfig({ [key]: value });
+      setGroups(updated.groups);
       scheduleStrategyRefresh();
     } catch (e: any) {
-      setOversoldFastlaneEnabled(previous);
-      setError(e.message || "Failed to update oversold fast-lane");
+      setGroups(previous);
+      setError(e.message || "Failed to update setting");
     } finally {
-      setOversoldSaving(false);
+      markSaving(key, false);
     }
   }
 
@@ -299,7 +271,6 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        {/* Credential list */}
         {credentials.length > 0 ? (
           <div className="mt-6 space-y-3">
             {credentials.map((cred) => (
@@ -338,7 +309,6 @@ export default function SettingsPage() {
         )}
       </div>
 
-      {/* Login section — shown only when passkeys are registered */}
       {registered && (
         <div className="glass-card p-6">
           <div className="flex items-center justify-between">
@@ -361,84 +331,184 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Trading settings — consolidated editable config */}
       <div className="glass-card p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-brand-500/20 p-3">
-              <TrendingUp className="h-5 w-5 text-brand-400" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">Profit Taking</h2>
-              <p className="mt-1 text-sm text-slate-400">
-                Hybrid mode can hold winners after the take-profit threshold when
-                momentum is still strong.
-              </p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-brand-500/20 p-3">
+            <TrendingUp className="h-5 w-5 text-brand-400" />
           </div>
-          <div className="flex items-center gap-3">
-            {isSavingSettings && (
-              <span className="text-xs text-slate-500">Saving...</span>
-            )}
-            <label
-              className={cn(
-                "relative inline-flex items-center",
-                hybridLoading || isSavingSettings
-                  ? "cursor-not-allowed opacity-60"
-                  : "cursor-pointer"
-              )}
-            >
-              <input
-                type="checkbox"
-                className="peer sr-only"
-                checked={hybridTakeProfitEnabled}
-                disabled={hybridLoading || isSavingSettings}
-                onChange={(e) => handleHybridTakeProfitChange(e.target.checked)}
-              />
-              <span className="h-6 w-11 rounded-full bg-white/10 transition-colors duration-200 peer-checked:bg-brand-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-500/50 peer-disabled:bg-white/5 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:duration-200 peer-checked:after:translate-x-5" />
-            </label>
+          <div>
+            <h2 className="text-lg font-semibold">Trading</h2>
+            <p className="text-sm text-slate-400">
+              Strategy, risk, and notification parameters from{" "}
+              <code className="rounded bg-white/5 px-1 py-0.5 text-xs">settings.yaml</code>.
+              Changes apply immediately and persist across restarts.
+            </p>
           </div>
         </div>
-        <p className="mt-3 text-xs text-slate-500">
-          When enabled, take-profit sells at the configured threshold are deferred if
-          the symbol still has a BUY signal of at least{" "}
-          {(hybridMinBuyStrength * 100).toFixed(0)}% strength. Trailing stops, stop
-          losses, and other exits still apply.
-        </p>
 
-        <div className="mt-5 border-t border-white/10 pt-5">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-sm font-medium text-white">Oversold Fast-Lane</h3>
-              <p className="mt-1 text-sm text-slate-400">
-                Allow earlier BUY recommendations for guarded oversold reversal setups,
-                even below the normal 35% scan threshold.
-              </p>
-            </div>
-            <label
-              className={cn(
-                "relative inline-flex items-center",
-                hybridLoading || isSavingSettings
-                  ? "cursor-not-allowed opacity-60"
-                  : "cursor-pointer"
-              )}
-            >
-              <input
-                type="checkbox"
-                className="peer sr-only"
-                checked={oversoldFastlaneEnabled}
-                disabled={hybridLoading || isSavingSettings}
-                onChange={(e) => handleOversoldFastlaneChange(e.target.checked)}
-              />
-              <span className="h-6 w-11 rounded-full bg-white/10 transition-colors duration-200 peer-checked:bg-brand-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-500/50 peer-disabled:bg-white/5 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:duration-200 peer-checked:after:translate-x-5" />
-            </label>
+        {tradingLoading ? (
+          <div className="mt-6 space-y-3">
+            <div className="h-5 w-32 animate-pulse rounded bg-white/10" />
+            <div className="h-12 animate-pulse rounded bg-white/5" />
+            <div className="h-12 animate-pulse rounded bg-white/5" />
           </div>
-          <p className="mt-3 text-xs text-slate-500">
-            {oversoldFastlaneEnabled
-              ? "Enabled: oversold candidates can pass scan at lower strength if protective guards are met (oversold trigger, bearish-crossover block, and sentiment floor)."
-              : "Disabled: BUY recommendations only use the standard scan threshold and skip the oversold fast-lane path."}
-          </p>
-        </div>
+        ) : (
+          <div className="mt-6 space-y-8">
+            {groups.map((group) => (
+              <section key={group.id} className="space-y-4">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+                  {group.label}
+                </h3>
+                <div className="space-y-3">
+                  {group.items.map((item) => (
+                    <SettingRow
+                      key={item.key}
+                      item={item}
+                      saving={savingKeys.has(item.key)}
+                      onSave={(value) => saveSetting(item.key, value)}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+function SettingRow({
+  item,
+  saving,
+  onSave,
+}: {
+  item: SettingItem;
+  saving: boolean;
+  onSave: (value: number | boolean) => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-lg border border-white/5 bg-white/[0.02] p-4">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-white">{item.label}</p>
+          {saving && (
+            <span className="text-xs text-slate-500">Saving…</span>
+          )}
+        </div>
+        <p className="mt-1 text-xs text-slate-500">{item.description}</p>
+      </div>
+      <div className="shrink-0">
+        {item.type === "bool" ? (
+          <BoolControl
+            value={item.value as boolean | null}
+            disabled={saving}
+            onChange={(v) => onSave(v)}
+          />
+        ) : (
+          <NumberControl
+            value={item.value as number | null}
+            type={item.type}
+            min={item.min}
+            max={item.max}
+            step={item.step}
+            disabled={saving}
+            onCommit={(v) => onSave(v)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BoolControl({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: boolean | null;
+  disabled: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  const checked = !!value;
+  return (
+    <label
+      className={cn(
+        "relative inline-flex items-center",
+        disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+      )}
+    >
+      <input
+        type="checkbox"
+        className="peer sr-only"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className="h-6 w-11 rounded-full bg-white/10 transition-colors duration-200 peer-checked:bg-brand-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-500/50 peer-disabled:bg-white/5 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:duration-200 peer-checked:after:translate-x-5" />
+    </label>
+  );
+}
+
+function NumberControl({
+  value,
+  type,
+  min,
+  max,
+  step,
+  disabled,
+  onCommit,
+}: {
+  value: number | null;
+  type: "int" | "float";
+  min: number | null;
+  max: number | null;
+  step: number | null;
+  disabled: boolean;
+  onCommit: (v: number) => void;
+}) {
+  const [draft, setDraft] = useState<string>(value == null ? "" : String(value));
+
+  useEffect(() => {
+    setDraft(value == null ? "" : String(value));
+  }, [value]);
+
+  const commit = () => {
+    if (draft.trim() === "") {
+      setDraft(value == null ? "" : String(value));
+      return;
+    }
+    const parsed = type === "int" ? parseInt(draft, 10) : parseFloat(draft);
+    if (!Number.isFinite(parsed) || parsed === value) {
+      setDraft(value == null ? "" : String(value));
+      return;
+    }
+    onCommit(parsed);
+  };
+
+  const effectiveStep =
+    step ?? (type === "int" ? 1 : 0.01);
+
+  return (
+    <input
+      type="number"
+      className="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-right text-sm text-white outline-none transition-colors focus:border-brand-500/60 focus:bg-white/[0.07] disabled:opacity-60"
+      value={draft}
+      disabled={disabled}
+      min={min ?? undefined}
+      max={max ?? undefined}
+      step={effectiveStep}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          (e.target as HTMLInputElement).blur();
+        } else if (e.key === "Escape") {
+          setDraft(value == null ? "" : String(value));
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+    />
   );
 }

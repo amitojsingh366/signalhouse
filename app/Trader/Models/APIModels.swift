@@ -185,56 +185,82 @@ struct StatusOut: Codable {
 
 // MARK: - Trading Settings
 
-struct TradingSettingsOut: Codable {
-    let hybridTakeProfitEnabled: Bool
-    let hybridTakeProfitMinBuyStrength: Double
-    let oversoldFastlaneEnabled: Bool
+/// One editable setting from `/api/settings/config`. `value` is dynamic (bool or number).
+struct SettingItem: Codable {
+    let key: String
+    let type: String  // "bool" | "int" | "float"
+    let group: String
+    let label: String
+    let description: String
+    let value: SettingValue?
+    let min: Double?
+    let max: Double?
+    let step: Double?
+}
 
-    // Accept both current API key ("hybrid_take_profit_enabled") and
-    // legacy key ("hybrid_profit_taking_enabled") to avoid UI regressions
-    // when clients/server are on slightly different versions.
-    private enum CodingKeys: String, CodingKey {
-        case hybridTakeProfitEnabled
-        case hybridTakeProfitMinBuyStrength
-        case hybridProfitTakingEnabled
-        case oversoldFastlaneEnabled
+enum SettingValue: Codable {
+    case bool(Bool)
+    case number(Double)
+
+    var boolValue: Bool? {
+        if case .bool(let v) = self { return v }
+        return nil
     }
 
-    init(
-        hybridTakeProfitEnabled: Bool,
-        hybridTakeProfitMinBuyStrength: Double,
-        oversoldFastlaneEnabled: Bool
-    ) {
-        self.hybridTakeProfitEnabled = hybridTakeProfitEnabled
-        self.hybridTakeProfitMinBuyStrength = hybridTakeProfitMinBuyStrength
-        self.oversoldFastlaneEnabled = oversoldFastlaneEnabled
+    var numberValue: Double? {
+        if case .number(let v) = self { return v }
+        return nil
     }
 
     init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        if let enabled = try container.decodeIfPresent(Bool.self, forKey: .hybridTakeProfitEnabled) {
-            hybridTakeProfitEnabled = enabled
+        let container = try decoder.singleValueContainer()
+        if let b = try? container.decode(Bool.self) {
+            self = .bool(b)
         } else {
-            hybridTakeProfitEnabled = try container.decode(Bool.self, forKey: .hybridProfitTakingEnabled)
+            self = .number(try container.decode(Double.self))
         }
-        hybridTakeProfitMinBuyStrength = try container.decode(
-            Double.self,
-            forKey: .hybridTakeProfitMinBuyStrength
-        )
-        oversoldFastlaneEnabled = try container.decodeIfPresent(
-            Bool.self,
-            forKey: .oversoldFastlaneEnabled
-        ) ?? true
     }
 
     func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(hybridTakeProfitEnabled, forKey: .hybridTakeProfitEnabled)
-        try container.encode(
-            hybridTakeProfitMinBuyStrength,
-            forKey: .hybridTakeProfitMinBuyStrength
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .bool(let v): try container.encode(v)
+        case .number(let v): try container.encode(v)
+        }
+    }
+}
+
+struct SettingsGroupOut: Codable {
+    let id: String
+    let label: String
+    let items: [SettingItem]
+}
+
+struct SettingsConfigOut: Codable {
+    let groups: [SettingsGroupOut]
+
+    func value(for key: String) -> SettingValue? {
+        for group in groups {
+            for item in group.items where item.key == key {
+                return item.value
+            }
+        }
+        return nil
+    }
+}
+
+/// Flat projection of trading settings used by iOS.
+struct TradingSettings {
+    var hybridTakeProfitEnabled: Bool
+    var hybridTakeProfitMinBuyStrength: Double
+    var oversoldFastlaneEnabled: Bool
+
+    static func from(_ config: SettingsConfigOut) -> TradingSettings {
+        TradingSettings(
+            hybridTakeProfitEnabled: config.value(for: "risk.hybrid_take_profit_enabled")?.boolValue ?? false,
+            hybridTakeProfitMinBuyStrength: config.value(for: "risk.hybrid_take_profit_min_buy_strength")?.numberValue ?? 0.5,
+            oversoldFastlaneEnabled: config.value(for: "strategy.oversold_fastlane.enabled")?.boolValue ?? true
         )
-        try container.encode(oversoldFastlaneEnabled, forKey: .oversoldFastlaneEnabled)
     }
 }
 

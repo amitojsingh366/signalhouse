@@ -76,14 +76,19 @@ async def get_holdings(db: AsyncSession = Depends(get_db)):
         ))
 
     meta = await portfolio._get_meta()
-    positions_value = total_value  # sum of market values (before adding cash)
     total_value += meta.cash
 
-    # Total P&L = unrealized (current positions) + realized (completed trades)
-    unrealized_pnl = positions_value - total_cost
-    realized_pnl = await portfolio.get_realized_pnl()
-    total_pnl = unrealized_pnl + realized_pnl
-    initial = meta.initial_capital or total_value
+    # Total P&L = current_value - initial_capital. initial_capital is shifted
+    # on manual edits so deletes and cash changes don't show up as PnL. Fall
+    # back to realized+unrealized if no baseline is set yet.
+    if meta.initial_capital > 0:
+        total_pnl = total_value - meta.initial_capital
+        initial = meta.initial_capital
+    else:
+        realized_pnl = await portfolio.get_realized_pnl()
+        unrealized_pnl = (total_value - meta.cash) - total_cost
+        total_pnl = unrealized_pnl + realized_pnl
+        initial = total_value
 
     return PortfolioSummary(
         holdings=items,
@@ -133,7 +138,11 @@ async def get_snapshots(db: AsyncSession = Depends(get_db)):
 async def update_holding(data: HoldingUpdate, db: AsyncSession = Depends(get_db)):
     portfolio = make_portfolio(db)
     risk = get_risk()
-    result = await portfolio.update_holding(data.symbol.upper(), data.quantity, data.avg_cost)
+    symbol = data.symbol.upper()
+    prices = await get_market_data().get_batch_prices([symbol])
+    result = await portfolio.update_holding(
+        symbol, data.quantity, data.avg_cost, market_price=prices.get(symbol)
+    )
     if result is None:
         raise HTTPException(status_code=404, detail=f"Holding {data.symbol} not found")
     holdings = await portfolio.get_holdings_dict()
@@ -151,7 +160,9 @@ async def update_holding(data: HoldingUpdate, db: AsyncSession = Depends(get_db)
 async def delete_holding(symbol: str, db: AsyncSession = Depends(get_db)):
     portfolio = make_portfolio(db)
     risk = get_risk()
-    deleted = await portfolio.delete_holding(symbol.upper())
+    symbol = symbol.upper()
+    prices = await get_market_data().get_batch_prices([symbol])
+    deleted = await portfolio.delete_holding(symbol, market_price=prices.get(symbol))
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Holding {symbol} not found")
     holdings = await portfolio.get_holdings_dict()

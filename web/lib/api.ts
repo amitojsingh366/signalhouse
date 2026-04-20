@@ -204,10 +204,26 @@ export interface StatusOut {
   risk_halt_reason: string;
 }
 
-export interface ProfitTakingSettingsOut {
-  hybrid_take_profit_enabled: boolean;
-  hybrid_take_profit_min_buy_strength: number;
-  oversold_fastlane_enabled: boolean;
+export interface SettingItem {
+  key: string;
+  type: "bool" | "int" | "float";
+  group: string;
+  label: string;
+  description: string;
+  value: number | boolean | null;
+  min: number | null;
+  max: number | null;
+  step: number | null;
+}
+
+export interface SettingGroup {
+  id: string;
+  label: string;
+  items: SettingItem[];
+}
+
+export interface SettingsConfigOut {
+  groups: SettingGroup[];
 }
 
 export interface UploadHolding {
@@ -340,15 +356,12 @@ export const api = {
   getStatus: () => fetchAPI<StatusOut>("/api/status"),
 
   // Settings
-  getProfitTakingSettings: () =>
-    fetchAPI<ProfitTakingSettingsOut>("/api/settings/profit-taking"),
-  updateProfitTakingSettings: (settings: {
-    hybrid_take_profit_enabled?: boolean;
-    oversold_fastlane_enabled?: boolean;
-  }) =>
-    fetchAPI<ProfitTakingSettingsOut>("/api/settings/profit-taking", {
+  getSettingsConfig: () =>
+    fetchAPI<SettingsConfigOut>("/api/settings/config"),
+  updateSettingsConfig: (updates: Record<string, number | boolean>) =>
+    fetchAPI<SettingsConfigOut>("/api/settings/config", {
       method: "PUT",
-      body: JSON.stringify(settings),
+      body: JSON.stringify({ updates }),
     }),
 
   // Upload

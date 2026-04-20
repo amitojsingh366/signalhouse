@@ -13,7 +13,6 @@ from trader_api.schemas import (
     HoldingAdvice,
     HoldingOut,
     HoldingUpdate,
-    PerformanceBaselineUpdate,
     PnlSummary,
     PortfolioSummary,
     SnapshotOut,
@@ -87,13 +86,11 @@ async def get_holdings(db: AsyncSession = Depends(get_db)):
     # back to realized+unrealized if no baseline is set yet.
     if meta.initial_capital > 0:
         total_pnl = total_value - meta.initial_capital
-        initial = meta.initial_capital
     else:
         realized_pnl = await portfolio.get_realized_pnl()
         unrealized_pnl = (total_value - meta.cash) - total_cost
         total_pnl = unrealized_pnl + realized_pnl
-        initial = total_value
-    performance_baseline = portfolio.get_performance_baseline(meta, fallback=initial)
+    baseline = portfolio.get_total_pnl_baseline(total_cost)
 
     return PortfolioSummary(
         holdings=items,
@@ -101,9 +98,7 @@ async def get_holdings(db: AsyncSession = Depends(get_db)):
         cash=meta.cash,
         total_cost=total_cost,
         total_pnl=total_pnl,
-        total_pnl_pct=(
-            (total_pnl / performance_baseline * 100) if performance_baseline > 0 else 0.0
-        ),
+        total_pnl_pct=(total_pnl / baseline * 100) if baseline > 0 else 0.0,
     )
 
 
@@ -188,13 +183,3 @@ async def update_cash(data: CashUpdate, db: AsyncSession = Depends(get_db)):
     portfolio = make_portfolio(db)
     new_cash = await portfolio.update_cash(data.cash)
     return {"cash": new_cash}
-
-
-@router.put("/performance-baseline")
-async def update_performance_baseline(
-    data: PerformanceBaselineUpdate,
-    db: AsyncSession = Depends(get_db),
-):
-    portfolio = make_portfolio(db)
-    value = await portfolio.update_performance_baseline(data.performance_baseline)
-    return {"performance_baseline": value}

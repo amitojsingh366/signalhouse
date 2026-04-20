@@ -191,7 +191,7 @@ function toSectorRows(
   const rows: SectorRow[] = [];
   for (const [name, raw] of Object.entries(sectorExposure)) {
     if (typeof raw === "number") {
-      if (raw <= 1) {
+      if (raw < 1) {
         rows.push({ name, pct: raw * 100, value: investedValue * raw });
       } else if (raw <= 100) {
         rows.push({ name, pct: raw, value: investedValue * (raw / 100) });
@@ -208,7 +208,17 @@ function toSectorRows(
       const valRaw = typeof obj.value === "number" ? obj.value : typeof obj.amount === "number" ? obj.amount : null;
 
       let pct = pctRaw ?? 0;
-      if (pct <= 1) pct *= 100;
+      if (pctRaw !== null && pctRaw < 1) {
+        if (valRaw !== null && investedValue > 0) {
+          const fractionValue = investedValue * pctRaw;
+          const percentValue = investedValue * (pctRaw / 100);
+          pct = Math.abs(fractionValue - valRaw) <= Math.abs(percentValue - valRaw)
+            ? pctRaw * 100
+            : pctRaw;
+        } else {
+          pct = pctRaw * 100;
+        }
+      }
       const value = valRaw ?? investedValue * (pct / 100);
 
       rows.push({ name, pct, value });
@@ -512,7 +522,7 @@ export default function DashboardPage() {
 
       <div className="grid-2">
         {snapshots && snapshots.length > 0 ? (
-          <EquityChart snapshots={snapshots} />
+          <EquityChart snapshots={snapshots} rangeLabel={range} showRangeControls={false} />
         ) : chartsLoading ? (
           <ChartSkeleton />
         ) : (

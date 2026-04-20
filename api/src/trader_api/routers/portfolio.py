@@ -126,7 +126,14 @@ async def get_holdings_spark(days: int = 7, db: AsyncSession = Depends(get_db)):
         return HoldingsSparkOut(days=days, series=[])
 
     market_data = get_market_data()
-    period = "3mo" if days <= 30 else "1y"
+    if days <= 7:
+        period = "1mo"
+    elif days <= 31:
+        period = "3mo"
+    elif days <= 90:
+        period = "6mo"
+    else:
+        period = "1y"
 
     async def _series_for(symbol: str) -> HoldingSparklineOut:
         df = await market_data.get_historical_data(symbol, period=period)

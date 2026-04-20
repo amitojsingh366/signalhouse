@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// App settings and controls (notifications, auth, connection).
+/// Settings page (from More).
 struct SettingsView: View {
     @EnvironmentObject private var config: AppConfig
     @EnvironmentObject private var pushManager: PushManager
@@ -27,219 +27,143 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    if let authStatus {
-                        HStack {
-                            Text("Status")
-                            Spacer()
-                            HStack(spacing: 4) {
+        MobileScreen {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    MobileKickerTitle(kicker: "TFSA", title: "Settings")
+
+                    MobileSectionLabel("Authentication")
+                    MobileCard {
+                        MobileDefRow(label: "Status") {
+                            HStack(spacing: 6) {
                                 Circle()
-                                    .fill(authStatus.registered ? Theme.positive : Theme.warning)
-                                    .frame(width: 8, height: 8)
-                                Text(authStatus.registered ? "Active" : "Disabled")
+                                    .fill((authStatus?.registered ?? false) ? Theme.positive : Theme.warning)
+                                    .frame(width: 6, height: 6)
+                                MobileValueLabel(text: (authStatus?.registered ?? false) ? "Active" : "Disabled", color: (authStatus?.registered ?? false) ? Theme.positive : Theme.warning)
                             }
                         }
-
-                        ForEach(authStatus.credentials) { cred in
-                            HStack {
-                                Image(systemName: "key.fill")
-                                    .foregroundStyle(Theme.brand)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(cred.name)
-                                        .fontWeight(.medium)
-                                    if let date = cred.createdAt {
-                                        Text(date.prefix(10))
-                                            .font(.caption2)
-                                            .foregroundStyle(Theme.textDimmed)
-                                    }
-                                }
-                                Spacer()
-                            }
+                        Divider().overlay(Theme.line)
+                        SettingsActionRow(title: "+ Register passkey", color: Theme.brand) {
+                            Task { await registerPasskey() }
                         }
-                    }
-
-                    Button {
-                        Task { await registerPasskey() }
-                    } label: {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                            Text(isRegistering ? "Registering..." : "Register Passkey")
-                        }
-                    }
-                    .disabled(isRegistering)
-                    .foregroundStyle(Theme.brand)
-
-                    if authManager.authRequired {
-                        Button {
+                        Divider().overlay(Theme.line)
+                        SettingsActionRow(title: "Re-authenticate", color: Theme.brand) {
                             Task { await loginWithPasskey() }
-                        } label: {
-                            HStack {
-                                Image(systemName: "key.fill")
-                                Text("Re-authenticate")
-                            }
                         }
-                        .foregroundStyle(Theme.brand)
                     }
 
                     if let authError {
                         Text(authError)
-                            .font(.caption)
+                            .font(.system(size: 11))
                             .foregroundStyle(Theme.negative)
                     }
-                } header: {
-                    Text("Authentication")
-                } footer: {
-                    Text("Passkeys protect your API with biometric authentication. Once registered, all requests require a valid token.")
-                }
 
-                Section {
-                    Toggle(
-                        "Hybrid Profit-Taking",
-                        isOn: Binding(
-                            get: {
-                                tradingSettings.hybridTakeProfitEnabled
-                            },
-                            set: { newValue in
-                                Task { await setHybridProfitTaking(newValue) }
-                            }
-                        )
-                    )
-                    .disabled(updatingHybridMode || updatingOversoldMode)
-
-                    Text(
-                        tradingSettings.hybridTakeProfitEnabled
-                            ? "When the take-profit target is reached, hold instead of auto-selling when signal remains a strong BUY (\(Int(tradingSettings.hybridTakeProfitMinBuyStrength * 100))%+). Existing stop and trailing protections still apply."
-                            : "When the take-profit target is reached, winners are sold immediately to lock in profit."
-                    )
-                    .font(.caption)
-                    .foregroundStyle(Theme.textMuted)
-
-                    Toggle(
-                        "Oversold Fast-Lane",
-                        isOn: Binding(
-                            get: {
-                                tradingSettings.oversoldFastlaneEnabled
-                            },
-                            set: { newValue in
-                                Task { await setOversoldFastlane(newValue) }
-                            }
-                        )
-                    )
-                    .disabled(updatingHybridMode || updatingOversoldMode)
-
-                    Text(
-                        tradingSettings.oversoldFastlaneEnabled
-                            ? "Allows earlier BUY recommendations for guarded oversold reversals below the standard scan threshold. Bearish-crossover and sentiment guards still apply."
-                            : "Only the standard BUY scan threshold is used. Oversold fast-lane entries are disabled."
-                    )
-                    .font(.caption)
-                    .foregroundStyle(Theme.textMuted)
-                } header: {
-                    Text("Trading")
-                } footer: {
-                    Text("Use Hybrid mode if you want to let winners run when momentum is still strong.")
-                }
-
-                Section {
-                    Toggle("Push Notifications", isOn: $notifEnabled)
-                        .onChange(of: notifEnabled) { _, newValue in
-                            Task { await toggleEnabled(newValue) }
-                        }
-
-                    Button(
-                        isNotificationsMutedToday
-                            ? "Unmute Notifications for Today"
-                            : "Mute Notifications for Today"
-                    ) {
-                        Task { await toggleNotificationsMuteToday() }
-                    }
-                    .foregroundStyle(isNotificationsMutedToday ? Theme.positive : Theme.warning)
-
-                    Button(
-                        isCallsMutedToday
-                            ? "Unmute Calls for Today"
-                            : "Mute Calls for Today"
-                    ) {
-                        Task { await toggleCallsMuteToday() }
-                    }
-                    .foregroundStyle(isCallsMutedToday ? Theme.positive : Theme.warning)
-
-                    if let token = pushManager.deviceToken {
-                        LabeledContent("Device Token") {
-                            Text(String(token.prefix(12)) + "...")
-                                .font(.caption)
-                                .foregroundStyle(Theme.textDimmed)
-                        }
-                    } else {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle")
-                                .foregroundStyle(Theme.warning)
-                            Text("VoIP push not registered")
-                                .font(.caption)
-                                .foregroundStyle(Theme.textMuted)
-                        }
-                    }
-                } header: {
-                    Text("Notifications")
-                } footer: {
-                    Text("When enabled, high-confidence signals will trigger a phone call via CallKit to get your attention, even in Do Not Disturb mode.")
-                }
-
-                if !notifHistory.isEmpty {
-                    Section("Recent Notifications") {
-                        ForEach(notifHistory) { notif in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(notif.callerName)
-                                        .fontWeight(.medium)
-                                    Text(notif.sentAt)
-                                        .font(.caption2)
-                                        .foregroundStyle(Theme.textDimmed)
+                    MobileSectionLabel("Trading")
+                    MobileCard {
+                        ToggleRow(
+                            title: "Hybrid profit-taking",
+                            description: "Sell immediately when take-profit target is reached.",
+                            isOn: Binding(
+                                get: { tradingSettings.hybridTakeProfitEnabled },
+                                set: { newValue in
+                                    Task { await setHybridProfitTaking(newValue) }
                                 }
-                                Spacer()
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    SignalBadgeView(signal: notif.signal, strength: notif.strength)
-                                    HStack(spacing: 4) {
-                                        if notif.delivered {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .font(.caption2)
-                                                .foregroundStyle(Theme.positive)
-                                        }
-                                        if notif.acknowledged {
-                                            Image(systemName: "phone.fill")
-                                                .font(.caption2)
-                                                .foregroundStyle(Theme.positive)
-                                        }
-                                    }
+                            )
+                        )
+                        .disabled(updatingHybridMode || updatingOversoldMode)
+                        Divider().overlay(Theme.line)
+                        ToggleRow(
+                            title: "Oversold fast-lane",
+                            description: "Allow earlier BUY for guarded oversold reversals.",
+                            isOn: Binding(
+                                get: { tradingSettings.oversoldFastlaneEnabled },
+                                set: { newValue in
+                                    Task { await setOversoldFastlane(newValue) }
+                                }
+                            )
+                        )
+                        .disabled(updatingHybridMode || updatingOversoldMode)
+                        Divider().overlay(Theme.line)
+                        MobileDefRow(label: "Take-profit target") {
+                            MobileValueLabel(text: "+\(Int(tradingSettings.hybridTakeProfitMinBuyStrength * 100))%")
+                        }
+                        Divider().overlay(Theme.line)
+                        MobileDefRow(label: "Stop-loss floor") {
+                            MobileValueLabel(text: "−8.0%")
+                        }
+                        Divider().overlay(Theme.line)
+                        MobileDefRow(label: "Max positions") {
+                            MobileValueLabel(text: "5")
+                        }
+                    }
+
+                    MobileSectionLabel("Notifications")
+                    MobileCard {
+                        ToggleRow(title: "Push notifications", description: nil, isOn: $notifEnabled)
+                            .onChange(of: notifEnabled) { _, newValue in
+                                Task { await toggleEnabled(newValue) }
+                            }
+                        Divider().overlay(Theme.line)
+                        SettingsActionRow(
+                            title: isNotificationsMutedToday ? "Unmute notifications for today" : "Mute notifications for today",
+                            color: Theme.warning
+                        ) {
+                            Task { await toggleNotificationsMuteToday() }
+                        }
+                        Divider().overlay(Theme.line)
+                        SettingsActionRow(
+                            title: isCallsMutedToday ? "Unmute calls for today" : "Mute calls for today",
+                            color: Theme.warning
+                        ) {
+                            Task { await toggleCallsMuteToday() }
+                        }
+                        Divider().overlay(Theme.line)
+                        MobileDefRow(label: "Device token") {
+                            MobileValueLabel(text: tokenPrefix)
+                        }
+                    }
+
+                    MobileSectionLabel("Connection")
+                    MobileCard {
+                        MobileDefRow(label: "API server") {
+                            MobileValueLabel(text: config.apiBaseURL ?? "Not set")
+                        }
+                        Divider().overlay(Theme.line)
+                        SettingsActionRow(title: "Disconnect & reset", color: Theme.negative) {
+                            config.reset()
+                        }
+                    }
+
+                    if !notifHistory.isEmpty {
+                        MobileSectionLabel("Recent Notifications")
+                        MobileCard {
+                            ForEach(Array(notifHistory.prefix(5).enumerated()), id: \.element.id) { index, notification in
+                                NotificationHistoryRow(notification: notification)
+                                if index < min(notifHistory.count, 5) - 1 {
+                                    Divider().overlay(Theme.line)
                                 }
                             }
-                            .padding(.vertical, 2)
                         }
                     }
                 }
-
-                Section("Connection") {
-                    LabeledContent("API Server") {
-                        Text(config.apiBaseURL ?? "Not set")
-                            .font(.caption)
-                            .foregroundStyle(Theme.textDimmed)
-                    }
-                    Button("Disconnect & Reset", role: .destructive) {
-                        config.reset()
-                    }
-                }
-            }
-            .listStyle(.insetGrouped)
-            .navigationTitle("Settings")
-            .refreshable { await loadAll() }
-            .task { await loadAll() }
-            .onDisappear {
-                strategyRefreshTask?.cancel()
-                strategyRefreshTask = nil
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 40)
             }
         }
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .refreshable { await loadAll() }
+        .task { await loadAll() }
+        .onDisappear {
+            strategyRefreshTask?.cancel()
+            strategyRefreshTask = nil
+        }
+    }
+
+    private var tokenPrefix: String {
+        guard let token = pushManager.deviceToken else { return "Not registered" }
+        return String(token.prefix(12)) + "..."
     }
 
     private func registerPasskey() async {
@@ -397,5 +321,70 @@ struct SettingsView: View {
                 NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
             }
         }
+    }
+}
+
+private struct ToggleRow: View {
+    let title: String
+    let description: String?
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Theme.textPrimary)
+                if let description {
+                    Text(description)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textMuted)
+                }
+            }
+            Spacer()
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .tint(Theme.brand)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+    }
+}
+
+private struct SettingsActionRow: View {
+    let title: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(color)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct NotificationHistoryRow: View {
+    let notification: NotificationLogOut
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(notification.symbol)
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Theme.textPrimary)
+                Text(notification.sentAt)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Theme.textDimmed)
+            }
+            Spacer()
+            SignalBadgeView(signal: notification.signal, strength: notification.strength)
+        }
+        .padding(16)
     }
 }

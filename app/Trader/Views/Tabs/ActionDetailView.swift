@@ -1,7 +1,7 @@
 import Charts
 import SwiftUI
 
-/// Detail view for an action item — shows price chart + action details.
+/// Action drill-in view.
 struct ActionDetailView: View {
     @EnvironmentObject private var config: AppConfig
     let action: ActionItem
@@ -13,9 +13,9 @@ struct ActionDetailView: View {
     private let ranges = ["1W", "1M", "3M", "ALL"]
 
     private static let dateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        return f
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
     }()
 
     private var client: APIClient {
@@ -42,13 +42,9 @@ struct ActionDetailView: View {
         }()
 
         guard let cutoff else { return bars }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
         return bars.filter { bar in
-            if let d = formatter.date(from: bar.date) {
-                return d >= cutoff
-            }
-            return true
+            guard let date = Self.dateFormatter.date(from: bar.date) else { return true }
+            return date >= cutoff
         }
     }
 
@@ -56,195 +52,161 @@ struct ActionDetailView: View {
         (action.reasons ?? []).filter { !$0.hasPrefix("Price:") && !$0.hasPrefix("ATR:") }
     }
 
-    private var hasScoreMix: Bool {
-        action.technicalScore != nil || action.sentimentScore != nil || action.commodityScore != nil
+    private var totalScore: Double {
+        action.score ?? (action.technicalScore ?? 0) + (action.sentimentScore ?? 0) + (action.commodityScore ?? 0)
+    }
+
+    private var scoreStyle: MobileSignalStyle {
+        if totalScore >= 3 { return .buy }
+        if totalScore <= -3 { return .sell }
+        return .hold
     }
 
     var body: some View {
-        List {
-            // Price chart
-            Section {
-                if isLoadingChart {
-                    chartSkeleton
-                } else if filteredBars.isEmpty {
-                    Text("No price data available")
-                        .font(.caption)
-                        .foregroundStyle(Theme.textDimmed)
-                        .frame(maxWidth: .infinity, minHeight: 200)
-                } else {
-                    priceChart
-                }
-            }
+        MobileScreen {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    MobileSectionLabel("Price history") {
+                        HStack(spacing: 4) {
+                            ForEach(ranges, id: \.self) { range in
+                                Button(range) { selectedRange = range }
+                                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(selectedRange == range ? Theme.brand : Theme.surface2)
+                                    .foregroundStyle(selectedRange == range ? Color.black : Theme.textMuted)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
 
-            // Action details
-            Section("Action") {
-                HStack {
-                    Text("Type")
-                    Spacer()
-                    Text(action.type)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(
-                            action.type == "SELL" ? Theme.negative
-                                : action.type == "BUY" ? Theme.positive
-                                : Theme.brand
-                        )
-                }
-                if action.type == "SWAP" {
-                    LabeledContent("Sell", value: action.sellSymbol ?? "")
-                    LabeledContent("Buy", value: action.buySymbol ?? "")
-                }
-                if let price = action.price {
-                    LabeledContent("Price", value: Formatting.currency(price))
-                }
-                if let shares = action.shares {
-                    LabeledContent("Shares", value: Formatting.number(shares, decimals: shares == shares.rounded() ? 0 : 4))
-                }
-                if let amount = action.dollarAmount {
-                    LabeledContent("Value", value: Formatting.currency(amount))
-                }
-                if let pnl = action.pnlPct {
-                    HStack {
-                        Text("P&L")
-                        Spacer()
-                        Text(Formatting.percent(pnl))
-                            .foregroundStyle(Formatting.pnlColor(pnl))
-                            .fontWeight(.medium)
+                    MobileCard {
+                        if isLoadingChart {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Theme.surface0)
+                                .frame(height: 140)
+                                .padding(16)
+                                .shimmer()
+                        } else if filteredBars.isEmpty {
+                            Text("No price data available")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Theme.textMuted)
+                                .padding(16)
+                        } else {
+                            chartContent
+                                .padding(16)
+                        }
+                    }
+
+                    MobileSectionLabel("Action")
+                    MobileCard {
+                        MobileDefRow(label: "Type") {
+                            MobileValueLabel(text: action.type, color: action.type == "SELL" ? Theme.negative : action.type == "BUY" ? Theme.positive : Theme.brand)
+                        }
+                        Divider().overlay(Theme.line)
+                        if let price = action.price ?? action.sellPrice {
+                            MobileDefRow(label: "Price") { MobileValueLabel(text: Formatting.currency(price), color: Theme.textPrimary) }
+                            Divider().overlay(Theme.line)
+                        }
+                        if let shares = action.shares ?? action.sellShares {
+                            MobileDefRow(label: "Shares") { MobileValueLabel(text: Formatting.number(shares, decimals: 4), color: Theme.textPrimary) }
+                            Divider().overlay(Theme.line)
+                        }
+                        if let amount = action.dollarAmount ?? action.sellAmount {
+                            MobileDefRow(label: "Value") { MobileValueLabel(text: Formatting.currency(amount), color: Theme.textPrimary) }
+                            Divider().overlay(Theme.line)
+                        }
+                        if let pnl = action.pnlPct ?? action.sellPnlPct {
+                            MobileDefRow(label: "P&L") { MobileValueLabel(text: Formatting.percent(pnl), color: Formatting.pnlColor(pnl)) }
+                            Divider().overlay(Theme.line)
+                        }
+                        MobileDefRow(label: "Reason") { MobileValueLabel(text: action.reason) }
+                    }
+
+                    MobileSectionLabel("Score breakdown")
+                    MobileCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                Text("\(totalScore >= 0 ? "+" : "")\(String(format: "%.2f", totalScore))")
+                                    .font(.system(size: 36, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(Formatting.pnlColor(totalScore))
+                                Text("/ 9.00")
+                                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(Theme.textDimmed)
+                                Spacer()
+                                MobileSignalPill(text: action.type, style: scoreStyle)
+                            }
+
+                            ScoreMixCard(
+                                technical: action.technicalScore ?? 0,
+                                sentiment: action.sentimentScore ?? 0,
+                                commodity: action.commodityScore ?? 0,
+                                total: totalScore
+                            )
+
+                            ForEach(filteredScoreReasons, id: \.self) { reason in
+                                HStack(spacing: 10) {
+                                    Circle()
+                                        .fill(reason.contains("-") ? Theme.negative : Theme.positive)
+                                        .frame(width: 6, height: 6)
+                                    ScoreReasonRow(text: reason)
+                                }
+                                if reason != filteredScoreReasons.last {
+                                    Divider().overlay(Theme.line)
+                                }
+                            }
+                        }
+                        .padding(16)
                     }
                 }
-                if !action.reason.isEmpty {
-                    LabeledContent("Reason", value: action.reason)
-                }
-            }
-
-            // Detail text
-            if !action.detail.isEmpty {
-                Section("Detail") {
-                    Text(action.detail)
-                        .font(.subheadline)
-                }
-            }
-
-            // Score breakdown (for BUY actions)
-            if hasScoreMix || !filteredScoreReasons.isEmpty {
-                Section("Score Breakdown") {
-                    if hasScoreMix {
-                        ScoreMixCard(
-                            technical: action.technicalScore ?? 0,
-                            sentiment: action.sentimentScore ?? 0,
-                            commodity: action.commodityScore ?? 0,
-                            total: action.score
-                        )
-                    }
-                    ForEach(filteredScoreReasons, id: \.self) { reason in
-                        ScoreReasonRow(text: reason)
-                    }
-                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 60)
             }
         }
-        .listStyle(.insetGrouped)
         .navigationTitle(chartSymbol)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadPriceHistory() }
     }
 
-    // MARK: - Price Chart
-
-    private var priceChart: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Price History")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.textMuted)
-                Spacer()
-                Picker("Range", selection: $selectedRange) {
-                    ForEach(ranges, id: \.self) { Text($0) }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 200)
+    private var chartContent: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            let parsed = filteredBars.compactMap { bar -> (Date, Double)? in
+                guard let date = Self.dateFormatter.date(from: bar.date) else { return nil }
+                return (date, bar.close)
             }
 
-            let parsed = filteredBars.compactMap { bar -> (date: Date, close: Double)? in
-                guard let d = Self.dateFormatter.date(from: bar.date) else { return nil }
-                return (d, bar.close)
-            }
-
-            let closes = parsed.map(\.close)
-            let minPrice = closes.min() ?? 0
-            let maxPrice = closes.max() ?? 0
-            let priceRange = max(maxPrice - minPrice, 0.01)
-            let pricePad = priceRange * 0.1
-            let yMin = minPrice - pricePad
-            let yMax = maxPrice + pricePad
+            let values = parsed.map(\.1)
+            let minValue = values.min() ?? 0
+            let maxValue = values.max() ?? 0
+            let spread = max(maxValue - minValue, 0.01)
+            let pad = spread * 0.1
 
             Chart(Array(parsed.enumerated()), id: \.offset) { _, item in
                 AreaMark(
-                    x: .value("Date", item.date),
-                    y: .value("Price", item.close)
+                    x: .value("Date", item.0),
+                    y: .value("Price", item.1)
                 )
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [Theme.brand.opacity(0.3), Theme.brand.opacity(0.05)],
+                        colors: [Theme.brand.opacity(0.35), Theme.brand.opacity(0.03)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
 
                 LineMark(
-                    x: .value("Date", item.date),
-                    y: .value("Price", item.close)
+                    x: .value("Date", item.0),
+                    y: .value("Price", item.1)
                 )
                 .foregroundStyle(Theme.brand)
                 .lineStyle(StrokeStyle(lineWidth: 2))
             }
-            .chartYScale(domain: yMin ... yMax)
-            .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                    AxisValueLabel {
-                        if let d = value.as(Date.self) {
-                            Text(d, format: .dateTime.month(.abbreviated).day())
-                                .font(.caption2)
-                        }
-                    }
-                    .foregroundStyle(Theme.textDimmed)
-                }
-            }
-            .chartYAxis {
-                AxisMarks { _ in
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                        .foregroundStyle(Color.white.opacity(0.06))
-                    AxisValueLabel()
-                        .foregroundStyle(Theme.textDimmed)
-                }
-            }
-            .frame(height: 220)
+            .chartYAxis(.hidden)
+            .chartXScale(range: .plotDimension(padding: 4))
+            .chartYScale(domain: (minValue - pad)...(maxValue + pad))
+            .frame(height: 130)
         }
-        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
-    }
-
-    // MARK: - Chart Skeleton
-
-    private var chartSkeleton: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.white.opacity(0.06))
-                    .frame(width: 100, height: 14)
-                Spacer()
-                HStack(spacing: 2) {
-                    ForEach(0..<4, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.white.opacity(0.06))
-                            .frame(width: 36, height: 24)
-                    }
-                }
-                .frame(width: 200)
-            }
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.white.opacity(0.04))
-                .frame(height: 220)
-        }
-        .shimmer()
-        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
     }
 
     private func loadPriceHistory() async {

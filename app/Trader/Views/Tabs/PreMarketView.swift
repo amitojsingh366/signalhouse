@@ -1,9 +1,8 @@
 import SwiftUI
 
-/// Pre-market movers view — shows CDR counterpart stocks with notable premarket moves.
+/// Pre-market page (from More).
 struct PreMarketView: View {
     @EnvironmentObject private var config: AppConfig
-    @EnvironmentObject private var pushManager: PushManager
 
     @State private var movers: [PremarketMover] = []
     @State private var isLoading = true
@@ -12,49 +11,70 @@ struct PreMarketView: View {
         APIClient(baseURL: config.apiBaseURL ?? "")
     }
 
+    private var tickerQuotes: [TickerQuote] {
+        [
+            .init(symbol: "SU.TO", price: "49.30", change: "-1.42%", isPositive: false),
+            .init(symbol: "CP.TO", price: "110.76", change: "+0.44%", isPositive: true),
+            .init(symbol: "MNT.TO", price: "67.01", change: "-11.56%", isPositive: false),
+            .init(symbol: "IBIT.NE", price: "31.33", change: "+11.14%", isPositive: true),
+        ]
+    }
+
     var body: some View {
-        NavigationStack {
-            List {
-                if isLoading && movers.isEmpty {
-                    Section {
-                        ForEach(0..<6, id: \.self) { _ in
-                            PremarketMoverSkeleton()
-                        }
+        MobileScreen {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    MobileKickerTitle(
+                        kicker: "Opens in 47m · 09:30 ET",
+                        title: "Pre-market",
+                        subtitle: "CDR counterparts trading now on US markets — use this as a preview of TSX open."
+                    )
+
+                    TickerStrip(quotes: tickerQuotes)
+
+                    HStack {
+                        MobileSectionLabel("CDR moves · \(movers.count)")
+                        Spacer()
+                        Text("Sort")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Theme.brand)
                     }
-                } else if movers.isEmpty {
-                    Section {
-                        VStack(spacing: 12) {
-                            Image(systemName: "clock.badge.questionmark")
-                                .font(.system(size: 36))
-                                .foregroundStyle(Theme.textDimmed)
-                            Text("No Pre-Market Data")
-                                .font(.headline)
-                            Text("Movers appear weekdays around 8 AM ET when US premarket data is available.")
-                                .font(.caption)
-                                .foregroundStyle(Theme.textMuted)
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 32)
-                    }
-                } else {
-                    Section("CDR Counterpart Moves") {
-                        ForEach(movers) { mover in
-                            Button {
-                                pushManager.deepLink = .signalCheck(symbol: mover.cdrSymbol)
-                            } label: {
-                                PremarketMoverRow(mover: mover)
+
+                    MobileCard {
+                        if isLoading && movers.isEmpty {
+                            ForEach(0..<6, id: \.self) { index in
+                                PremarketMoverSkeleton()
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                if index < 5 {
+                                    Divider().overlay(Theme.line)
+                                }
                             }
-                            .buttonStyle(.plain)
+                        } else if movers.isEmpty {
+                            Text("No pre-market data available")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Theme.textMuted)
+                                .padding(16)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            ForEach(Array(movers.enumerated()), id: \.element.id) { index, mover in
+                                PreMarketRow(mover: mover)
+                                if index < movers.count - 1 {
+                                    Divider().overlay(Theme.line)
+                                }
+                            }
                         }
                     }
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 40)
             }
-            .listStyle(.insetGrouped)
-            .navigationTitle("Pre-Market")
-            .refreshable { await loadData() }
-            .task { await loadData() }
         }
+        .navigationTitle("Pre-market")
+        .navigationBarTitleDisplayMode(.inline)
+        .refreshable { await loadData() }
+        .task { await loadData() }
     }
 
     private func loadData() async {
@@ -63,50 +83,43 @@ struct PreMarketView: View {
         do {
             let response = try await client.getPremarketMovers()
             movers = response.movers.sorted { abs($0.changePct) > abs($1.changePct) }
-        } catch {
-            // Keep existing data on error; pull-to-refresh retries
-        }
+        } catch {}
     }
 }
 
-// MARK: - Mover Row
-
-private struct PremarketMoverRow: View {
+private struct PreMarketRow: View {
     let mover: PremarketMover
 
     var body: some View {
         HStack(spacing: 12) {
-            // Direction indicator
             Circle()
                 .fill(mover.changePct >= 0 ? Theme.positive : Theme.negative)
-                .frame(width: 10, height: 10)
+                .frame(width: 8, height: 8)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(mover.cdrSymbol)
-                        .font(.headline)
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Theme.textPrimary)
                     Text("(\(mover.usSymbol))")
-                        .font(.caption)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
                         .foregroundStyle(Theme.textDimmed)
                 }
-                Text("Premarket: \(Formatting.currency(mover.premarketPrice))")
-                    .font(.caption)
-                    .foregroundStyle(Theme.textMuted)
+                Text("Premarket \(Formatting.currency(mover.premarketPrice))")
+                    .font(.system(size: 11, weight: .regular, design: .monospaced))
+                    .foregroundStyle(Theme.textDimmed)
             }
 
             Spacer()
 
             Text(String(format: "%+.1f%%", mover.changePct * 100))
-                .font(.system(.body, design: .monospaced))
-                .fontWeight(.semibold)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 .foregroundStyle(mover.changePct >= 0 ? Theme.positive : Theme.negative)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(
-                    (mover.changePct >= 0 ? Theme.positive : Theme.negative).opacity(0.15)
-                )
-                .clipShape(Capsule())
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background((mover.changePct >= 0 ? Theme.positive : Theme.negative).opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
         }
-        .padding(.vertical, 4)
+        .padding(16)
     }
 }

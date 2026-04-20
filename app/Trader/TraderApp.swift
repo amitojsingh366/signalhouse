@@ -125,72 +125,44 @@ struct AuthGateView: View {
 
 /// Main tab navigation matching the web sidebar.
 struct MainTabView: View {
-    @EnvironmentObject private var config: AppConfig
     @EnvironmentObject private var pushManager: PushManager
 
-    @State private var selectedTab = 0
+    @State private var selectedTab: AppTab = .dashboard
+    @State private var morePath = NavigationPath()
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            DashboardView()
-                .tabItem {
-                    Label("Dashboard", systemImage: "house")
+        ZStack(alignment: .bottom) {
+            Group {
+                switch selectedTab {
+                case .dashboard:
+                    DashboardView()
+                case .portfolio:
+                    PortfolioView()
+                case .actions:
+                    SignalsView()
+                case .trades:
+                    TradesView()
+                case .more:
+                    MoreView(path: $morePath)
                 }
-                .tag(0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            PortfolioView()
-                .tabItem {
-                    Label("Portfolio", systemImage: "briefcase")
-                }
-                .tag(1)
-
-            SignalsView()
-                .tabItem {
-                    Label("Actions", systemImage: "bolt")
-                }
-                .tag(2)
-
-            TradesView()
-                .tabItem {
-                    Label("Trades", systemImage: "arrow.left.arrow.right")
-                }
-                .tag(3)
-
-            UploadView()
-                .tabItem {
-                    Label("Upload", systemImage: "square.and.arrow.up")
-                }
-                .tag(4)
-
-            PreMarketView()
-                .tabItem {
-                    Label("Pre-Market", systemImage: "sunrise")
-                }
-                .tag(5)
-
-            StatusView()
-                .tabItem {
-                    Label("Status", systemImage: "waveform.path.ecg")
-                }
-                .tag(6)
-
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape")
-                }
-                .tag(7)
+            MobileTabBar(selectedTab: $selectedTab)
         }
         .onChange(of: pushManager.deepLink) { _, link in
             guard let link else { return }
             switch link {
             case .dashboard:
-                selectedTab = 0
+                selectedTab = .dashboard
             case .signals:
-                selectedTab = 2
+                selectedTab = .actions
             case .signalCheck:
-                selectedTab = 2
+                selectedTab = .actions
             case .premarket:
-                selectedTab = 5
+                selectedTab = .more
+                morePath = NavigationPath()
+                morePath.append(MoreRoute.premarket)
             }
             // Deep link is consumed by SignalsView, clear after a short delay
             if case .signalCheck = link {

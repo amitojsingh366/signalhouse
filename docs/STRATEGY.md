@@ -239,6 +239,17 @@ Each BUY action carries an `actionable` flag:
 
 The action plan **automatically recalculates** when portfolio state changes — recording a trade, editing cash, updating or deleting a holding, or confirming an upload all trigger a fresh computation on both web (TanStack Query invalidation) and iOS (`NotificationCenter` broadcast).
 
+### Portfolio Performance Accounting
+
+Portfolio performance metrics shown in `/api/portfolio/pnl` and `/api/signals/insights` follow these rules:
+
+- Cash deposits/withdrawals are treated as capital transfers and do not count as strategy performance.
+- Manual holding edits/deletes are treated as corrections and do not count as realized liquidation events.
+- `total_pnl` tracks dollars gained/lost in portfolio equity terms (`current_value - initial_capital`).
+- `total_pnl_pct` excludes cash from the denominator and uses cost basis exposure:
+  open position cost basis + closed position cost basis from completed sells.
+- Result: if all positions are sold, realized gains/losses still show a meaningful percentage (not forced to 0%).
+
 #### Signal Snoozing
 
 Sell and swap signals can be **snoozed** with a customizable duration when the user believes a position will recover. Both the web popup and iOS sheet offer duration options (1h, 4h, 8h, 24h, 3d, 7d, indefinite) and a toggleable phantom trailing stop.

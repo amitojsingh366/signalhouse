@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-
-from trader_api.auth import require_auth
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from trader_api.auth import require_auth
 from trader_api.database import get_db
 from trader_api.deps import get_market_data, get_risk, make_portfolio, make_strategy
 from trader_api.schemas import (
@@ -20,7 +19,11 @@ from trader_api.schemas import (
     TradeOut,
 )
 
-router = APIRouter(prefix="/api/portfolio", tags=["portfolio"], dependencies=[Depends(require_auth)])
+router = APIRouter(
+    prefix="/api/portfolio",
+    tags=["portfolio"],
+    dependencies=[Depends(require_auth)],
+)
 
 
 @router.get("/holdings", response_model=PortfolioSummary)
@@ -29,19 +32,8 @@ async def get_holdings(db: AsyncSession = Depends(get_db)):
     strategy = make_strategy(portfolio)
 
     holdings = await portfolio.get_holdings_dict()
-    if not holdings:
-        meta = await portfolio._get_meta()
-        return PortfolioSummary(
-            holdings=[],
-            total_value=meta.cash,
-            cash=meta.cash,
-            total_cost=0.0,
-            total_pnl=0.0,
-            total_pnl_pct=0.0,
-        )
-
     symbols = list(holdings.keys())
-    prices = await get_market_data().get_batch_prices(symbols)
+    prices = await get_market_data().get_batch_prices(symbols) if symbols else {}
 
     total_value = 0.0
     total_cost = 0.0
@@ -83,12 +75,12 @@ async def get_holdings(db: AsyncSession = Depends(get_db)):
     # back to realized+unrealized if no baseline is set yet.
     if meta.initial_capital > 0:
         total_pnl = total_value - meta.initial_capital
-        initial = meta.initial_capital
     else:
         realized_pnl = await portfolio.get_realized_pnl()
         unrealized_pnl = (total_value - meta.cash) - total_cost
         total_pnl = unrealized_pnl + realized_pnl
-        initial = total_value
+    realized_cost_basis = await portfolio.get_realized_cost_basis()
+    baseline = portfolio.get_total_pnl_baseline(total_cost, realized_cost_basis)
 
     return PortfolioSummary(
         holdings=items,
@@ -96,7 +88,7 @@ async def get_holdings(db: AsyncSession = Depends(get_db)):
         cash=meta.cash,
         total_cost=total_cost,
         total_pnl=total_pnl,
-        total_pnl_pct=(total_pnl / initial * 100) if initial > 0 else 0.0,
+        total_pnl_pct=(total_pnl / baseline * 100) if baseline > 0 else 0.0,
     )
 
 

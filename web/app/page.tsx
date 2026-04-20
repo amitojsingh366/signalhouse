@@ -53,6 +53,32 @@ function tickerTimeEt(): string {
   }).format(new Date());
 }
 
+function formatLastScanLabel(lastScanAt: string | null | undefined): string {
+  if (!lastScanAt) return "awaiting first scan";
+  const parsed = Date.parse(lastScanAt);
+  if (Number.isNaN(parsed)) return "recently";
+
+  const diffMs = Date.now() - parsed;
+  if (diffMs <= 60_000) return "just now";
+
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 60) return `${minutes} min ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+
+  return new Intl.DateTimeFormat("en-CA", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(parsed));
+}
+
 function actionScore(action: ActionItem): number {
   if (typeof action.score === "number") return action.score;
   if (action.type === "BUY" && typeof action.strength === "number") return action.strength * 9;
@@ -217,6 +243,7 @@ export default function DashboardPage() {
   const lifetimePnl = pnl?.total_pnl ?? portfolio?.total_pnl ?? 0;
   const lifetimePct = pnl?.total_pnl_pct ?? portfolio?.total_pnl_pct ?? 0;
   const actionCount = plan?.actions.length ?? 0;
+  const lastScanLabel = useMemo(() => formatLastScanLabel(status?.last_scan_at), [status?.last_scan_at]);
 
   const maxPositions = plan?.max_positions ?? status?.max_positions ?? 12;
   const numPositions = plan?.num_positions ?? portfolio?.holdings.length ?? 0;
@@ -303,7 +330,7 @@ export default function DashboardPage() {
         <div>
           <h1>Dashboard</h1>
           <p className="sub">
-            Last scan {(refreshing || scanNowPending) ? "running now" : "2 min ago"}
+            Last scan {(refreshing || scanNowPending) ? "running now" : lastScanLabel}
             <span className="divider">·</span>
             {actionCount} signals across {status?.symbols_tracked ?? "--"} symbols
             <span className="divider">·</span>

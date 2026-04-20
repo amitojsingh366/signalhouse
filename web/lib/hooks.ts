@@ -250,6 +250,7 @@ export function useRunScanNow() {
       qc.invalidateQueries({ queryKey: queryKeys.recommendations });
       qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
       qc.invalidateQueries({ queryKey: queryKeys.tickerStrip });
+      qc.invalidateQueries({ queryKey: queryKeys.status });
     },
   });
 }

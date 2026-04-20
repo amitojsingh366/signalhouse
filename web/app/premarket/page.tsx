@@ -39,6 +39,10 @@ function catalystProxy(usSymbol: string, changePct: number): string {
   return `${usSymbol} mixed pre-market signal heading into open`;
 }
 
+function formatPremarketChange(changeFraction: number): string {
+  return formatPercent(changeFraction * 100);
+}
+
 export default function PreMarketPage() {
   const qc = useQueryClient();
   const { data, isLoading, isFetching } = usePremarketMovers();
@@ -67,7 +71,7 @@ export default function PreMarketPage() {
   const biggest = movers[0];
 
   const checklist = movers.slice(0, 3).map((row) => ({
-    text: `Review ${row.cdr_symbol} (${formatPercent(row.change_pct * 100)}) at open`,
+    text: `Review ${row.cdr_symbol} (${formatPremarketChange(row.change_pct)}) at open`,
     done: false,
     tag: Math.abs(row.change_pct) >= 0.03 ? "urgent" : "watch",
   }));
@@ -173,11 +177,12 @@ export default function PreMarketPage() {
               </thead>
               <tbody>
                 {movers.map((row) => {
-                  const pct = row.change_pct * 100;
                   return (
                     <tr key={row.cdr_symbol}>
                       <td className="font-semibold text-slate-100">{row.cdr_symbol}</td>
-                      <td className={cn("r mono", pct >= 0 ? "pos" : "neg")}>{formatPercent(pct)}</td>
+                      <td className={cn("r mono", row.change_pct >= 0 ? "pos" : "neg")}>
+                        {formatPremarketChange(row.change_pct)}
+                      </td>
                       <td className="r mono">{volumeProxy(row.change_pct)}</td>
                       <td className="text-slate-300">{catalystProxy(row.us_symbol, row.change_pct)}</td>
                       <td>
@@ -206,7 +211,6 @@ export default function PreMarketPage() {
           </div>
           <div>
             {movers.slice(0, 4).map((row) => {
-              const pct = row.change_pct * 100;
               return (
                 <Link
                   key={`gap-${row.cdr_symbol}`}
@@ -214,7 +218,9 @@ export default function PreMarketPage() {
                   className="action-row"
                 >
                   <div className="conv">
-                    <span className={cn("score", pct >= 0 ? "pos" : "neg")}>{formatPercent(pct)}</span>
+                    <span className={cn("score", row.change_pct >= 0 ? "pos" : "neg")}>
+                      {formatPremarketChange(row.change_pct)}
+                    </span>
                   </div>
                   <div className="who">
                     <div className="sym">
@@ -282,7 +288,7 @@ export default function PreMarketPage() {
 
       {biggest && (
         <div className="text-right text-xs text-slate-500">
-          Strongest move now: <span className="font-mono text-slate-300">{biggest.cdr_symbol}</span> ({formatPercent(biggest.change_pct * 100)})
+          Strongest move now: <span className="font-mono text-slate-300">{biggest.cdr_symbol}</span> ({formatPremarketChange(biggest.change_pct)})
           <span className="mx-2 text-slate-700">·</span>
           {positive} up / {negative} down
         </div>

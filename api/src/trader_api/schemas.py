@@ -230,6 +230,7 @@ class StatusOut(BaseModel):
     holdings_count: int
     market_open: bool
     uptime_seconds: float | None = None
+    last_scan_at: datetime | None = None
     scan_interval_minutes: int
     max_positions: int
     risk_halted: bool

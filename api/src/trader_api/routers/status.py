@@ -13,6 +13,7 @@ from trader_api.auth import require_auth
 from trader_api.database import get_db
 from trader_api.deps import get_config, get_market_data, get_risk, make_portfolio
 from trader_api.schemas import StatusOut, UploadConfirm, UploadHolding
+from trader_api.services.strategy import Strategy
 from trader_api.services.vision import parse_holdings_screenshot
 
 router = APIRouter(prefix="/api", tags=["status"], dependencies=[Depends(require_auth)])
@@ -42,6 +43,7 @@ async def get_status(db: AsyncSession = Depends(get_db)):
         holdings_count=len(holdings),
         market_open=_is_market_hours(config),
         uptime_seconds=time.time() - _start_time,
+        last_scan_at=Strategy.get_last_scan_at(),
         scan_interval_minutes=config["schedule"]["scan_interval_minutes"],
         max_positions=int(config.get("risk", {}).get("max_positions", 12)),
         risk_halted=risk.halted,

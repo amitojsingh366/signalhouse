@@ -30,9 +30,17 @@ _DEFAULT_TICKER_STRIP: list[dict[str, Any]] = [
 
 
 def _format_price(price: float, prefix: str = "", decimals: int = 2) -> str:
-    if decimals <= 0:
+    if decimals == 0:
         return f"{prefix}{price:,.0f}"
     return f"{prefix}{price:,.{decimals}f}"
+
+
+def _coerce_decimals(raw: Any, default: int = 2) -> int:
+    try:
+        parsed = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return max(0, parsed)
 
 
 def _ticker_strip_config() -> list[dict[str, Any]]:
@@ -89,7 +97,7 @@ async def get_ticker_strip():
             continue
 
         prefix = str(item.get("prefix", "$"))
-        decimals = int(item.get("decimals", 2))
+        decimals = _coerce_decimals(item.get("decimals", 2))
         items.append(
             TickerStripItemOut(
                 symbol=symbol,

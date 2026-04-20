@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -27,6 +27,7 @@ class Strategy:
     # (per-request) can still reference the same funding suggestions.
     _shared_recommendations: dict[str, Any] | None = None
     _shared_recommendations_at: float = 0.0
+    _shared_last_scan_at: datetime | None = None
     _shared_cache_ttl_seconds: float = 900.0  # 15 minutes
     _risk_daily_reset_date: str | None = None
 
@@ -76,6 +77,7 @@ class Strategy:
     def _set_shared_recommendations(cls, recommendations: dict[str, Any]) -> None:
         cls._shared_recommendations = recommendations
         cls._shared_recommendations_at = time.monotonic()
+        cls._shared_last_scan_at = datetime.now(UTC)
 
     @classmethod
     def invalidate_recommendations_cache(cls) -> None:
@@ -86,6 +88,10 @@ class Strategy:
         """
         cls._shared_recommendations = None
         cls._shared_recommendations_at = 0.0
+
+    @classmethod
+    def get_last_scan_at(cls) -> datetime | None:
+        return cls._shared_last_scan_at
 
     def get_sector(self, symbol: str) -> str:
         if symbol in self.symbol_to_sector:
@@ -448,7 +454,6 @@ class Strategy:
                     })
                     continue
 
-            min_hold_days = int(self.config["strategy"].get("min_hold_days", 0))
             if self.risk.should_exit_time(symbol):
                 alerts.append({
                     "symbol": symbol,
@@ -476,6 +481,7 @@ class Strategy:
                     exit_signal_data = await self._compute_exit_signal(symbol)
                 if exit_signal_data is not None:
                     result, sent_reasons = exit_signal_data
+                    min_hold_days = int(self.config["strategy"].get("min_hold_days", 0))
                     if (
                         result.signal == Signal.SELL
                         and result.strength >= 0.3
@@ -1103,8 +1109,14 @@ class Strategy:
         )
         if entry_dt is None:
             return None, None
-        now = datetime.now(entry_dt.tzinfo) if entry_dt.tzinfo else datetime.now()
-        days = max(0.0, (now - entry_dt).total_seconds() / 86400.0)
+        if entry_dt.tzinfo is None or entry_dt.tzinfo.utcoffset(entry_dt) is None:
+            now = datetime.now()
+            days = max(0.0, (now - entry_dt).total_seconds() / 86400.0)
+            return entry_dt, days
+
+        entry_utc = entry_dt.astimezone(UTC)
+        now_utc = datetime.now(UTC)
+        days = max(0.0, (now_utc - entry_utc).total_seconds() / 86400.0)
         return entry_dt, days
 
     def _calculate_buy_shares_for_signal(

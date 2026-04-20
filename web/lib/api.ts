@@ -208,6 +208,7 @@ export interface StatusOut {
   holdings_count: number;
   market_open: boolean;
   uptime_seconds: number | null;
+  last_scan_at: string | null;
   scan_interval_minutes: number;
   max_positions: number;
   risk_halted: boolean;

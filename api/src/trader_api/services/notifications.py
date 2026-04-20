@@ -176,18 +176,22 @@ class NotificationDispatcher:
         notif_config = config.get("notifications", {})
         min_strength = notif_config.get("min_strength", 0.70)
 
-        # Collect strong signals
+        # Collect strong signals. Suppress buy pushes when a portfolio-wide
+        # block (risk halt, regime filter) means the user can't act on them —
+        # the signals are still surfaced in the action plan as non-actionable.
+        buys_blocked = bool(recs.get("buy_block_reason"))
         strong: list[dict[str, Any]] = []
-        for sig in recs.get("buys", []):
-            s = sig if isinstance(sig, dict) else sig.__dict__
-            strength = s.get("strength", 0)
-            if strength >= min_strength:
-                strong.append({
-                    "symbol": s.get("symbol", ""),
-                    "signal": "BUY",
-                    "strength": strength,
-                    "score": s.get("score", 0),
-                })
+        if not buys_blocked:
+            for sig in recs.get("buys", []):
+                s = sig if isinstance(sig, dict) else sig.__dict__
+                strength = s.get("strength", 0)
+                if strength >= min_strength:
+                    strong.append({
+                        "symbol": s.get("symbol", ""),
+                        "signal": "BUY",
+                        "strength": strength,
+                        "score": s.get("score", 0),
+                    })
         for sig in recs.get("sells", []):
             s = sig if isinstance(sig, dict) else sig.__dict__
             strength = s.get("strength", 0)

@@ -245,10 +245,9 @@ Portfolio performance metrics shown in `/api/portfolio/pnl` and `/api/signals/in
 
 - Cash deposits/withdrawals are treated as capital transfers and do not count as strategy performance.
 - Manual holding edits/deletes are treated as corrections and do not count as realized liquidation events.
-- `total_pnl` tracks dollars gained/lost in portfolio equity terms (`current_value - initial_capital`).
-- `total_pnl_pct` excludes cash from the denominator and uses cost basis exposure:
-  open position cost basis + closed position cost basis from completed sells.
-- Result: if all positions are sold, realized gains/losses still show a meaningful percentage (not forced to 0%).
+- `total_pnl` is computed as `realized_pnl_from_sells + unrealized_pnl_on_open_positions`.
+- `total_pnl_pct` uses `capital_base = current_value - total_pnl`, then `total_pnl / capital_base`.
+- Result: portfolio totals stay aligned with trade history plus current holdings P&L, including when all positions are sold.
 
 #### Signal Snoozing
 

@@ -146,12 +146,11 @@ Portfolio performance is intentionally separated from cash transfers and manual 
 
 - **Cash edits (`PUT /api/portfolio/cash`)** are treated as deposit/withdraw events, not P&L events. Historical snapshots and `initial_capital` are shifted so deposits/withdrawals do not change daily or total P&L.
 - **Manual holding corrections** (`PUT /api/portfolio/holding`, `DELETE /api/portfolio/holding/{symbol}`) are treated as data fixes, not executions. They do not create fake gains/losses.
-- **Total P&L dollars** use portfolio equity accounting:
-  `total_pnl = current_value - initial_capital`
-  where `current_value = cash + live market value of open positions`.
-- **Total P&L percent** uses trading cost basis only (cash excluded):
-  `total_pnl_pct = total_pnl / (open_position_cost_basis + closed_position_cost_basis)`.
-  This keeps `%` meaningful even when all positions are sold and only cash remains.
+- **Total P&L dollars** are computed from trading outcomes:
+  `total_pnl = realized_pnl_from_sells + unrealized_pnl_on_open_positions`.
+- **Total P&L percent** uses a derived capital base:
+  `capital_base = current_value - total_pnl`, then `total_pnl_pct = total_pnl / capital_base`.
+  This keeps totals aligned with trade history + per-holding P&L and avoids 0% after full liquidation.
 
 ### Screenshot Upload
 

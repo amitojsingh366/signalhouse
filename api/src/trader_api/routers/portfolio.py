@@ -70,17 +70,11 @@ async def get_holdings(db: AsyncSession = Depends(get_db)):
     meta = await portfolio._get_meta()
     total_value += meta.cash
 
-    # Total P&L = current_value - initial_capital. initial_capital is shifted
-    # on manual edits so deletes and cash changes don't show up as PnL. Fall
-    # back to realized+unrealized if no baseline is set yet.
-    if meta.initial_capital > 0:
-        total_pnl = total_value - meta.initial_capital
-    else:
-        realized_pnl = await portfolio.get_realized_pnl()
-        unrealized_pnl = (total_value - meta.cash) - total_cost
-        total_pnl = unrealized_pnl + realized_pnl
-    realized_cost_basis = await portfolio.get_realized_cost_basis()
-    baseline = portfolio.get_total_pnl_baseline(total_cost, realized_cost_basis)
+    # Total PnL should match trade history + current holdings.
+    realized_pnl = await portfolio.get_realized_pnl()
+    unrealized_pnl = (total_value - meta.cash) - total_cost
+    total_pnl = unrealized_pnl + realized_pnl
+    initial = max(0.0, total_value - total_pnl)
 
     return PortfolioSummary(
         holdings=items,
@@ -88,7 +82,7 @@ async def get_holdings(db: AsyncSession = Depends(get_db)):
         cash=meta.cash,
         total_cost=total_cost,
         total_pnl=total_pnl,
-        total_pnl_pct=(total_pnl / baseline * 100) if baseline > 0 else 0.0,
+        total_pnl_pct=(total_pnl / initial * 100) if initial > 0 else 0.0,
     )
 
 

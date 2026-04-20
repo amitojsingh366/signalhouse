@@ -4,13 +4,13 @@ import SwiftUI
 struct TradesView: View {
     @EnvironmentObject private var config: AppConfig
 
-    private static let isoWithFractional: ISO8601DateFormatter = {
+    fileprivate static let isoWithFractional: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
 
-    private static let isoWithoutFractional: ISO8601DateFormatter = {
+    fileprivate static let isoWithoutFractional: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter

@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-
-from trader_api.auth import require_auth
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from trader_api.auth import require_auth
 from trader_api.database import get_db
 from trader_api.deps import get_market_data, get_risk, make_portfolio, make_strategy
 from trader_api.schemas import (
@@ -20,7 +19,11 @@ from trader_api.schemas import (
     TradeOut,
 )
 
-router = APIRouter(prefix="/api/portfolio", tags=["portfolio"], dependencies=[Depends(require_auth)])
+router = APIRouter(
+    prefix="/api/portfolio",
+    tags=["portfolio"],
+    dependencies=[Depends(require_auth)],
+)
 
 
 @router.get("/holdings", response_model=PortfolioSummary)
@@ -89,6 +92,7 @@ async def get_holdings(db: AsyncSession = Depends(get_db)):
         unrealized_pnl = (total_value - meta.cash) - total_cost
         total_pnl = unrealized_pnl + realized_pnl
         initial = total_value
+    performance_baseline = portfolio.get_performance_baseline(meta, fallback=initial)
 
     return PortfolioSummary(
         holdings=items,
@@ -96,7 +100,9 @@ async def get_holdings(db: AsyncSession = Depends(get_db)):
         cash=meta.cash,
         total_cost=total_cost,
         total_pnl=total_pnl,
-        total_pnl_pct=(total_pnl / initial * 100) if initial > 0 else 0.0,
+        total_pnl_pct=(
+            (total_pnl / performance_baseline * 100) if performance_baseline > 0 else 0.0
+        ),
     )
 
 

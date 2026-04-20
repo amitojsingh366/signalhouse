@@ -49,13 +49,14 @@ class DailySnapshot(Base):
 
 
 class PortfolioMeta(Base):
-    """Single-row table for portfolio-level metadata (cash, initial capital)."""
+    """Single-row table for portfolio-level metadata."""
 
     __tablename__ = "portfolio_meta"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     cash: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     initial_capital: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    performance_baseline: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
 
 class AppSetting(Base):

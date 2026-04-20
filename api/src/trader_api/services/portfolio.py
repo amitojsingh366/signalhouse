@@ -32,7 +32,7 @@ class Portfolio:
         result = await self.db.execute(select(PortfolioMeta))
         meta = result.scalar_one_or_none()
         if meta is None:
-            meta = PortfolioMeta(cash=0.0, initial_capital=0.0)
+            meta = PortfolioMeta(cash=0.0, initial_capital=0.0, performance_baseline=0.0)
             self.db.add(meta)
             await self.db.commit()
             await self.db.refresh(meta)
@@ -230,6 +230,8 @@ class Portfolio:
         meta = await self._get_meta()
         if meta.initial_capital == 0:
             meta.initial_capital = total_value + meta.cash
+            if meta.performance_baseline <= 0 and meta.initial_capital > 0:
+                meta.performance_baseline = meta.initial_capital
         else:
             # Re-sync: treat cost-basis change as a capital adjustment so PnL
             # is preserved (user is correcting holdings, not realizing gains).
@@ -342,11 +344,21 @@ class Portfolio:
         meta.cash = cash
         if meta.initial_capital > 0 or delta > 0:
             meta.initial_capital = max(0.0, meta.initial_capital + delta)
+        if meta.performance_baseline <= 0 and meta.initial_capital > 0:
+            meta.performance_baseline = meta.initial_capital
         await self._shift_snapshots(portfolio_delta=delta, cash_delta=delta)
         await self.db.commit()
         self._meta_cache = None
         logger.info("Updated cash to $%.2f (delta $%.2f)", cash, delta)
         return cash
+
+    def get_performance_baseline(self, meta: PortfolioMeta, fallback: float) -> float:
+        """Stable denominator for total-PnL percentage."""
+        if meta.performance_baseline > 0:
+            return meta.performance_baseline
+        if fallback > 0:
+            return fallback
+        return 0.0
 
     async def get_realized_pnl(self) -> float:
         """Sum of P&L from all completed sell trades."""
@@ -416,6 +428,7 @@ class Portfolio:
             realized_pnl = await self.get_realized_pnl()
             total_pnl = unrealized_pnl + realized_pnl
             initial = current_value
+        performance_baseline = self.get_performance_baseline(meta, fallback=initial)
 
         # Find previous day's snapshot for daily P&L
         # Skip today's snapshot (if it exists) so we compare against yesterday
@@ -431,9 +444,11 @@ class Portfolio:
 
         return {
             "current_value": current_value,
-            "initial_capital": initial,
+            "initial_capital": performance_baseline,
             "total_pnl": total_pnl,
-            "total_pnl_pct": (total_pnl / initial * 100) if initial > 0 else 0.0,
+            "total_pnl_pct": (
+                (total_pnl / performance_baseline * 100) if performance_baseline > 0 else 0.0
+            ),
             "daily_pnl": current_value - yesterday_value,
             "daily_pnl_pct": (
                 (current_value - yesterday_value) / yesterday_value * 100

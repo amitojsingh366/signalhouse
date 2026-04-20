@@ -202,7 +202,7 @@ export default function DashboardPage() {
   const { data: plan, isLoading: planLoading, isFetching: refreshing } = useActionPlan();
   const { data: tickerItems } = useTickerStrip();
   const { data: sparkData } = useHoldingsSpark(7);
-  const runScanNow = useRunScanNow();
+  const { mutateAsync: runScanNowMutateAsync, isPending: scanNowPending } = useRunScanNow();
   const { mask } = usePrivacy();
 
   const [range, setRange] = useState<(typeof RANGES)[number]>("1M");
@@ -260,8 +260,8 @@ export default function DashboardPage() {
   }, []);
 
   const handleRunScanNow = useCallback(async () => {
-    await runScanNow.mutateAsync();
-  }, [runScanNow]);
+    await runScanNowMutateAsync();
+  }, [runScanNowMutateAsync]);
 
   const snoozeUrgent = useCallback(async () => {
     if (!urgentSell?.symbol) return;
@@ -280,9 +280,9 @@ export default function DashboardPage() {
         <div>
           <h1>Dashboard</h1>
           <p className="sub">
-            Last scan {(refreshing || runScanNow.isPending) ? "running now" : "2 min ago"}
+            Last scan {(refreshing || scanNowPending) ? "running now" : "2 min ago"}
             <span className="divider">·</span>
-            {actionCount} signals across 333 symbols
+            {actionCount} signals across {status?.symbols_tracked ?? "--"} symbols
             <span className="divider">·</span>
             <span className="text-emerald-400">Execute these first</span>
           </p>
@@ -302,11 +302,11 @@ export default function DashboardPage() {
           </button>
           <button
             onClick={() => void handleRunScanNow()}
-            disabled={refreshing || runScanNow.isPending}
+            disabled={refreshing || scanNowPending}
             className="flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500 disabled:opacity-70"
           >
             <Zap className="h-4 w-4" />
-            {runScanNow.isPending ? "Scanning..." : "Run scan now"}
+            {scanNowPending ? "Scanning..." : "Run scan now"}
           </button>
         </div>
       </div>

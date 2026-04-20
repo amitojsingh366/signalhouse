@@ -211,7 +211,7 @@ export default function SettingsPage() {
         <div>
           <h1>Settings</h1>
           <p className="sub">
-            Amitoj Singh · TFSA
+            TFSA
             <span className="divider">·</span>
             Changes apply immediately
             <span className="divider">·</span>

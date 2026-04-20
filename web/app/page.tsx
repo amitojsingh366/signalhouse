@@ -10,7 +10,6 @@ import {
   Briefcase,
   Check,
   Download,
-  RefreshCw,
   TrendingDown,
   Upload,
   Wallet,
@@ -18,23 +17,23 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { useActionPlan, useHoldings, usePnl, useSnapshots, queryKeys } from "@/lib/hooks";
-import type { ActionItem, HoldingAdvice } from "@/lib/api";
+import {
+  queryKeys,
+  useActionPlan,
+  useHoldings,
+  useHoldingsSpark,
+  usePnl,
+  useRunScanNow,
+  useSnapshots,
+  useStatus,
+  useTickerStrip,
+} from "@/lib/hooks";
+import type { ActionItem, HoldingAdvice, TickerStripItem } from "@/lib/api";
 import { cn, formatCurrency, formatPercent } from "@/lib/utils";
 import { usePrivacy } from "@/lib/privacy";
 import { EquityChart } from "@/components/ui/equity-chart";
 import { ChartSkeleton, SignalsSkeleton } from "@/components/ui/loading";
-
-const TICKER_ITEMS = [
-  { s: "TSX", p: "22,418.12", d: "+0.18%", up: true },
-  { s: "CAD/USD", p: "0.7342", d: "-0.12%", up: false },
-  { s: "OIL", p: "$82.14", d: "-1.8%", up: false },
-  { s: "GOLD", p: "$2,384", d: "+0.4%", up: true },
-  { s: "BTC", p: "$71,248", d: "+2.1%", up: true },
-  { s: "F&G", p: "15", d: "Extreme Fear", up: false },
-  { s: "SHOP.TO", p: "$133.98", d: "+2.8%", up: true },
-  { s: "CSU.TO", p: "$4,218", d: "+1.7%", up: true },
-];
+import { TrendProxy } from "@/components/ui/trend-proxy";
 
 const RANGES = ["1D", "7D", "1M", "3M", "1Y", "ALL"] as const;
 
@@ -109,21 +108,6 @@ function parseReason(reason: string): { label: string; score: number | null } {
   };
 }
 
-function TrendProxy({ positive }: { positive: boolean }) {
-  const stroke = positive ? "#34d399" : "#ef4444";
-  const fill = positive ? "rgba(52, 211, 153, 0.16)" : "rgba(239, 68, 68, 0.14)";
-  const path = positive
-    ? "M2 18 C20 16, 36 12, 52 10 C66 8, 78 7, 94 6"
-    : "M2 6 C20 8, 36 12, 52 14 C66 16, 78 17, 94 18";
-
-  return (
-    <svg className="spark-sm" viewBox="0 0 96 24" fill="none" aria-hidden>
-      <path d={`${path} L94 22 L2 22 Z`} fill={fill} />
-      <path d={path} stroke={stroke} strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function HeroSpark() {
   return (
     <svg className="spark" viewBox="0 0 620 70" fill="none" preserveAspectRatio="none" aria-hidden>
@@ -147,16 +131,23 @@ function HeroSpark() {
   );
 }
 
-function TickerStrip() {
-  const doubled = [...TICKER_ITEMS, ...TICKER_ITEMS];
+function TickerStrip({ items }: { items: TickerStripItem[] }) {
+  const doubled = [...items, ...items];
   return (
     <div className="ticker">
       <div className="track">
         {doubled.map((item, i) => (
-          <span key={`${item.s}-${i}`} className="t-item">
-            <span className="s">{item.s}</span>
-            <span className="p">{item.p}</span>
-            <span className={cn("d", item.up ? "pos" : "neg")}>{item.d}</span>
+          <span key={`${item.symbol}-${i}`} className="t-item">
+            <span className="s">{item.label}</span>
+            <span className="p">{item.display_price}</span>
+            <span
+              className={cn(
+                "d",
+                item.change_pct == null ? "" : item.change_pct >= 0 ? "pos" : "neg"
+              )}
+            >
+              {item.change_label ?? (item.change_pct == null ? "--" : formatPercent(item.change_pct))}
+            </span>
           </span>
         ))}
       </div>
@@ -207,7 +198,11 @@ export default function DashboardPage() {
   const { data: portfolio, isLoading: portfolioLoading } = useHoldings();
   const { data: pnl, isLoading: pnlLoading } = usePnl();
   const { data: snapshots, isLoading: snapshotsLoading } = useSnapshots();
+  const { data: status } = useStatus();
   const { data: plan, isLoading: planLoading, isFetching: refreshing } = useActionPlan();
+  const { data: tickerItems } = useTickerStrip();
+  const { data: sparkData } = useHoldingsSpark(7);
+  const runScanNow = useRunScanNow();
   const { mask } = usePrivacy();
 
   const [range, setRange] = useState<(typeof RANGES)[number]>("1M");
@@ -222,7 +217,7 @@ export default function DashboardPage() {
   const lifetimePct = pnl?.total_pnl_pct ?? portfolio?.total_pnl_pct ?? 0;
   const actionCount = plan?.actions.length ?? 0;
 
-  const maxPositions = plan?.max_positions ?? 12;
+  const maxPositions = plan?.max_positions ?? status?.max_positions ?? 12;
   const numPositions = plan?.num_positions ?? portfolio?.holdings.length ?? 0;
   const openSlots = Math.max(0, maxPositions - numPositions);
 
@@ -250,6 +245,13 @@ export default function DashboardPage() {
     () => [...(portfolio?.holdings ?? [])].sort((a, b) => b.market_value - a.market_value).slice(0, 6),
     [portfolio?.holdings]
   );
+  const sparklineBySymbol = useMemo(() => {
+    const map = new Map<string, { date: string; close: number }[]>();
+    for (const entry of sparkData?.series ?? []) {
+      map.set(entry.symbol, entry.points ?? []);
+    }
+    return map;
+  }, [sparkData?.series]);
 
   useEffect(() => {
     setUpdatedEt(tickerTimeEt());
@@ -257,12 +259,9 @@ export default function DashboardPage() {
     return () => window.clearInterval(id);
   }, []);
 
-  const refresh = useCallback(() => {
-    qc.invalidateQueries({ queryKey: queryKeys.holdings });
-    qc.invalidateQueries({ queryKey: queryKeys.pnl });
-    qc.invalidateQueries({ queryKey: queryKeys.snapshots });
-    qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
-  }, [qc]);
+  const handleRunScanNow = useCallback(async () => {
+    await runScanNow.mutateAsync();
+  }, [runScanNow]);
 
   const snoozeUrgent = useCallback(async () => {
     if (!urgentSell?.symbol) return;
@@ -281,7 +280,7 @@ export default function DashboardPage() {
         <div>
           <h1>Dashboard</h1>
           <p className="sub">
-            Last scan {refreshing ? "running now" : "2 min ago"}
+            Last scan {(refreshing || runScanNow.isPending) ? "running now" : "2 min ago"}
             <span className="divider">·</span>
             {actionCount} signals across 333 symbols
             <span className="divider">·</span>
@@ -302,17 +301,17 @@ export default function DashboardPage() {
             Export
           </button>
           <button
-            onClick={refresh}
-            disabled={refreshing}
+            onClick={() => void handleRunScanNow()}
+            disabled={refreshing || runScanNow.isPending}
             className="flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500 disabled:opacity-70"
           >
             <Zap className="h-4 w-4" />
-            Run scan now
+            {runScanNow.isPending ? "Scanning..." : "Run scan now"}
           </button>
         </div>
       </div>
 
-      <TickerStrip />
+      <TickerStrip items={tickerItems ?? []} />
 
       <div className="hero-strip">
         <div className="big">
@@ -396,7 +395,9 @@ export default function DashboardPage() {
             </div>
             <div className="s">
               {typeof urgentSell.shares === "number" ? `${urgentSell.shares.toFixed(2)} shares` : "Position at risk"}
+              {typeof urgentSell.days_held === "number" ? ` · held ${urgentSell.days_held.toFixed(1)}d` : ""}
               {typeof urgentSell.pnl_pct === "number" ? ` · ${formatPercent(urgentSell.pnl_pct)}` : ""}
+              {typeof urgentSell.pnl === "number" ? ` · ${formatCurrency(urgentSell.pnl)}` : ""}
               {typeof urgentSell.entry_price === "number" ? ` · entry ${formatCurrency(urgentSell.entry_price)}` : ""}
             </div>
           </div>
@@ -592,7 +593,10 @@ export default function DashboardPage() {
                         <span style={{ opacity: 0.7, fontSize: 11 }}> ({mask(formatPercent(holding.pnl_pct))})</span>
                       </td>
                       <td>
-                        <TrendProxy positive={holding.pnl >= 0} />
+                        <TrendProxy
+                          positive={holding.pnl >= 0}
+                          points={sparklineBySymbol.get(holding.symbol)}
+                        />
                       </td>
                       <td>
                         <span className={cn("pill-badge", badge.cls)}>{badge.text}</span>

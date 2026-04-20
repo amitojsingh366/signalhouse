@@ -38,6 +38,7 @@ class HoldingAdvice(BaseModel):
     action_detail: str
     reasons: list[str]
     alternative: dict | None = None
+    entry_date: datetime | None = None
 
 
 class PortfolioSummary(BaseModel):
@@ -110,6 +111,8 @@ class SignalOut(BaseModel):
     reasons: list[str]
     price: float | None = None
     sector: str | None = None
+    fundamentals: dict[str, float | None] | None = None
+    trade_plan: dict[str, float | None] | None = None
 
 
 class ExitAlertOut(BaseModel):
@@ -120,7 +123,10 @@ class ExitAlertOut(BaseModel):
     current_price: float
     entry_price: float
     pnl_pct: float
+    pnl: float | None = None
     quantity: float | None = None
+    days_held: float | None = None
+    entry_date: datetime | None = None
     action: str | None = None
     action_detail: str | None = None
 
@@ -143,7 +149,11 @@ class ActionOut(BaseModel):
     dollar_amount: float | None = None
     pct_of_portfolio: float | None = None
     pnl_pct: float | None = None
+    pnl: float | None = None
     entry_price: float | None = None
+    entry_date: datetime | None = None
+    days_held: float | None = None
+    current_price: float | None = None
     strength: float | None = None
     score: float | None = None
     technical_score: float | None = None
@@ -221,8 +231,33 @@ class StatusOut(BaseModel):
     market_open: bool
     uptime_seconds: float | None = None
     scan_interval_minutes: int
+    max_positions: int
     risk_halted: bool
     risk_halt_reason: str
+
+
+class SparkPoint(BaseModel):
+    date: str
+    close: float
+
+
+class HoldingSparklineOut(BaseModel):
+    symbol: str
+    points: list[SparkPoint]
+
+
+class HoldingsSparkOut(BaseModel):
+    days: int
+    series: list[HoldingSparklineOut]
+
+
+class TickerStripItemOut(BaseModel):
+    symbol: str
+    label: str
+    display_price: str
+    change_pct: float | None = None
+    change_label: str | None = None
+    as_of: datetime
 
 
 class SettingItem(BaseModel):

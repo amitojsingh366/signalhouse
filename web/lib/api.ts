@@ -108,6 +108,8 @@ export interface SignalOut {
   reasons: string[];
   price: number | null;
   sector: string | null;
+  fundamentals: Record<string, number | null> | null;
+  trade_plan: Record<string, number | null> | null;
 }
 
 export interface ExitAlert {
@@ -118,7 +120,10 @@ export interface ExitAlert {
   current_price: number;
   entry_price: number;
   pnl_pct: number;
+  pnl: number | null;
   quantity: number | null;
+  days_held: number | null;
+  entry_date: string | null;
   action: string | null;
   action_detail: string | null;
 }
@@ -129,7 +134,7 @@ export interface RecommendationOut {
   sells: SignalOut[];
   watchlist_sells: SignalOut[];
   funding: Record<string, unknown>[];
-  sector_exposure: Record<string, number>;
+  sector_exposure: Record<string, unknown>;
 }
 
 export interface ActionItem {
@@ -141,7 +146,11 @@ export interface ActionItem {
   dollar_amount?: number;
   pct_of_portfolio?: number;
   pnl_pct?: number;
+  pnl?: number;
   entry_price?: number;
+  entry_date?: string;
+  days_held?: number;
+  current_price?: number;
   strength?: number;
   score?: number;
   technical_score?: number;
@@ -200,8 +209,33 @@ export interface StatusOut {
   market_open: boolean;
   uptime_seconds: number | null;
   scan_interval_minutes: number;
+  max_positions: number;
   risk_halted: boolean;
   risk_halt_reason: string;
+}
+
+export interface SparkPoint {
+  date: string;
+  close: number;
+}
+
+export interface HoldingSparkline {
+  symbol: string;
+  points: SparkPoint[];
+}
+
+export interface HoldingsSparkResponse {
+  days: number;
+  series: HoldingSparkline[];
+}
+
+export interface TickerStripItem {
+  symbol: string;
+  label: string;
+  display_price: string;
+  change_pct: number | null;
+  change_label: string | null;
+  as_of: string;
 }
 
 export interface SettingItem {
@@ -297,6 +331,8 @@ export const api = {
   // Portfolio
   getHoldings: () => fetchAPI<PortfolioSummary>("/api/portfolio/holdings"),
   getPnl: () => fetchAPI<PnlSummary>("/api/portfolio/pnl"),
+  getHoldingsSpark: (days = 7) =>
+    fetchAPI<HoldingsSparkResponse>(`/api/portfolio/holdings/spark?days=${days}`),
   getSnapshots: () => fetchAPI<SnapshotOut[]>("/api/portfolio/snapshots"),
   updateHolding: (symbol: string, quantity?: number, avg_cost?: number) =>
     fetchAPI<{ symbol: string; quantity: number; avg_cost: number }>("/api/portfolio/holding", {
@@ -336,6 +372,8 @@ export const api = {
     fetchAPI<RecommendationOut>(`/api/signals/recommend?n=${n}`),
   getActionPlan: () =>
     fetchAPI<ActionPlanOut>("/api/signals/actions"),
+  runScanNow: () =>
+    fetchAPI<ActionPlanOut>("/api/signals/scan-now", { method: "POST" }),
   snoozeSignal: (symbol: string, hours = 4, indefinite = false, phantomTrailingStop = true) =>
     fetchAPI<SnoozeOut>("/api/signals/snooze", {
       method: "POST",
@@ -351,6 +389,7 @@ export const api = {
     fetchAPI<PriceHistory>(`/api/signals/history/${encodeURIComponent(symbol)}?period=${period}`),
   getInsights: () => fetchAPI<InsightsOut>("/api/signals/insights"),
   getPremarketMovers: () => fetchAPI<PremarketResponse>("/api/signals/premarket"),
+  getTickerStrip: () => fetchAPI<TickerStripItem[]>("/api/market/ticker-strip"),
 
   // Status
   getStatus: () => fetchAPI<StatusOut>("/api/status"),

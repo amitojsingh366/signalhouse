@@ -18,6 +18,8 @@ _CDR_OVERRIDES: dict[str, str] = {
 }
 
 _HISTORY_CACHE_TTL = 300  # 5 minutes
+_QUOTE_CACHE_TTL = 60  # 1 minute
+_FUNDAMENTALS_CACHE_TTL = 900  # 15 minutes
 
 
 def _build_cdr_map(symbols: list[str]) -> dict[str, str]:
@@ -48,6 +50,13 @@ class MarketData:
 
         self.cdr_to_us = _build_cdr_map(self.symbols)
         self._history_cache: dict[str, tuple[float, pd.DataFrame]] = {}
+        self._quote_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._fundamentals_cache: dict[str, tuple[float, dict[str, float | None]]] = {}
+
+    def clear_caches(self) -> None:
+        self._history_cache.clear()
+        self._quote_cache.clear()
+        self._fundamentals_cache.clear()
 
     def _resolve_ticker(self, symbol: str) -> str:
         return symbol
@@ -200,3 +209,141 @@ class MarketData:
             except Exception:
                 continue
         return None
+
+    def _quote_candidates(self, symbol: str) -> list[str]:
+        candidates = [self._resolve_ticker(symbol)]
+        us_ticker = self.cdr_to_us.get(symbol)
+        if us_ticker and us_ticker not in candidates:
+            candidates.append(us_ticker)
+        return candidates
+
+    @staticmethod
+    def _last_two_closes(df: pd.DataFrame) -> tuple[float, float] | None:
+        closes = df.get("close")
+        if closes is None:
+            return None
+        closes = closes.dropna()
+        if closes.empty:
+            return None
+        latest = float(closes.iloc[-1])
+        prev = float(closes.iloc[-2]) if len(closes) >= 2 else latest
+        return latest, prev
+
+    async def get_quote(self, symbol: str) -> dict[str, Any] | None:
+        cached = self._quote_cache.get(symbol)
+        if cached:
+            ts, quote = cached
+            if time.monotonic() - ts < _QUOTE_CACHE_TTL:
+                return dict(quote)
+
+        for ticker in self._quote_candidates(symbol):
+            try:
+                df = await asyncio.to_thread(self._fetch_history, ticker, "5d")
+            except Exception:
+                logger.debug("Quote fetch failed for %s", ticker)
+                continue
+            if df is None or df.empty:
+                continue
+            pair = self._last_two_closes(df)
+            if pair is None:
+                continue
+            latest, prev = pair
+            change_pct = ((latest - prev) / prev * 100.0) if prev > 0 else 0.0
+            as_of_idx = df.index[-1]
+            as_of = as_of_idx.to_pydatetime() if hasattr(as_of_idx, "to_pydatetime") else as_of_idx
+            quote = {
+                "symbol": symbol,
+                "price": latest,
+                "change_pct": change_pct,
+                "as_of": as_of,
+            }
+            self._quote_cache[symbol] = (time.monotonic(), quote)
+            return dict(quote)
+        return None
+
+    async def get_fundamentals(self, symbol: str) -> dict[str, float | None]:
+        cached = self._fundamentals_cache.get(symbol)
+        if cached:
+            ts, fundamentals = cached
+            if time.monotonic() - ts < _FUNDAMENTALS_CACHE_TTL:
+                return dict(fundamentals)
+
+        default: dict[str, float | None] = {
+            "market_cap": None,
+            "pe_ratio": None,
+            "dividend_yield": None,
+            "week_52_low": None,
+            "week_52_high": None,
+            "avg_volume": None,
+        }
+
+        for ticker in self._quote_candidates(symbol):
+            try:
+                fundamentals = await asyncio.to_thread(
+                    self._fetch_fundamentals_for_ticker,
+                    ticker,
+                )
+            except Exception:
+                logger.debug("Fundamentals fetch failed for %s", ticker)
+                continue
+            if any(value is not None for value in fundamentals.values()):
+                self._fundamentals_cache[symbol] = (time.monotonic(), fundamentals)
+                return dict(fundamentals)
+
+        self._fundamentals_cache[symbol] = (time.monotonic(), default)
+        return dict(default)
+
+    @staticmethod
+    def _coerce_float(value: Any) -> float | None:
+        if value is None:
+            return None
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        if number != number:  # NaN
+            return None
+        return number
+
+    def _fetch_fundamentals_for_ticker(self, ticker: str) -> dict[str, float | None]:
+        t = yf.Ticker(ticker)
+        info = t.info or {}
+        fast_info = dict(getattr(t, "fast_info", {}) or {})
+
+        market_cap = self._coerce_float(
+            fast_info.get("market_cap")
+            or fast_info.get("marketCap")
+            or info.get("marketCap")
+        )
+        pe_ratio = self._coerce_float(info.get("trailingPE") or info.get("forwardPE"))
+
+        dividend_yield = self._coerce_float(info.get("dividendYield"))
+        if dividend_yield is not None and dividend_yield > 1:
+            dividend_yield /= 100.0
+
+        week_52_low = self._coerce_float(
+            fast_info.get("year_low")
+            or fast_info.get("fifty_two_week_low")
+            or info.get("fiftyTwoWeekLow")
+        )
+        week_52_high = self._coerce_float(
+            fast_info.get("year_high")
+            or fast_info.get("fifty_two_week_high")
+            or info.get("fiftyTwoWeekHigh")
+        )
+
+        avg_volume = self._coerce_float(
+            fast_info.get("three_month_average_volume")
+            or fast_info.get("ten_day_average_volume")
+            or info.get("averageVolume")
+            or info.get("averageDailyVolume10Day")
+        )
+
+        return {
+            "market_cap": market_cap,
+            "pe_ratio": pe_ratio,
+            "dividend_yield": dividend_yield,
+            "week_52_low": week_52_low,
+            "week_52_high": week_52_high,
+            "avg_volume": avg_volume,
+        }

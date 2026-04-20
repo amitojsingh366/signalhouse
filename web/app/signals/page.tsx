@@ -156,6 +156,18 @@ function reasonWithoutScore(reason: string): { label: string; value: number | nu
   };
 }
 
+function numberField(source: Record<string, number | null> | null | undefined, key: string): number | null {
+  const value = source?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function formatCompact(value: number): string {
+  return new Intl.NumberFormat("en-CA", {
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 function sectionMeta(action: ActionItem): {
   score: number | null;
   price: number | null;
@@ -422,6 +434,23 @@ function SignalsContent() {
     const parsedReasons = (checked?.reasons ?? []).map(reasonWithoutScore);
     const atrHint = (checked?.reasons ?? []).find((r) => r.toLowerCase().startsWith("atr:"));
     const volHint = (checked?.reasons ?? []).find((r) => r.toLowerCase().includes("volume"));
+    const tradePlan = checked?.trade_plan;
+    const fundamentals = checked?.fundamentals;
+
+    const planEntryLow = numberField(tradePlan, "entry_low");
+    const planEntryHigh = numberField(tradePlan, "entry_high");
+    const planStopLoss = numberField(tradePlan, "stop_loss");
+    const planTakeProfit1 = numberField(tradePlan, "take_profit_1");
+    const planTakeProfit2 = numberField(tradePlan, "take_profit_2");
+    const planRiskReward = numberField(tradePlan, "risk_reward_ratio");
+    const planAtr = numberField(tradePlan, "atr");
+
+    const marketCap = numberField(fundamentals, "market_cap");
+    const peRatio = numberField(fundamentals, "pe_ratio");
+    const dividendYield = numberField(fundamentals, "dividend_yield");
+    const week52Low = numberField(fundamentals, "week_52_low");
+    const week52High = numberField(fundamentals, "week_52_high");
+    const avgVolume = numberField(fundamentals, "avg_volume");
 
     return (
       <div className="space-y-5">
@@ -559,22 +588,22 @@ function SignalsContent() {
                     <div className="kv">
                       <span className="k">Entry window</span>
                       <span className="v">
-                        {checked.price != null
-                          ? `${formatCurrency(checked.price * 0.995)} - ${formatCurrency(checked.price * 1.01)}`
+                        {planEntryLow != null && planEntryHigh != null
+                          ? `${formatCurrency(planEntryLow)} - ${formatCurrency(planEntryHigh)}`
                           : "-"}
                       </span>
                     </div>
                     <div className="kv">
                       <span className="k">Stop loss</span>
-                      <span className="v text-red-400">{checked.price != null ? formatCurrency(checked.price * 0.96) : "-"}</span>
+                      <span className="v text-red-400">{planStopLoss != null ? formatCurrency(planStopLoss) : "-"}</span>
                     </div>
                     <div className="kv">
                       <span className="k">Take profit 1</span>
-                      <span className="v text-emerald-400">{checked.price != null ? formatCurrency(checked.price * 1.06) : "-"}</span>
+                      <span className="v text-emerald-400">{planTakeProfit1 != null ? formatCurrency(planTakeProfit1) : "-"}</span>
                     </div>
                     <div className="kv">
                       <span className="k">Take profit 2</span>
-                      <span className="v text-emerald-400">{checked.price != null ? formatCurrency(checked.price * 1.12) : "-"}</span>
+                      <span className="v text-emerald-400">{planTakeProfit2 != null ? formatCurrency(planTakeProfit2) : "-"}</span>
                     </div>
                     <div className="kv">
                       <span className="k">Position size</span>
@@ -586,11 +615,17 @@ function SignalsContent() {
                     </div>
                     <div className="kv">
                       <span className="k">Risk / reward</span>
-                      <span className="v">1 : 2.8</span>
+                      <span className="v">
+                        {planRiskReward != null ? `1 : ${planRiskReward.toFixed(2)}` : "-"}
+                      </span>
                     </div>
                     <div className="kv">
                       <span className="k">ATR</span>
-                      <span className="v">{atrHint ? atrHint.replace(/^ATR:\s*/i, "") : "n/a"}</span>
+                      <span className="v">
+                        {planAtr != null
+                          ? formatCurrency(planAtr)
+                          : (atrHint ? atrHint.replace(/^ATR:\s*/i, "") : "n/a")}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -601,11 +636,30 @@ function SignalsContent() {
                     <span className="sub">trailing</span>
                   </div>
                   <div className="body">
-                    <div className="kv"><span className="k">Market cap</span><span className="v">$8.4B</span></div>
-                    <div className="kv"><span className="k">P/E</span><span className="v">22.4</span></div>
-                    <div className="kv"><span className="k">Dividend yield</span><span className="v">1.8%</span></div>
-                    <div className="kv"><span className="k">52w range</span><span className="v">$68.20 - $104.88</span></div>
-                    <div className="kv"><span className="k">Avg volume</span><span className="v">812K</span></div>
+                    <div className="kv">
+                      <span className="k">Market cap</span>
+                      <span className="v">{marketCap != null ? `$${formatCompact(marketCap)}` : "-"}</span>
+                    </div>
+                    <div className="kv">
+                      <span className="k">P/E</span>
+                      <span className="v">{peRatio != null ? peRatio.toFixed(2) : "-"}</span>
+                    </div>
+                    <div className="kv">
+                      <span className="k">Dividend yield</span>
+                      <span className="v">{dividendYield != null ? `${(dividendYield * 100).toFixed(2)}%` : "-"}</span>
+                    </div>
+                    <div className="kv">
+                      <span className="k">52w range</span>
+                      <span className="v">
+                        {week52Low != null && week52High != null
+                          ? `${formatCurrency(week52Low)} - ${formatCurrency(week52High)}`
+                          : "-"}
+                      </span>
+                    </div>
+                    <div className="kv">
+                      <span className="k">Avg volume</span>
+                      <span className="v">{avgVolume != null ? formatCompact(avgVolume) : "-"}</span>
+                    </div>
                   </div>
                 </div>
               </div>

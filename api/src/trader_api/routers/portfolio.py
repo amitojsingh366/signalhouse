@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,10 +14,13 @@ from trader_api.schemas import (
     CashUpdate,
     HoldingAdvice,
     HoldingOut,
+    HoldingSparklineOut,
+    HoldingsSparkOut,
     HoldingUpdate,
     PnlSummary,
     PortfolioSummary,
     SnapshotOut,
+    SparkPoint,
     TradeOut,
 )
 
@@ -65,6 +70,7 @@ async def get_holdings(db: AsyncSession = Depends(get_db)):
             action_detail=advice["action_detail"],
             reasons=advice["reasons"],
             alternative=advice.get("alternative"),
+            entry_date=h.get("entry_date") or None,
         ))
 
     meta = await portfolio._get_meta()
@@ -106,6 +112,41 @@ async def get_pnl(db: AsyncSession = Depends(get_db)):
         total_pnl_pct=pnl_data["total_pnl_pct"],
         recent_trades=[TradeOut(**t) for t in recent],
     )
+
+
+@router.get("/holdings/spark", response_model=HoldingsSparkOut)
+async def get_holdings_spark(days: int = 7, db: AsyncSession = Depends(get_db)):
+    if days < 2 or days > 90:
+        raise HTTPException(status_code=400, detail="days must be between 2 and 90")
+
+    portfolio = make_portfolio(db)
+    holdings = await portfolio.get_holdings_dict()
+    symbols = list(holdings.keys())
+    if not symbols:
+        return HoldingsSparkOut(days=days, series=[])
+
+    market_data = get_market_data()
+    period = "3mo" if days <= 30 else "1y"
+
+    async def _series_for(symbol: str) -> HoldingSparklineOut:
+        df = await market_data.get_historical_data(symbol, period=period)
+        if df is None or df.empty:
+            return HoldingSparklineOut(symbol=symbol, points=[])
+        points: list[SparkPoint] = []
+        for date, row in df.tail(days).iterrows():
+            close = row.get("close")
+            if close != close:  # NaN
+                continue
+            points.append(
+                SparkPoint(
+                    date=date.strftime("%Y-%m-%d"),
+                    close=round(float(close), 2),
+                )
+            )
+        return HoldingSparklineOut(symbol=symbol, points=points)
+
+    series = await asyncio.gather(*[_series_for(symbol) for symbol in symbols])
+    return HoldingsSparkOut(days=days, series=series)
 
 
 @router.get("/snapshots", response_model=list[SnapshotOut])

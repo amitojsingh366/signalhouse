@@ -59,7 +59,10 @@ class SentimentResult:
         if self.analyst_summary:
             r.append(f"Analyst: {self.analyst_summary} [{self.analyst_score:+.1f}]")
         if self.fear_greed_label:
-            r.append(f"Fear & Greed: {self.fear_greed_value} ({self.fear_greed_label}) [{self.fear_greed_score:+.1f}]")
+            r.append(
+                f"Fear & Greed: {self.fear_greed_value} "
+                f"({self.fear_greed_label}) [{self.fear_greed_score:+.1f}]"
+            )
         if abs(self.news_score) >= 0.1:
             direction = "positive" if self.news_score > 0 else "negative"
             r.append(f"News sentiment: {direction} [{self.news_score:+.1f}]")
@@ -92,6 +95,11 @@ class SentimentAnalyzer:
         self._analyst_cache: dict[str, _CacheEntry] = {}
         self._news_cache: dict[str, _CacheEntry] = {}
         self._fear_greed_cache: _CacheEntry | None = None
+
+    def clear_cache(self) -> None:
+        self._analyst_cache.clear()
+        self._news_cache.clear()
+        self._fear_greed_cache = None
 
     def _resolve_us_ticker(self, symbol: str) -> str:
         if symbol in self._cdr_to_us:

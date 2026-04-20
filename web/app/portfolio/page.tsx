@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Briefcase,
@@ -17,31 +17,23 @@ import {
   X,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useHoldings, useUpdateHolding, useDeleteHolding, useUpdateCash, queryKeys } from "@/lib/hooks";
+import {
+  queryKeys,
+  useDeleteHolding,
+  useHoldings,
+  useHoldingsSpark,
+  useStatus,
+  useUpdateCash,
+  useUpdateHolding,
+} from "@/lib/hooks";
 import type { HoldingAdvice } from "@/lib/api";
 import { formatCurrency, formatPercent, pnlColor, cn } from "@/lib/utils";
 import { usePrivacy } from "@/lib/privacy";
 import { ScoreBreakdown, ScoreTag } from "@/components/ui/score-breakdown";
 import { CardSkeleton, HoldingsTableSkeleton } from "@/components/ui/loading";
-
-const MAX_POSITIONS = 12;
+import { TrendProxy } from "@/components/ui/trend-proxy";
 
 type HoldingsFilter = "all" | "winners" | "losers";
-
-function TrendProxy({ positive }: { positive: boolean }) {
-  const stroke = positive ? "#34d399" : "#ef4444";
-  const fill = positive ? "rgba(52, 211, 153, 0.16)" : "rgba(239, 68, 68, 0.14)";
-  const path = positive
-    ? "M2 18 C20 16, 36 12, 52 10 C66 8, 78 7, 94 6"
-    : "M2 6 C20 8, 36 12, 52 14 C66 16, 78 17, 94 18";
-
-  return (
-    <svg className="spark-sm" viewBox="0 0 96 24" fill="none" aria-hidden>
-      <path d={`${path} L94 22 L2 22 Z`} fill={fill} />
-      <path d={path} stroke={stroke} strokeWidth="1.7" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function EditHoldingPanel({
   holding,
@@ -59,6 +51,11 @@ function EditHoldingPanel({
   const [cost, setCost] = useState(holding.avg_cost.toString());
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    setQty(holding.quantity.toString());
+    setCost(holding.avg_cost.toString());
+  }, [holding.symbol, holding.quantity, holding.avg_cost]);
 
   async function handleSave() {
     setSaving(true);
@@ -235,6 +232,8 @@ export default function PortfolioPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const { data, isLoading: loading, isFetching } = useHoldings();
+  const { data: status } = useStatus();
+  const { data: sparkData } = useHoldingsSpark(7);
   const updateHolding = useUpdateHolding();
   const deleteHolding = useDeleteHolding();
   const updateCash = useUpdateCash();
@@ -246,6 +245,7 @@ export default function PortfolioPage() {
 
   function refresh() {
     qc.invalidateQueries({ queryKey: queryKeys.holdings });
+    qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
   }
 
   async function handleSaveHolding(symbol: string, quantity: number, avg_cost: number) {
@@ -272,10 +272,18 @@ export default function PortfolioPage() {
   }, [holdings, filter]);
 
   const invested = data?.total_cost ?? 0;
+  const maxPositions = status?.max_positions ?? 12;
   const allocatedPct = data && data.total_value > 0
     ? ((data.total_value - data.cash) / data.total_value) * 100
     : 0;
-  const openSlots = Math.max(0, MAX_POSITIONS - holdings.length);
+  const openSlots = Math.max(0, maxPositions - holdings.length);
+  const sparklineBySymbol = useMemo(() => {
+    const map = new Map<string, { date: string; close: number }[]>();
+    for (const entry of sparkData?.series ?? []) {
+      map.set(entry.symbol, entry.points ?? []);
+    }
+    return map;
+  }, [sparkData?.series]);
 
   return (
     <div className="space-y-6">
@@ -374,7 +382,7 @@ export default function PortfolioPage() {
             </div>
             <div className="val">
               {holdings.length}
-              <span className="ml-2 text-[13px] font-normal text-slate-500">/ {MAX_POSITIONS}</span>
+              <span className="ml-2 text-[13px] font-normal text-slate-500">/ {maxPositions}</span>
             </div>
             <div className="chg neu">{openSlots} slots open</div>
           </div>
@@ -458,7 +466,10 @@ export default function PortfolioPage() {
                       </td>
                       <td className="r">
                         <div className="ml-auto w-fit" title="7d trend proxy from current P&L direction">
-                          <TrendProxy positive={row.pnl >= 0} />
+                          <TrendProxy
+                            positive={row.pnl >= 0}
+                            points={sparklineBySymbol.get(row.symbol)}
+                          />
                         </div>
                       </td>
                       <td>
@@ -500,6 +511,7 @@ export default function PortfolioPage() {
 
       {selected && (
         <EditHoldingPanel
+          key={selected.symbol}
           holding={selected}
           onSave={handleSaveHolding}
           onDelete={handleDeleteHolding}

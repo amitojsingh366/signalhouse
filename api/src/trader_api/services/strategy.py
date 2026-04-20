@@ -85,6 +85,7 @@ class Strategy:
         reflect the updated portfolio composition and diversification.
         """
         cls._shared_recommendations = None
+        cls._shared_recommendations_at = 0.0
 
     def get_sector(self, symbol: str) -> str:
         if symbol in self.symbol_to_sector:
@@ -380,6 +381,8 @@ class Strategy:
                 continue
 
             pnl_pct = (current_price - h["avg_cost"]) / h["avg_cost"] * 100
+            pnl = (current_price - h["avg_cost"]) * h["quantity"]
+            entry_dt, days_held = self._holding_timing(symbol, h)
             exit_signal_data: tuple[SignalResult, list[str]] | None = None
 
             stop_hit = self.risk.update_stops(symbol, current_price)
@@ -392,7 +395,10 @@ class Strategy:
                     "current_price": current_price,
                     "entry_price": h["avg_cost"],
                     "pnl_pct": pnl_pct,
+                    "pnl": pnl,
                     "quantity": h["quantity"],
+                    "days_held": days_held,
+                    "entry_date": entry_dt.isoformat() if entry_dt else None,
                     "action": "SELL",
                     "action_detail": f"Sell all {h['quantity']:.4f} shares — stop loss triggered",
                 })
@@ -430,7 +436,10 @@ class Strategy:
                         "current_price": current_price,
                         "entry_price": h["avg_cost"],
                         "pnl_pct": pnl_pct,
+                        "pnl": pnl,
                         "quantity": h["quantity"],
+                        "days_held": days_held,
+                        "entry_date": entry_dt.isoformat() if entry_dt else None,
                         "action": "SELL",
                         "action_detail": (
                             f"Sell all {h['quantity']:.4f} shares "
@@ -440,22 +449,23 @@ class Strategy:
                     continue
 
             min_hold_days = int(self.config["strategy"].get("min_hold_days", 0))
-            open_trade = self.risk.open_trades.get(symbol)
-            days_held = (
-                (time.time() - open_trade.entry_time.timestamp()) / 86400.0
-                if open_trade is not None
-                else None
-            )
             if self.risk.should_exit_time(symbol):
                 alerts.append({
                     "symbol": symbol,
                     "reason": "Max hold time reached",
-                    "detail": f"Held for {self.config['strategy']['max_hold_days']}+ days",
+                    "detail": (
+                        f"Held for {days_held:.1f} days"
+                        if days_held is not None
+                        else f"Held for {self.config['strategy']['max_hold_days']}+ days"
+                    ),
                     "severity": "medium",
                     "current_price": current_price,
                     "entry_price": h["avg_cost"],
                     "pnl_pct": pnl_pct,
+                    "pnl": pnl,
                     "quantity": h["quantity"],
+                    "days_held": days_held,
+                    "entry_date": entry_dt.isoformat() if entry_dt else None,
                     "action": "SELL",
                     "action_detail": f"Sell all {h['quantity']:.4f} shares — exceeded hold window",
                 })
@@ -480,7 +490,10 @@ class Strategy:
                             "current_price": current_price,
                             "entry_price": h["avg_cost"],
                             "pnl_pct": pnl_pct,
+                            "pnl": pnl,
                             "quantity": h["quantity"],
+                            "days_held": days_held,
+                            "entry_date": entry_dt.isoformat() if entry_dt else None,
                             "action": "SELL",
                             "action_detail": (
                                 f"Sell all {h['quantity']:.4f} shares "
@@ -500,7 +513,10 @@ class Strategy:
                             "current_price": current_price,
                             "entry_price": h["avg_cost"],
                             "pnl_pct": pnl_pct,
+                            "pnl": pnl,
                             "quantity": h["quantity"],
+                            "days_held": days_held,
+                            "entry_date": entry_dt.isoformat() if entry_dt else None,
                             "action": "SELL",
                             "action_detail": (
                             f"Sell all {h['quantity']:.4f} shares "
@@ -762,11 +778,15 @@ class Strategy:
                 "symbol": sym,
                 "shares": h["quantity"],
                 "price": alert["current_price"],
+                "current_price": alert["current_price"],
                 "dollar_amount": round(value, 2),
                 "reason": alert["reason"],
                 "detail": alert.get("action_detail", alert["detail"]),
                 "pnl_pct": alert["pnl_pct"],
+                "pnl": alert.get("pnl"),
                 "entry_price": h["avg_cost"],
+                "entry_date": alert.get("entry_date"),
+                "days_held": alert.get("days_held"),
                 "actionable": True,
             })
 
@@ -1055,6 +1075,37 @@ class Strategy:
                 except (ValueError, IndexError):
                     pass
         return None
+
+    @staticmethod
+    def _parse_entry_datetime(raw: Any) -> datetime | None:
+        if isinstance(raw, datetime):
+            return raw
+        if not isinstance(raw, str) or not raw:
+            return None
+        candidate = raw.strip()
+        if candidate.endswith("Z"):
+            candidate = f"{candidate[:-1]}+00:00"
+        try:
+            return datetime.fromisoformat(candidate)
+        except ValueError:
+            return None
+
+    def _holding_timing(
+        self,
+        symbol: str,
+        holding: dict[str, Any],
+    ) -> tuple[datetime | None, float | None]:
+        open_trade = self.risk.open_trades.get(symbol)
+        entry_dt = (
+            open_trade.entry_time
+            if open_trade is not None
+            else self._parse_entry_datetime(holding.get("entry_date"))
+        )
+        if entry_dt is None:
+            return None, None
+        now = datetime.now(entry_dt.tzinfo) if entry_dt.tzinfo else datetime.now()
+        days = max(0.0, (now - entry_dt).total_seconds() / 86400.0)
+        return entry_dt, days
 
     def _calculate_buy_shares_for_signal(
         self,

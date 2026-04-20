@@ -352,6 +352,15 @@ class Portfolio:
         logger.info("Updated cash to $%.2f (delta $%.2f)", cash, delta)
         return cash
 
+    async def update_performance_baseline(self, baseline: float) -> float:
+        """Set a stable denominator for total-PnL percentage calculations."""
+        meta = await self._get_meta()
+        meta.performance_baseline = max(0.0, baseline)
+        await self.db.commit()
+        self._meta_cache = None
+        logger.info("Updated performance baseline to $%.2f", meta.performance_baseline)
+        return meta.performance_baseline
+
     def get_performance_baseline(self, meta: PortfolioMeta, fallback: float) -> float:
         """Stable denominator for total-PnL percentage."""
         if meta.performance_baseline > 0:

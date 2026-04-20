@@ -70,6 +70,10 @@ class CashUpdate(BaseModel):
     cash: float
 
 
+class PerformanceBaselineUpdate(BaseModel):
+    performance_baseline: float
+
+
 # --- Trades ---
 
 class TradeIn(BaseModel):

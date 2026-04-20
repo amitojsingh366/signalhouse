@@ -13,6 +13,7 @@ from trader_api.schemas import (
     HoldingAdvice,
     HoldingOut,
     HoldingUpdate,
+    PerformanceBaselineUpdate,
     PnlSummary,
     PortfolioSummary,
     SnapshotOut,
@@ -187,3 +188,13 @@ async def update_cash(data: CashUpdate, db: AsyncSession = Depends(get_db)):
     portfolio = make_portfolio(db)
     new_cash = await portfolio.update_cash(data.cash)
     return {"cash": new_cash}
+
+
+@router.put("/performance-baseline")
+async def update_performance_baseline(
+    data: PerformanceBaselineUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    portfolio = make_portfolio(db)
+    value = await portfolio.update_performance_baseline(data.performance_baseline)
+    return {"performance_baseline": value}

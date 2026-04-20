@@ -3,24 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart3,
-  Bug,
-  Home,
+  Activity,
   ArrowLeftRight,
   Briefcase,
-  Zap,
+  Bug,
+  LayoutDashboard,
+  Menu,
+  Settings,
   Sunrise,
   Upload,
-  Activity,
-  Settings,
-  Menu,
   X,
-  Eye,
-  EyeOff,
+  Zap,
 } from "lucide-react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { useActionPlan } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
-import { useState, useEffect } from "react";
-import { usePrivacy } from "@/lib/privacy";
 
 const DEBUG_LS_KEY = "debug_last_visited";
 const DEBUG_TTL_MS = 24 * 60 * 60 * 1000;
@@ -38,32 +35,29 @@ function touchDebugVisit() {
   }
 }
 
-const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: Home },
-  { href: "/portfolio", label: "Portfolio", icon: Briefcase },
-  { href: "/signals", label: "Action Plan", icon: Zap },
-  { href: "/premarket", label: "Pre-Market", icon: Sunrise },
-  { href: "/trades", label: "Trades", icon: ArrowLeftRight },
-  { href: "/upload", label: "Upload", icon: Upload },
-  { href: "/status", label: "Status", icon: Activity },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+type NavItem = {
+  href: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  count?: string;
+};
 
-const DEBUG_ITEM = { href: "/debug", label: "Debug", icon: Bug };
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
 
 export function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [footerTaps, setFooterTaps] = useState(0);
   const [debugUnlocked, setDebugUnlocked] = useState(false);
-  const { hidden, toggle: togglePrivacy } = usePrivacy();
+  const { data: plan } = useActionPlan();
 
-  // Restore from localStorage on mount
   useEffect(() => {
     if (isDebugRecent()) setDebugUnlocked(true);
   }, []);
 
-  // Refresh the TTL whenever /debug is active
   useEffect(() => {
     if (pathname.startsWith("/debug")) touchDebugVisit();
   }, [pathname]);
@@ -74,92 +68,122 @@ export function Sidebar() {
       touchDebugVisit();
       setDebugUnlocked(true);
       setFooterTaps(0);
-    } else {
-      setFooterTaps(next);
+      return;
     }
+    setFooterTaps(next);
   }
 
-  const navItems = debugUnlocked ? [...NAV_ITEMS, DEBUG_ITEM] : NAV_ITEMS;
+  const signalCount = plan?.actions?.length ?? 0;
+
+  const groups = useMemo<NavGroup[]>(() => {
+    const list: NavGroup[] = [
+      {
+        label: "Core",
+        items: [
+          { href: "/", label: "Dashboard", icon: LayoutDashboard },
+          { href: "/signals", label: "Signals", icon: Zap, count: signalCount > 0 ? String(signalCount) : undefined },
+          { href: "/portfolio", label: "Portfolio", icon: Briefcase },
+        ],
+      },
+      {
+        label: "Scan",
+        items: [
+          { href: "/premarket", label: "Pre-market", icon: Sunrise },
+          { href: "/trades", label: "Trades", icon: ArrowLeftRight },
+          { href: "/upload", label: "Upload", icon: Upload },
+        ],
+      },
+      {
+        label: "System",
+        items: [
+          { href: "/status", label: "Status", icon: Activity },
+          { href: "/settings", label: "Settings", icon: Settings },
+        ],
+      },
+    ];
+
+    if (debugUnlocked) {
+      list[2].items.push({ href: "/debug", label: "Debug", icon: Bug });
+    }
+    return list;
+  }, [debugUnlocked, signalCount]);
 
   return (
     <>
-      {/* Mobile toggle */}
       <button
-        onClick={() => setOpen(!open)}
-        className="fixed left-4 top-4 z-50 rounded-lg bg-surface-800 p-2 text-slate-400 lg:hidden"
+        onClick={() => setOpen((prev) => !prev)}
+        className="sb-toggle"
+        aria-label={open ? "Close navigation" : "Open navigation"}
       >
         {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </button>
 
-      {/* Overlay */}
       {open && (
         <div
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          className="sb-overlay"
           onClick={() => setOpen(false)}
+          aria-hidden
         />
       )}
 
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          "fixed left-0 top-0 z-40 flex h-full w-64 flex-col border-r border-white/10 bg-surface-900/95 backdrop-blur-xl transition-transform lg:translate-x-0",
-          open ? "translate-x-0" : "-translate-x-full"
-        )}
-      >
-        {/* Brand */}
-        <div className="flex h-16 items-center justify-between border-b border-white/10 px-6">
-          <div className="flex items-center gap-3">
-            <BarChart3 className="h-6 w-6 text-brand-500" />
-            <span className="text-lg font-bold tracking-tight">signalhouse</span>
-          </div>
-          <button
-            onClick={togglePrivacy}
-            className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-white/10 hover:text-slate-300"
-            title={hidden ? "Show numbers" : "Hide numbers"}
-          >
-            {hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
+      <aside className={cn("sb", open && "is-open")}>
+        <div className="brand">
+          <img src="/logo.svg" alt="signalhouse logo" />
+          <span className="wm">signalhouse</span>
+          <span className="env">TFSA</span>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 space-y-1 p-4">
-          {navItems.map((item) => {
-            const active =
-              item.href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-brand-600/20 text-brand-400"
-                    : "text-slate-400 hover:bg-white/5 hover:text-white"
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+        {groups.map((group) => (
+          <div key={group.label}>
+            <div className="group-label">{group.label}</div>
+            <nav>
+              {group.items.map((item) => {
+                const active =
+                  item.href === "/"
+                    ? pathname === "/"
+                    : pathname.startsWith(item.href);
 
-        {/* Footer */}
-        <div className="border-t border-white/10 p-4">
-          <p
-            onClick={handleFooterClick}
-            className="cursor-default select-none text-xs text-slate-600"
-          >
-            TFSA Trading Bot
-            {footerTaps > 0 && !debugUnlocked && (
-              <span className="ml-1 text-slate-700">
-                {footerTaps}/10
-              </span>
-            )}
-          </p>
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className={cn(active && "on")}
+                  >
+                    <span className="ico">
+                      <item.icon />
+                    </span>
+                    <span className="lbl">{item.label}</span>
+                    {item.count ? <span className="count">{item.count}</span> : null}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        ))}
+
+        <div
+          className="sb-foot"
+          onClick={handleFooterClick}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              handleFooterClick();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="scan-chip">
+            <span className="dot" />
+            <div className="txt">
+              <span className="a">Live scan</span>
+              <span className="b">333 symbols · every 15 min</span>
+            </div>
+          </div>
+          {footerTaps > 0 && !debugUnlocked && (
+            <p className="tap-hint">{footerTaps}/10</p>
+          )}
         </div>
       </aside>
     </>

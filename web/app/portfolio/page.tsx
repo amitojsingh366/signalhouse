@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Briefcase, RefreshCw, Pencil, Trash2, X, Check, DollarSign } from "lucide-react";
+import { ArrowLeftRight, Briefcase, RefreshCw, Pencil, Trash2, X, Check, DollarSign, Upload } from "lucide-react";
 import { useHoldings, useUpdateHolding, useDeleteHolding, useUpdateCash, queryKeys } from "@/lib/hooks";
 import type { HoldingAdvice } from "@/lib/api";
 import {
@@ -16,7 +16,6 @@ import { StatCard } from "@/components/ui/stat-card";
 import { DataTable } from "@/components/ui/data-table";
 import { SignalBadge } from "@/components/ui/signal-badge";
 import { CardSkeleton, HoldingsTableSkeleton } from "@/components/ui/loading";
-import { SearchTrigger } from "@/components/ui/search-trigger";
 import { ScoreBreakdown, ScoreTag } from "@/components/ui/score-breakdown";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -326,14 +325,41 @@ export default function PortfolioPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Portfolio</h1>
-        <div className="flex items-center gap-2">
-          <SearchTrigger />
+      <div className="ph">
+        <div>
+          <h1>Portfolio</h1>
+          <p className="sub">
+            {(data?.holdings.length ?? 0)} positions
+            <span className="divider">·</span>
+            {mask(formatCurrency(data?.cash ?? 0))} cash
+            <span className="divider">·</span>
+            {data
+              ? `${(((data.total_value - data.cash) / Math.max(data.total_value, 1)) * 100).toFixed(1)}% allocated`
+              : "allocation pending"}
+          </p>
+        </div>
+        <div className="actions">
+          <button
+            onClick={() => router.push("/upload")}
+            className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.08]"
+          >
+            <Upload className="h-4 w-4" />
+            Upload screenshot
+          </button>
+          <button
+            onClick={() => {
+              setEditingCash(true);
+              setSelected(null);
+            }}
+            className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.08]"
+          >
+            <DollarSign className="h-4 w-4" />
+            Edit cash
+          </button>
           <button
             onClick={refresh}
             disabled={isFetching}
-            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500 disabled:opacity-70"
           >
             <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
             Refresh
@@ -350,7 +376,7 @@ export default function PortfolioPage() {
           <CardSkeleton />
         </div>
       ) : data ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             title="Total Value"
             value={data.total_value}
@@ -359,7 +385,7 @@ export default function PortfolioPage() {
           />
           <button onClick={() => { setEditingCash(true); setSelected(null); }} className="text-left">
             <StatCard
-              title="Cash (click to edit)"
+              title="Cash Available"
               value={data.cash}
               format="currency"
               icon={DollarSign}
@@ -375,6 +401,7 @@ export default function PortfolioPage() {
           <StatCard
             title="Positions"
             value={data.holdings.length}
+            icon={ArrowLeftRight}
           />
         </div>
       ) : null}
@@ -389,6 +416,9 @@ export default function PortfolioPage() {
       )}
 
       {/* Holdings table */}
+      <div className="section-label">
+        Holdings <span className="c">{data?.holdings.length ?? 0} active</span>
+      </div>
       {loading ? (
         <HoldingsTableSkeleton rows={4} />
       ) : (

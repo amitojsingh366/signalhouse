@@ -394,6 +394,9 @@ function SignalsContent() {
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [snoozing, setSnoozing] = useState(false);
   const [showSnoozed, setShowSnoozed] = useState(false);
+  const [viewFilter, setViewFilter] = useState<
+    "all" | "exit" | "swap" | "buy" | "signal" | "snoozed"
+  >("all");
 
   const { mask } = usePrivacy();
   const { data: symbols = [] } = useSymbols();
@@ -440,18 +443,55 @@ function SignalsContent() {
   const signalOnlyBuys = allActions.filter(a => a.type === "BUY" && a.actionable === false);
   const snoozedActions = allActions.filter(a => a.snoozed);
   const hasActions = activeSells.length > 0 || activeSwaps.length > 0 || actionableBuys.length > 0 || signalOnlyBuys.length > 0;
+  const showExit = viewFilter === "all" || viewFilter === "exit";
+  const showSwap = viewFilter === "all" || viewFilter === "swap";
+  const showBuy = viewFilter === "all" || viewFilter === "buy";
+  const showSignalOnly = viewFilter === "all" || viewFilter === "signal";
+  const showSnoozedSection = viewFilter === "all" || viewFilter === "snoozed";
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Action Plan</h1>
-        <button
-          onClick={refresh}
-          disabled={refreshing}
-          className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10"
-        >
-          <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-          Refresh
+      <div className="ph">
+        <div>
+          <h1>Signals</h1>
+          <p className="sub">
+            Updated now
+            <span className="divider">·</span>
+            333 symbols scanned
+            <span className="divider">·</span>
+            <span className="text-emerald-400">{actionableBuys.length + activeSwaps.length + activeSells.length} actionable</span>
+          </p>
+        </div>
+        <div className="actions">
+          <button
+            onClick={refresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500 disabled:opacity-70"
+          >
+            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div className="page-tabs">
+        <button className={viewFilter === "all" ? "on" : ""} onClick={() => setViewFilter("all")}>
+          All<span className="c">{allActions.length}</span>
+        </button>
+        <button className={viewFilter === "exit" ? "on" : ""} onClick={() => setViewFilter("exit")}>
+          Exit alerts<span className="c">{activeSells.length}</span>
+        </button>
+        <button className={viewFilter === "buy" ? "on" : ""} onClick={() => setViewFilter("buy")}>
+          Buys<span className="c">{actionableBuys.length}</span>
+        </button>
+        <button className={viewFilter === "swap" ? "on" : ""} onClick={() => setViewFilter("swap")}>
+          Swaps<span className="c">{activeSwaps.length}</span>
+        </button>
+        <button className={viewFilter === "signal" ? "on" : ""} onClick={() => setViewFilter("signal")}>
+          Signal only<span className="c">{signalOnlyBuys.length}</span>
+        </button>
+        <button className={viewFilter === "snoozed" ? "on" : ""} onClick={() => setViewFilter("snoozed")}>
+          Snoozed<span className="c">{snoozedActions.length}</span>
         </button>
       </div>
 
@@ -596,7 +636,7 @@ function SignalsContent() {
       ) : (
         <>
           {/* Sells */}
-          {activeSells.length > 0 && (
+          {showExit && activeSells.length > 0 && (
             <div>
               <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
                 <AlertTriangle className="h-4 w-4 text-red-400" />
@@ -623,7 +663,7 @@ function SignalsContent() {
           )}
 
           {/* Swaps */}
-          {activeSwaps.length > 0 && (
+          {showSwap && activeSwaps.length > 0 && (
             <div>
               <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
                 <ArrowRight className="h-4 w-4 text-brand-400" />
@@ -650,7 +690,7 @@ function SignalsContent() {
           )}
 
           {/* Actionable Buys */}
-          {actionableBuys.length > 0 && (
+          {showBuy && actionableBuys.length > 0 && (
             <div>
               <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
                 <TrendingUp className="h-4 w-4 text-emerald-400" />
@@ -674,7 +714,7 @@ function SignalsContent() {
           )}
 
           {/* Signal-only Buys (not enough cash) */}
-          {signalOnlyBuys.length > 0 && (
+          {showSignalOnly && signalOnlyBuys.length > 0 && (
             <div>
               <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
                 <DollarSign className="h-4 w-4 text-amber-400" />
@@ -700,7 +740,7 @@ function SignalsContent() {
           )}
 
           {/* Snoozed actions */}
-          {snoozedActions.length > 0 && (
+          {showSnoozedSection && snoozedActions.length > 0 && (
             <div>
               <button
                 onClick={() => setShowSnoozed(!showSnoozed)}
@@ -740,6 +780,16 @@ function SignalsContent() {
               <p className="text-xs text-slate-600">Portfolio is on track. Check back later or search a symbol above.</p>
             </div>
           )}
+          {(hasActions || snoozedActions.length > 0) &&
+            (viewFilter === "exit" && activeSells.length === 0 ||
+              viewFilter === "swap" && activeSwaps.length === 0 ||
+              viewFilter === "buy" && actionableBuys.length === 0 ||
+              viewFilter === "signal" && signalOnlyBuys.length === 0 ||
+              viewFilter === "snoozed" && snoozedActions.length === 0) && (
+              <div className="glass-card py-10 text-center text-sm text-slate-500">
+                No signals in this filter.
+              </div>
+            )}
         </>
       )}
     </div>

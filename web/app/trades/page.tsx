@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { ArrowLeftRight, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeftRight, BarChart3, Clock, Loader2, RefreshCw, TrendingUp } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { TradeOut, SymbolInfo } from "@/lib/api";
@@ -11,7 +11,6 @@ import { usePrivacy } from "@/lib/privacy";
 import { DataTable } from "@/components/ui/data-table";
 import { TradesTableSkeleton } from "@/components/ui/loading";
 import { useToast } from "@/components/ui/toast";
-import { SearchTrigger } from "@/components/ui/search-trigger";
 
 function TradeForm({
   symbols,
@@ -224,6 +223,10 @@ export default function TradesPage() {
     const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
     return timeB - timeA;
   });
+  const buys = sorted.filter((t) => t.action === "BUY").length;
+  const sells = sorted.filter((t) => t.action === "SELL").length;
+  const volume = sorted.reduce((acc, t) => acc + t.total, 0);
+  const realizedPnl = sorted.reduce((acc, t) => acc + (t.pnl ?? 0), 0);
 
   function refresh() {
     qc.invalidateQueries({ queryKey: queryKeys.tradeHistory(50) });
@@ -295,18 +298,84 @@ export default function TradesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Trades</h1>
-        <div className="flex items-center gap-2">
-          <SearchTrigger />
+      <div className="ph">
+        <div>
+          <h1>Trades</h1>
+          <p className="sub">
+            {sorted.length} trades in history
+            <span className="divider">·</span>
+            <span className="text-emerald-400">{buys} buys</span>
+            <span className="divider">·</span>
+            <span className="text-red-400">{sells} sells</span>
+          </p>
+        </div>
+        <div className="actions">
           <button
             onClick={refresh}
             disabled={isFetching}
-            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500 disabled:opacity-70"
           >
             <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
             Refresh
           </button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="stat2">
+          <div className="lbl">
+            <span>Trades</span>
+            <span className="ico">
+              <ArrowLeftRight />
+            </span>
+          </div>
+          <div className="val">{sorted.length}</div>
+          <div className="chg neu">{buys} buys · {sells} sells</div>
+        </div>
+
+        <div className="stat2">
+          <div className="lbl">
+            <span>Volume</span>
+            <span className="ico">
+              <BarChart3 />
+            </span>
+          </div>
+          <div className="val">{maskNum(formatCurrency(volume))}</div>
+          <div className="chg neu">
+            avg {sorted.length > 0 ? maskNum(formatCurrency(volume / sorted.length)) : "—"} / trade
+          </div>
+        </div>
+
+        <div className="stat2">
+          <div className="lbl">
+            <span>Realized P&amp;L</span>
+            <span className="ico">
+              <TrendingUp />
+            </span>
+          </div>
+          <div className={cn("val", realizedPnl >= 0 ? "text-emerald-400" : "text-red-400")}>
+            {maskNum(formatCurrency(realizedPnl))}
+          </div>
+          <div className={cn("chg", realizedPnl >= 0 ? "pos" : "neg")}>
+            closed positions
+          </div>
+        </div>
+
+        <div className="stat2">
+          <div className="lbl">
+            <span>Last trade</span>
+            <span className="ico">
+              <Clock />
+            </span>
+          </div>
+          <div className="val">
+            {sorted[0]?.timestamp
+              ? new Date(sorted[0].timestamp).toLocaleDateString("en-CA")
+              : "—"}
+          </div>
+          <div className="chg neu">
+            {sorted[0]?.symbol ?? "No trade yet"}
+          </div>
         </div>
       </div>
 

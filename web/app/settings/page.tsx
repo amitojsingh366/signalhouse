@@ -10,6 +10,11 @@ import {
   CheckCircle,
   AlertTriangle,
   TrendingUp,
+  Bell,
+  Link2,
+  Database,
+  Palette,
+  LineChart,
 } from "lucide-react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 import { useQueryClient } from "@tanstack/react-query";
@@ -41,6 +46,7 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [hasToken, setHasToken] = useState(false);
+  const [tab, setTab] = useState<"Trading" | "Auth" | "Notifications" | "Connections" | "Data" | "Appearance">("Trading");
   const refreshTimerRef = useRef<number | null>(null);
   const qc = useQueryClient();
 
@@ -183,7 +189,11 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Settings</h1>
+        <div className="ph">
+          <div>
+            <h1>Settings</h1>
+          </div>
+        </div>
         <div className="glass-card animate-pulse p-8">
           <div className="h-6 w-48 rounded bg-white/10" />
         </div>
@@ -193,187 +203,289 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <SearchTrigger />
+      <div className="ph">
+        <div>
+          <h1>Settings</h1>
+          <p className="sub">
+            Amitoj Singh · TFSA
+            <span className="divider">·</span>
+            Changes apply immediately
+            <span className="divider">·</span>
+            <span className="font-mono text-surface-500">settings.yaml</span>
+          </p>
+        </div>
+        <div className="actions">
+          <SearchTrigger />
+        </div>
       </div>
 
-      {/* Auth status banner */}
-      <div
-        className={cn(
-          "glass-card p-5",
-          registered
-            ? "border-emerald-500/30 bg-emerald-500/5"
-            : "border-amber-500/30 bg-amber-500/5"
-        )}
-      >
-        <div className="flex items-center gap-3">
-          {registered ? (
-            <CheckCircle className="h-5 w-5 text-emerald-400" />
-          ) : (
-            <AlertTriangle className="h-5 w-5 text-amber-400" />
+      <div className="grid items-start gap-5 xl:grid-cols-[240px_minmax(0,1fr)]">
+        <div className="glass-card p-3 xl:sticky xl:top-24">
+          <div className="space-y-1">
+            {[
+              { id: "Trading", icon: LineChart },
+              { id: "Auth", icon: Shield },
+              { id: "Notifications", icon: Bell },
+              { id: "Connections", icon: Link2 },
+              { id: "Data", icon: Database },
+              { id: "Appearance", icon: Palette },
+            ].map(({ id, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setTab(id as typeof tab)}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors",
+                  tab === id
+                    ? "bg-brand-600/20 text-brand-300"
+                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {id}
+              </button>
+            ))}
+          </div>
+          <div className="mt-4 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-3 text-xs text-emerald-300">
+            All systems nominal · last sync just now
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          {/* Alerts */}
+          {error && (
+            <div className="glass-card border-red-500/30 bg-red-500/5 p-4">
+              <p className="text-sm text-red-400">{error}</p>
+            </div>
           )}
-          <div>
-            <p
-              className={cn(
-                "font-medium",
-                registered ? "text-emerald-400" : "text-amber-400"
-              )}
-            >
-              {registered ? "API Authentication Active" : "API Authentication Disabled"}
-            </p>
-            <p className="mt-1 text-sm text-slate-400">
-              {registered
-                ? "All API requests require a valid token. Register additional passkeys or authenticate below."
-                : "No passkeys registered. The API is currently open. Register a passkey to enable authentication."}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Alerts */}
-      {error && (
-        <div className="glass-card border-red-500/30 bg-red-500/5 p-4">
-          <p className="text-sm text-red-400">{error}</p>
-        </div>
-      )}
-      {success && (
-        <div className="glass-card border-emerald-500/30 bg-emerald-500/5 p-4">
-          <p className="text-sm text-emerald-400">{success}</p>
-        </div>
-      )}
-
-      {/* Passkey management */}
-      <div className="glass-card p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-brand-500/20 p-3">
-              <Shield className="h-5 w-5 text-brand-400" />
+          {success && (
+            <div className="glass-card border-emerald-500/30 bg-emerald-500/5 p-4">
+              <p className="text-sm text-emerald-400">{success}</p>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold">Passkeys</h2>
-              <p className="text-sm text-slate-400">
-                Manage your registered passkeys for authentication
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleRegister}
-            disabled={registering}
-            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500 disabled:opacity-50"
-          >
-            {registering ? (
-              <RefreshCw className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            Register Passkey
-          </button>
-        </div>
+          )}
 
-        {credentials.length > 0 ? (
-          <div className="mt-6 space-y-3">
-            {credentials.map((cred) => (
+          {tab === "Auth" && (
+            <>
+              {/* Auth status banner */}
               <div
-                key={cred.id}
-                className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3"
+                className={cn(
+                  "glass-card p-5",
+                  registered
+                    ? "border-emerald-500/30 bg-emerald-500/5"
+                    : "border-amber-500/30 bg-amber-500/5"
+                )}
               >
                 <div className="flex items-center gap-3">
-                  <Key className="h-4 w-4 text-slate-400" />
+                  {registered ? (
+                    <CheckCircle className="h-5 w-5 text-emerald-400" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-amber-400" />
+                  )}
                   <div>
-                    <p className="text-sm font-medium">{cred.name}</p>
-                    {cred.created_at && (
-                      <p className="text-xs text-slate-500">
-                        Registered{" "}
-                        {new Date(cred.created_at).toLocaleDateString()}
-                      </p>
-                    )}
+                    <p
+                      className={cn(
+                        "font-medium",
+                        registered ? "text-emerald-400" : "text-amber-400"
+                      )}
+                    >
+                      {registered ? "API Authentication Active" : "API Authentication Disabled"}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-400">
+                      {registered
+                        ? "All API requests require a valid token. Register additional passkeys or authenticate below."
+                        : "No passkeys registered. The API is currently open. Register a passkey to enable authentication."}
+                    </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDelete(cred.id)}
-                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-6 rounded-lg border border-dashed border-white/10 p-8 text-center">
-            <Key className="mx-auto h-8 w-8 text-slate-600" />
-            <p className="mt-2 text-sm text-slate-500">
-              No passkeys registered
-            </p>
-          </div>
-        )}
-      </div>
 
-      {registered && (
-        <div className="glass-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">Session</h2>
-              <p className="text-sm text-slate-400">
-                {hasToken
-                  ? "You have an active session token."
-                  : "Authenticate with your passkey to access the API."}
-              </p>
-            </div>
-            <button
-              onClick={handleLogin}
-              className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10"
-            >
-              <Key className="h-4 w-4" />
-              {hasToken ? "Re-authenticate" : "Sign In"}
-            </button>
-          </div>
-        </div>
-      )}
+              {/* Passkey management */}
+              <div className="card">
+                <div className="head">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-brand-500/20 p-3">
+                      <Shield className="h-5 w-5 text-brand-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold">Passkeys</h3>
+                      <p className="text-sm text-slate-400">
+                        Manage your registered passkeys for authentication
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleRegister}
+                    disabled={registering}
+                    className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500 disabled:opacity-50"
+                  >
+                    {registering ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )}
+                    Register Passkey
+                  </button>
+                </div>
 
-      {/* Trading settings — consolidated editable config */}
-      <div className="glass-card p-6">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-brand-500/20 p-3">
-            <TrendingUp className="h-5 w-5 text-brand-400" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold">Trading</h2>
-            <p className="text-sm text-slate-400">
-              Strategy, risk, and notification parameters from{" "}
-              <code className="rounded bg-white/5 px-1 py-0.5 text-xs">settings.yaml</code>.
-              Changes apply immediately and persist across restarts.
-            </p>
-          </div>
-        </div>
+                {credentials.length > 0 ? (
+                  <div className="space-y-3 p-5">
+                    {credentials.map((cred) => (
+                      <div
+                        key={cred.id}
+                        className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Key className="h-4 w-4 text-slate-400" />
+                          <div>
+                            <p className="text-sm font-medium">{cred.name}</p>
+                            {cred.created_at && (
+                              <p className="text-xs text-slate-500">
+                                Registered{" "}
+                                {new Date(cred.created_at).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleDelete(cred.id)}
+                          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-5">
+                    <div className="rounded-lg border border-dashed border-white/10 p-8 text-center">
+                      <Key className="mx-auto h-8 w-8 text-slate-600" />
+                      <p className="mt-2 text-sm text-slate-500">
+                        No passkeys registered
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
 
-        {tradingLoading ? (
-          <div className="mt-6 space-y-3">
-            <div className="h-5 w-32 animate-pulse rounded bg-white/10" />
-            <div className="h-12 animate-pulse rounded bg-white/5" />
-            <div className="h-12 animate-pulse rounded bg-white/5" />
-          </div>
-        ) : (
-          <div className="mt-6 space-y-8">
-            {groups.map((group) => (
-              <section key={group.id} className="space-y-4">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
-                  {group.label}
-                </h3>
-                <div className="space-y-3">
-                  {group.items.map((item) => (
-                    <SettingRow
-                      key={item.key}
-                      item={item}
-                      saving={savingKeys.has(item.key)}
-                      onSave={(value) => saveSetting(item.key, value)}
-                    />
+              {registered && (
+                <div className="card">
+                  <div className="head">
+                    <div>
+                      <h3 className="text-base font-semibold">Session</h3>
+                      <p className="text-sm text-slate-400">
+                        {hasToken
+                          ? "You have an active session token."
+                          : "Authenticate with your passkey to access the API."}
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleLogin}
+                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10"
+                    >
+                      <Key className="h-4 w-4" />
+                      {hasToken ? "Re-authenticate" : "Sign In"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {tab === "Trading" && (
+            <div className="card p-6">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="rounded-lg bg-brand-500/20 p-3">
+                  <TrendingUp className="h-5 w-5 text-brand-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold">Trading</h2>
+                  <p className="text-sm text-slate-400">
+                    Strategy, risk, and notification parameters from{" "}
+                    <code className="rounded bg-white/5 px-1 py-0.5 text-xs">settings.yaml</code>.
+                    Changes apply immediately and persist across restarts.
+                  </p>
+                </div>
+              </div>
+
+              {tradingLoading ? (
+                <div className="mt-6 space-y-3">
+                  <div className="h-5 w-32 animate-pulse rounded bg-white/10" />
+                  <div className="h-12 animate-pulse rounded bg-white/5" />
+                  <div className="h-12 animate-pulse rounded bg-white/5" />
+                </div>
+              ) : (
+                <div className="mt-6 space-y-8">
+                  {groups.map((group) => (
+                    <section key={group.id} className="space-y-4">
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+                        {group.label}
+                      </h3>
+                      <div className="space-y-3">
+                        {group.items.map((item) => (
+                          <SettingRow
+                            key={item.key}
+                            item={item}
+                            saving={savingKeys.has(item.key)}
+                            onSave={(value) => saveSetting(item.key, value)}
+                          />
+                        ))}
+                      </div>
+                    </section>
                   ))}
                 </div>
-              </section>
-            ))}
-          </div>
-        )}
+              )}
+            </div>
+          )}
+
+          {tab === "Notifications" && (
+            <div className="card">
+              <div className="head">
+                <h3>Delivery rules</h3>
+                <span className="sub">iOS + Discord</span>
+              </div>
+              <div className="body space-y-3 text-sm text-slate-300">
+                <p>URGENT exits notify immediately.</p>
+                <p>BUY signals notify based on configured strength thresholds.</p>
+                <p>Cooldown and retry behavior are configurable in Trading settings.</p>
+              </div>
+            </div>
+          )}
+
+          {tab === "Connections" && (
+            <div className="card">
+              <div className="head">
+                <h3>Connections</h3>
+                <span className="sub">integrations</span>
+              </div>
+              <div className="body text-sm text-slate-400">
+                Brokerage screenshot upload and Discord integration are active.
+              </div>
+            </div>
+          )}
+
+          {tab === "Data" && (
+            <div className="card">
+              <div className="head">
+                <h3>Data</h3>
+                <span className="sub">feeds & backups</span>
+              </div>
+              <div className="body text-sm text-slate-400">
+                Price feeds and scan cadence are managed by backend configuration.
+              </div>
+            </div>
+          )}
+
+          {tab === "Appearance" && (
+            <div className="card">
+              <div className="head">
+                <h3>Appearance</h3>
+                <span className="sub">theme</span>
+              </div>
+              <div className="body text-sm text-slate-400">
+                Dark trading layout is active. Density and visual variants can be extended here.
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -11,8 +11,10 @@ import type {
   SignalOut,
   SymbolInfo,
   PriceHistory,
+  HoldingsSparkResponse,
   UploadHolding,
   PremarketResponse,
+  TickerStripItem,
 } from "./api";
 
 // --- Query key factory ---
@@ -23,6 +25,9 @@ export const queryKeys = {
   snapshots: ["snapshots"] as const,
   recommendations: ["recommendations"] as const,
   actionPlan: ["actionPlan"] as const,
+  holdingsSparkRoot: ["holdingsSpark"] as const,
+  holdingsSpark: (days: number) => ["holdingsSpark", days] as const,
+  tickerStrip: ["tickerStrip"] as const,
   status: ["status"] as const,
   tradeHistory: (limit: number) => ["tradeHistory", limit] as const,
   symbols: ["symbols"] as const,
@@ -72,6 +77,22 @@ export function useActionPlan() {
     queryKey: queryKeys.actionPlan,
     queryFn: () => api.getActionPlan(),
     staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function useHoldingsSpark(days = 7) {
+  return useQuery<HoldingsSparkResponse>({
+    queryKey: queryKeys.holdingsSpark(days),
+    queryFn: () => api.getHoldingsSpark(days),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useTickerStrip() {
+  return useQuery<TickerStripItem[]>({
+    queryKey: queryKeys.tickerStrip,
+    queryFn: () => api.getTickerStrip(),
+    staleTime: 60 * 1000,
   });
 }
 
@@ -137,6 +158,7 @@ export function useRecordBuy() {
       qc.invalidateQueries({ queryKey: ["tradeHistory"] });
       qc.invalidateQueries({ queryKey: queryKeys.snapshots });
       qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
+      qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
     },
   });
 }
@@ -152,6 +174,7 @@ export function useRecordSell() {
       qc.invalidateQueries({ queryKey: ["tradeHistory"] });
       qc.invalidateQueries({ queryKey: queryKeys.snapshots });
       qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
+      qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
     },
   });
 }
@@ -165,6 +188,7 @@ export function useUpdateHolding() {
       qc.invalidateQueries({ queryKey: queryKeys.holdings });
       qc.invalidateQueries({ queryKey: queryKeys.pnl });
       qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
+      qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
     },
   });
 }
@@ -177,6 +201,7 @@ export function useDeleteHolding() {
       qc.invalidateQueries({ queryKey: queryKeys.holdings });
       qc.invalidateQueries({ queryKey: queryKeys.pnl });
       qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
+      qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
     },
   });
 }
@@ -189,6 +214,7 @@ export function useUpdateCash() {
       qc.invalidateQueries({ queryKey: queryKeys.holdings });
       qc.invalidateQueries({ queryKey: queryKeys.pnl });
       qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
+      qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
     },
   });
 }
@@ -207,7 +233,24 @@ export function useConfirmUpload() {
       qc.invalidateQueries({ queryKey: queryKeys.holdings });
       qc.invalidateQueries({ queryKey: queryKeys.pnl });
       qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
+      qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
     },
   });
 }
 
+export function useRunScanNow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.runScanNow(),
+    onSuccess: (plan) => {
+      qc.setQueryData(queryKeys.actionPlan, plan);
+      qc.invalidateQueries({ queryKey: queryKeys.holdings });
+      qc.invalidateQueries({ queryKey: queryKeys.pnl });
+      qc.invalidateQueries({ queryKey: queryKeys.snapshots });
+      qc.invalidateQueries({ queryKey: queryKeys.recommendations });
+      qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
+      qc.invalidateQueries({ queryKey: queryKeys.tickerStrip });
+      qc.invalidateQueries({ queryKey: queryKeys.status });
+    },
+  });
+}

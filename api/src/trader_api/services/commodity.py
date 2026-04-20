@@ -179,6 +179,9 @@ class CommodityCorrelator:
     def __init__(self) -> None:
         self._cache: dict[str, _CacheEntry] = {}
 
+    def clear_cache(self) -> None:
+        self._cache.clear()
+
     async def _get_overnight_change(self, commodity: str) -> tuple[float, float] | None:
         """Get (current_price, pct_change) for a commodity/crypto ticker."""
         cached = self._cache.get(commodity)

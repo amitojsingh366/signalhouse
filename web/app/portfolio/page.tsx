@@ -1,24 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Briefcase, RefreshCw, Pencil, Trash2, X, Check, DollarSign } from "lucide-react";
-import { useHoldings, useUpdateHolding, useDeleteHolding, useUpdateCash, queryKeys } from "@/lib/hooks";
-import type { HoldingAdvice } from "@/lib/api";
 import {
-  formatCurrency,
-  formatPercent,
-  pnlColor,
-  cn,
-} from "@/lib/utils";
-import { usePrivacy } from "@/lib/privacy";
-import { StatCard } from "@/components/ui/stat-card";
-import { DataTable } from "@/components/ui/data-table";
-import { SignalBadge } from "@/components/ui/signal-badge";
-import { CardSkeleton, HoldingsTableSkeleton } from "@/components/ui/loading";
-import { SearchTrigger } from "@/components/ui/search-trigger";
-import { ScoreBreakdown, ScoreTag } from "@/components/ui/score-breakdown";
+  Briefcase,
+  Check,
+  DollarSign,
+  Layers,
+  MoreHorizontal,
+  Pencil,
+  RefreshCw,
+  Trash2,
+  TrendingUp,
+  Upload,
+  Wallet,
+  X,
+} from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  queryKeys,
+  useDeleteHolding,
+  useHoldings,
+  useHoldingsSpark,
+  useStatus,
+  useUpdateCash,
+  useUpdateHolding,
+} from "@/lib/hooks";
+import type { HoldingAdvice } from "@/lib/api";
+import { formatCurrency, formatPercent, pnlColor, cn } from "@/lib/utils";
+import { usePrivacy } from "@/lib/privacy";
+import { ScoreBreakdown, ScoreTag } from "@/components/ui/score-breakdown";
+import { CardSkeleton, HoldingsTableSkeleton } from "@/components/ui/loading";
+import { TrendProxy } from "@/components/ui/trend-proxy";
+import { buildTradeIntentHref } from "@/lib/trade-intent";
+
+type HoldingsFilter = "all" | "winners" | "losers";
 
 function EditHoldingPanel({
   holding,
@@ -36,6 +52,11 @@ function EditHoldingPanel({
   const [cost, setCost] = useState(holding.avg_cost.toString());
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    setQty(holding.quantity.toString());
+    setCost(holding.avg_cost.toString());
+  }, [holding.symbol, holding.quantity, holding.avg_cost]);
 
   async function handleSave() {
     setSaving(true);
@@ -56,119 +77,97 @@ function EditHoldingPanel({
     }
   }
 
-  useEffect(() => {
-    setQty(holding.quantity.toString());
-    setCost(holding.avg_cost.toString());
-  }, [holding]);
-
   return (
-    <div className="glass-card p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-lg font-semibold flex items-center gap-2">
-          <Pencil className="h-4 w-4 text-accent" />
+    <div className="card">
+      <div className="head">
+        <h3 className="flex items-center gap-2">
+          <Pencil className="h-4 w-4 text-brand-300" />
           Edit {holding.symbol}
         </h3>
-        <button onClick={onClose} className="text-slate-500 hover:text-white">
-          <X className="h-5 w-5" />
+        <button onClick={onClose} className="text-slate-500 transition-colors hover:text-white" aria-label="Close edit panel">
+          <X className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 mb-4">
-        <div>
-          <label className="mb-1 block text-xs text-slate-400">Quantity</label>
-          <input
-            type="number"
-            step="any"
-            value={qty}
-            onChange={(e) => setQty(e.target.value)}
-            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-accent/50"
-          />
+      <div className="body space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs text-slate-400">Quantity</label>
+            <input
+              type="number"
+              step="any"
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-brand-500/50"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-slate-400">Avg Cost per Share</label>
+            <input
+              type="number"
+              step="any"
+              value={cost}
+              onChange={(e) => setCost(e.target.value)}
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-brand-500/50"
+            />
+          </div>
         </div>
-        <div>
-          <label className="mb-1 block text-xs text-slate-400">Avg Cost per Share</label>
-          <input
-            type="number"
-            step="any"
-            value={cost}
-            onChange={(e) => setCost(e.target.value)}
-            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-accent/50"
-          />
-        </div>
-      </div>
 
-      {/* Current info */}
-      <div className="mb-4 grid grid-cols-3 gap-3 rounded-lg border border-white/5 bg-white/5 p-3">
-        <div>
-          <p className="text-xs text-slate-500">Current Price</p>
-          <p className="text-sm font-medium">{formatCurrency(holding.current_price)}</p>
-        </div>
-        <div>
-          <p className="text-xs text-slate-500">Market Value</p>
-          <p className="text-sm font-medium">{mask(formatCurrency(holding.market_value))}</p>
-        </div>
-        <div>
-          <p className="text-xs text-slate-500">P&L</p>
-          <p className={cn("text-sm font-medium", pnlColor(holding.pnl))}>
-            {mask(formatCurrency(holding.pnl))} ({mask(formatPercent(holding.pnl_pct))})
-          </p>
-        </div>
-      </div>
-
-      {/* Signal & advice */}
-      <div className="mb-4 space-y-2">
-        <div className="flex items-center gap-2">
-          <SignalBadge signal={holding.signal} strength={holding.strength} />
-          <span className="text-sm text-slate-400">{holding.action}</span>
-        </div>
-        <p className="text-xs text-slate-500">{holding.action_detail}</p>
-        <ScoreBreakdown
-          total={holding.technical_score + holding.sentiment_score + holding.commodity_score}
-          technical={holding.technical_score}
-          sentiment={holding.sentiment_score}
-          commodity={holding.commodity_score}
-        />
-        {holding.reasons.length > 0 && (
-          <ul className="space-y-0.5 text-xs text-slate-400">
-            {holding.reasons.map((r, i) => (
-              <li key={i}>
-                <ScoreTag text={r} />
-              </li>
-            ))}
-          </ul>
-        )}
-        {holding.alternative && (
-          <div className="rounded-lg border border-accent/20 bg-accent/5 p-3">
-            <p className="text-xs text-accent">
-              Swap suggestion: Consider{" "}
-              <span className="font-medium">
-                {String(holding.alternative.symbol ?? "")}
-              </span>
-              {holding.alternative.reason
-                ? ` — ${String(holding.alternative.reason)}`
-                : null}
+        <div className="grid gap-3 rounded-lg border border-white/5 bg-white/5 p-3 sm:grid-cols-3">
+          <div>
+            <p className="text-xs text-slate-500">Current Price</p>
+            <p className="text-sm font-medium">{formatCurrency(holding.current_price)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Market Value</p>
+            <p className="text-sm font-medium">{mask(formatCurrency(holding.market_value))}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">P&amp;L</p>
+            <p className={cn("text-sm font-medium", pnlColor(holding.pnl))}>
+              {mask(formatCurrency(holding.pnl))} ({mask(formatPercent(holding.pnl_pct))})
             </p>
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 rounded-lg bg-accent/20 px-4 py-2 text-sm font-medium text-accent transition-colors hover:bg-accent/30 disabled:opacity-50"
-        >
-          <Check className="h-4 w-4" />
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          className="flex items-center gap-2 rounded-lg bg-red-500/20 px-4 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/30 disabled:opacity-50"
-        >
-          <Trash2 className="h-4 w-4" />
-          {deleting ? "Deleting..." : "Delete"}
-        </button>
+        <div className="space-y-2">
+          <p className="text-sm text-slate-400">{holding.action}</p>
+          <p className="text-xs text-slate-500">{holding.action_detail}</p>
+          <ScoreBreakdown
+            total={holding.technical_score + holding.sentiment_score + holding.commodity_score}
+            technical={holding.technical_score}
+            sentiment={holding.sentiment_score}
+            commodity={holding.commodity_score}
+          />
+          {holding.reasons.length > 0 && (
+            <ul className="space-y-0.5 text-xs text-slate-400">
+              {holding.reasons.map((reason, index) => (
+                <li key={`${holding.symbol}-reason-${index}`}>
+                  <ScoreTag text={reason} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500 disabled:opacity-60"
+          >
+            <Check className="h-4 w-4" />
+            {saving ? "Saving..." : "Save changes"}
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="inline-flex items-center gap-2 rounded-lg border border-red-500/25 bg-red-500/15 px-4 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/25 disabled:opacity-60"
+          >
+            <Trash2 className="h-4 w-4" />
+            {deleting ? "Deleting..." : "Delete"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -196,34 +195,36 @@ function EditCashPanel({
   }
 
   return (
-    <div className="glass-card p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-lg font-semibold flex items-center gap-2">
-          <DollarSign className="h-4 w-4 text-accent" />
-          Edit Cash Balance
+    <div className="card">
+      <div className="head">
+        <h3 className="flex items-center gap-2">
+          <Wallet className="h-4 w-4 text-brand-300" />
+          Edit cash balance
         </h3>
-        <button onClick={onClose} className="text-slate-500 hover:text-white">
-          <X className="h-5 w-5" />
+        <button onClick={onClose} className="text-slate-500 transition-colors hover:text-white" aria-label="Close cash editor">
+          <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="mb-4">
-        <label className="mb-1 block text-xs text-slate-400">Cash (CAD)</label>
-        <input
-          type="number"
-          step="0.01"
-          value={cash}
-          onChange={(e) => setCash(e.target.value)}
-          className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-accent/50"
-        />
+      <div className="body space-y-4">
+        <div>
+          <label className="mb-1 block text-xs text-slate-400">Cash (CAD)</label>
+          <input
+            type="number"
+            step="0.01"
+            value={cash}
+            onChange={(e) => setCash(e.target.value)}
+            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-brand-500/50"
+          />
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500 disabled:opacity-60"
+        >
+          <Check className="h-4 w-4" />
+          {saving ? "Saving..." : "Save"}
+        </button>
       </div>
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="flex items-center gap-2 rounded-lg bg-accent/20 px-4 py-2 text-sm font-medium text-accent transition-colors hover:bg-accent/30 disabled:opacity-50"
-      >
-        <Check className="h-4 w-4" />
-        {saving ? "Saving..." : "Save"}
-      </button>
     </div>
   );
 }
@@ -232,15 +233,20 @@ export default function PortfolioPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const { data, isLoading: loading, isFetching } = useHoldings();
+  const { data: status } = useStatus();
+  const { data: sparkData } = useHoldingsSpark(7);
   const updateHolding = useUpdateHolding();
   const deleteHolding = useDeleteHolding();
   const updateCash = useUpdateCash();
   const { mask } = usePrivacy();
+
   const [selected, setSelected] = useState<HoldingAdvice | null>(null);
   const [editingCash, setEditingCash] = useState(false);
+  const [filter, setFilter] = useState<HoldingsFilter>("all");
 
   function refresh() {
     qc.invalidateQueries({ queryKey: queryKeys.holdings });
+    qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
   }
 
   async function handleSaveHolding(symbol: string, quantity: number, avg_cost: number) {
@@ -258,128 +264,132 @@ export default function PortfolioPage() {
     setEditingCash(false);
   }
 
-  const columns = [
-    {
-      key: "symbol",
-      header: "Symbol",
-      render: (h: HoldingAdvice) => (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            router.push(`/signals?check=${encodeURIComponent(h.symbol)}`);
-          }}
-          className="font-medium text-brand-400 hover:text-brand-300 hover:underline"
-        >
-          {h.symbol}
-        </button>
-      ),
-    },
-    {
-      key: "quantity",
-      header: "Qty",
-      className: "text-right",
-      render: (h: HoldingAdvice) => mask(h.quantity.toFixed(2)),
-    },
-    {
-      key: "avg_cost",
-      header: "Avg Cost",
-      className: "text-right",
-      render: (h: HoldingAdvice) => mask(formatCurrency(h.avg_cost)),
-    },
-    {
-      key: "price",
-      header: "Price",
-      className: "text-right",
-      render: (h: HoldingAdvice) => formatCurrency(h.current_price),
-    },
-    {
-      key: "value",
-      header: "Value",
-      className: "text-right",
-      render: (h: HoldingAdvice) => mask(formatCurrency(h.market_value)),
-    },
-    {
-      key: "pnl",
-      header: "P&L",
-      className: "text-right",
-      render: (h: HoldingAdvice) => (
-        <span className={pnlColor(h.pnl)}>
-          {mask(`${formatCurrency(h.pnl)} (${formatPercent(h.pnl_pct)})`)}
-        </span>
-      ),
-    },
-    {
-      key: "signal",
-      header: "Signal",
-      render: (h: HoldingAdvice) => (
-        <SignalBadge signal={h.signal} strength={h.strength} />
-      ),
-    },
-    {
-      key: "action",
-      header: "",
-      render: () => (
-        <Pencil className="h-3.5 w-3.5 text-slate-600 transition-colors group-hover:text-accent" />
-      ),
-    },
-  ];
+  const holdings = data?.holdings ?? [];
+  const filteredHoldings = useMemo(() => {
+    const base = [...holdings].sort((a, b) => b.market_value - a.market_value);
+    if (filter === "winners") return base.filter((row) => row.pnl > 0);
+    if (filter === "losers") return base.filter((row) => row.pnl < 0);
+    return base;
+  }, [holdings, filter]);
+
+  const invested = data?.total_cost ?? 0;
+  const maxPositions = status?.max_positions ?? 12;
+  const allocatedPct = data && data.total_value > 0
+    ? ((data.total_value - data.cash) / data.total_value) * 100
+    : 0;
+  const openSlots = Math.max(0, maxPositions - holdings.length);
+  const sparklineBySymbol = useMemo(() => {
+    const map = new Map<string, { date: string; close: number }[]>();
+    for (const entry of sparkData?.series ?? []) {
+      map.set(entry.symbol, entry.points ?? []);
+    }
+    return map;
+  }, [sparkData?.series]);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Portfolio</h1>
-        <div className="flex items-center gap-2">
-          <SearchTrigger />
+      <div className="ph">
+        <div>
+          <h1>Portfolio</h1>
+          <p className="sub">
+            {holdings.length} positions
+            <span className="divider">·</span>
+            {mask(formatCurrency(invested))} invested
+            <span className="divider">·</span>
+            {mask(formatCurrency(data?.cash ?? 0))} cash
+            <span className="divider">·</span>
+            <span className="text-amber-300">{allocatedPct.toFixed(1)}% allocated</span>
+          </p>
+        </div>
+
+        <div className="actions">
           <button
-            onClick={refresh}
-            disabled={isFetching}
-            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10 disabled:opacity-50"
+            onClick={() => router.push("/upload")}
+            className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.08]"
           >
-            <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
-            Refresh
+            <Upload className="h-4 w-4" />
+            Upload screenshot
+          </button>
+          <button
+            onClick={() => {
+              setEditingCash(true);
+              setSelected(null);
+            }}
+            className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.08]"
+          >
+            <Pencil className="h-4 w-4" />
+            Edit cash
+          </button>
+          <button
+            onClick={() => router.push(buildTradeIntentHref({ open: true }))}
+            className="flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500"
+          >
+            <TrendingUp className="h-4 w-4" />
+            Record trade
           </button>
         </div>
       </div>
 
-      {/* Summary stats */}
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid-4">
           <CardSkeleton />
           <CardSkeleton />
           <CardSkeleton />
           <CardSkeleton />
         </div>
-      ) : data ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="Total Value"
-            value={data.total_value}
-            format="currency"
-            icon={Briefcase}
-          />
-          <button onClick={() => { setEditingCash(true); setSelected(null); }} className="text-left">
-            <StatCard
-              title="Cash (click to edit)"
-              value={data.cash}
-              format="currency"
-              icon={DollarSign}
-              className="h-full"
-            />
-          </button>
-          <StatCard
-            title="Total P&L"
-            value={data.total_pnl}
-            format="currency"
-            change={data.total_pnl_pct}
-          />
-          <StatCard
-            title="Positions"
-            value={data.holdings.length}
-          />
-        </div>
-      ) : null}
+      ) : (
+        <div className="grid-4">
+          <div className="stat2">
+            <div className="lbl">
+              <span>Total value</span>
+              <span className="ico"><Briefcase className="h-4 w-4" /></span>
+            </div>
+            <div className="val">{mask(formatCurrency(data?.total_value ?? 0))}</div>
+            <div className={cn("chg", (data?.total_pnl ?? 0) >= 0 ? "pos" : "neg")}>
+              {data ? mask(formatPercent(data.total_pnl_pct)) : "--"} lifetime
+            </div>
+          </div>
 
-      {/* Cash edit panel */}
+          <div className="stat2">
+            <div className="lbl">
+              <span>Total P&amp;L</span>
+              <span className="ico"><TrendingUp className="h-4 w-4" /></span>
+            </div>
+            <div className={cn("val", pnlColor(data?.total_pnl ?? 0))}>{mask(formatCurrency(data?.total_pnl ?? 0))}</div>
+            <div className={cn("chg", (data?.total_pnl ?? 0) >= 0 ? "pos" : "neg")}>
+              {data ? mask(formatPercent(data.total_pnl_pct)) : "--"}
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              setEditingCash(true);
+              setSelected(null);
+            }}
+            className="stat2 text-left"
+          >
+            <div className="lbl">
+              <span>Cash available</span>
+              <span className="ico"><DollarSign className="h-4 w-4" /></span>
+            </div>
+            <div className="val">{mask(formatCurrency(data?.cash ?? 0))}</div>
+            <div className="chg neu">click to edit</div>
+          </button>
+
+          <div className="stat2">
+            <div className="lbl">
+              <span>Positions</span>
+              <span className="ico"><Layers className="h-4 w-4" /></span>
+            </div>
+            <div className="val">
+              {holdings.length}
+              <span className="ml-2 text-[13px] font-normal text-slate-500">/ {maxPositions}</span>
+            </div>
+            <div className="chg neu">{openSlots} slots open</div>
+          </div>
+        </div>
+      )}
+
       {editingCash && data && (
         <EditCashPanel
           currentCash={data.cash}
@@ -388,31 +398,138 @@ export default function PortfolioPage() {
         />
       )}
 
-      {/* Holdings table */}
-      {loading ? (
-        <HoldingsTableSkeleton rows={4} />
-      ) : (
-        <DataTable
-          columns={columns}
-          data={data?.holdings ?? []}
-          keyFn={(h) => h.symbol}
-          emptyMessage="No holdings — record a trade or upload a screenshot"
-          onRowClick={(h) => {
-            setSelected(selected?.symbol === h.symbol ? null : h);
-            setEditingCash(false);
-          }}
-        />
-      )}
+      <div className="card">
+        <div className="head">
+          <h3>Holdings</h3>
+          <div className="flex items-center gap-3">
+            <span className="sub">sorted by value</span>
+            <div className="seg">
+              <button className={cn(filter === "all" && "on")} onClick={() => setFilter("all")}>All</button>
+              <button className={cn(filter === "winners" && "on")} onClick={() => setFilter("winners")}>Winners</button>
+              <button className={cn(filter === "losers" && "on")} onClick={() => setFilter("losers")}>Losers</button>
+            </div>
+          </div>
+        </div>
 
-      {/* Edit panel for selected holding */}
+        {loading ? (
+          <div className="p-4">
+            <HoldingsTableSkeleton rows={6} />
+          </div>
+        ) : (
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th className="r">Qty</th>
+                  <th className="r">Avg cost</th>
+                  <th className="r">Current</th>
+                  <th className="r">Value</th>
+                  <th className="r">P&amp;L</th>
+                  <th className="r">7d</th>
+                  <th>Signal</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredHoldings.map((row) => {
+                  const score = row.technical_score + row.sentiment_score + row.commodity_score;
+                  const signalLabel = row.signal.toUpperCase() === "BUY"
+                    ? `BUY ${(row.strength * 100).toFixed(0)}%`
+                    : row.signal.toUpperCase() === "SELL"
+                      ? row.action.toUpperCase().includes("URGENT") ? "URGENT" : "SELL"
+                      : "HOLD";
+                  const signalClass = row.signal.toUpperCase() === "BUY"
+                    ? "pb-buy"
+                    : row.signal.toUpperCase() === "SELL"
+                      ? (row.action.toUpperCase().includes("URGENT") ? "pb-urgent" : "pb-sell")
+                      : "pb-hold";
+
+                  return (
+                    <tr key={row.symbol}>
+                      <td>
+                        <button
+                          onClick={() => router.push(`/signals?check=${encodeURIComponent(row.symbol)}`)}
+                          className="font-semibold text-slate-100 transition-colors hover:text-brand-300"
+                        >
+                          {row.symbol}
+                        </button>
+                      </td>
+                      <td className="r mono">{mask(row.quantity.toFixed(2))}</td>
+                      <td className="r mono">{mask(formatCurrency(row.avg_cost))}</td>
+                      <td className="r mono">{mask(formatCurrency(row.current_price))}</td>
+                      <td className="r mono">{mask(formatCurrency(row.market_value))}</td>
+                      <td className={cn("r mono", row.pnl >= 0 ? "pos" : "neg")}>
+                        {mask(formatCurrency(row.pnl))}
+                        <div className={cn("sub", row.pnl >= 0 ? "pos" : "neg")}>
+                          {mask(formatPercent(row.pnl_pct))}
+                        </div>
+                      </td>
+                      <td className="r">
+                        <div className="ml-auto w-fit" title="7d trend proxy from current P&L direction">
+                          <TrendProxy
+                            positive={row.pnl >= 0}
+                            points={sparklineBySymbol.get(row.symbol)}
+                          />
+                        </div>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <span className={cn("pill-badge", signalClass)}>{signalLabel}</span>
+                          <span className={cn("mono text-[11px]", score >= 0 ? "text-emerald-400" : "text-red-400")}>
+                            {score >= 0 ? "+" : ""}{score.toFixed(1)}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => {
+                            setSelected(selected?.symbol === row.symbol ? null : row);
+                            setEditingCash(false);
+                          }}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.03] text-slate-400 transition-colors hover:border-white/[0.18] hover:text-slate-200"
+                          aria-label={`Edit ${row.symbol}`}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {filteredHoldings.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="py-10 text-center text-sm text-slate-500">
+                      No holdings in this filter.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {selected && (
         <EditHoldingPanel
+          key={selected.symbol}
           holding={selected}
           onSave={handleSaveHolding}
           onDelete={handleDeleteHolding}
           onClose={() => setSelected(null)}
         />
       )}
+
+      <div className="flex justify-end">
+        <button
+          onClick={refresh}
+          disabled={isFetching}
+          className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.08] disabled:opacity-60"
+        >
+          <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+          Refresh
+        </button>
+      </div>
     </div>
   );
 }

@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import sys
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +15,7 @@ from trader_api.deps import get_market_data, get_risk, init_services, make_portf
 from trader_api.routers import (
     auth,
     debug,
+    market,
     notifications,
     portfolio,
     settings,
@@ -23,8 +23,8 @@ from trader_api.routers import (
     status,
     trades,
 )
-from trader_api.services.settings import load_runtime_settings
 from trader_api.services.scheduler import Scheduler
+from trader_api.services.settings import load_runtime_settings
 
 
 @asynccontextmanager
@@ -84,6 +84,7 @@ app.include_router(auth.router)  # No auth required — handles its own access
 app.include_router(portfolio.router)
 app.include_router(trades.router)
 app.include_router(signals.router)
+app.include_router(market.router)
 app.include_router(settings.router)
 app.include_router(status.router)
 app.include_router(notifications.router)

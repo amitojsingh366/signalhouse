@@ -10,7 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from trader_api.auth import require_auth
 from trader_api.database import get_db
-from trader_api.deps import get_commodity, get_market_data, make_portfolio, make_strategy
+from trader_api.deps import (
+    get_commodity,
+    get_config,
+    get_market_data,
+    get_sentiment,
+    make_portfolio,
+    make_strategy,
+)
 from trader_api.models import DeviceRegistration, SignalSnooze
 from trader_api.schemas import (
     ActionOut,
@@ -22,6 +29,7 @@ from trader_api.schemas import (
     SnoozeIn,
     SnoozeOut,
 )
+from trader_api.services.strategy import Strategy
 
 router = APIRouter(prefix="/api/signals", tags=["signals"], dependencies=[Depends(require_auth)])
 
@@ -47,6 +55,54 @@ async def check_signal(symbol: str, db: AsyncSession = Depends(get_db)):
             except (ValueError, IndexError):
                 pass
 
+    fundamentals = await strategy.market_data.get_fundamentals(result.symbol)
+
+    trade_plan = None
+    if price is not None and price > 0:
+        risk_cfg = get_config().get("risk", {})
+        stop_loss_pct = float(risk_cfg.get("stop_loss_pct", 0.05))
+        take_profit_pct = float(risk_cfg.get("take_profit_pct", 0.08))
+        atr = result.meta.get("atr") if result.meta else None
+        atr_value = float(atr) if isinstance(atr, (int, float)) and atr > 0 else None
+
+        entry_low = price * 0.995
+        entry_high = price * 1.01
+
+        base_stop_distance = price * stop_loss_pct
+        atr_stop_distance = (atr_value * 1.2) if atr_value else 0.0
+        stop_distance = max(base_stop_distance, atr_stop_distance)
+        stop_loss = max(0.0, price - stop_distance)
+
+        base_tp_distance = price * take_profit_pct
+        atr_tp1_distance = (atr_value * 2.0) if atr_value else 0.0
+        tp1_distance = max(base_tp_distance, atr_tp1_distance)
+        take_profit_1 = price + tp1_distance
+
+        base_tp2_distance = tp1_distance * 1.5
+        atr_tp2_distance = (atr_value * 3.0) if atr_value else 0.0
+        tp2_distance = max(base_tp2_distance, atr_tp2_distance)
+        take_profit_2 = price + tp2_distance
+
+        risk_per_share = max(0.0, price - stop_loss)
+        reward_per_share = max(0.0, take_profit_1 - price)
+        risk_reward_ratio = (
+            reward_per_share / risk_per_share
+            if risk_per_share > 0
+            else None
+        )
+
+        trade_plan = {
+            "entry_low": round(entry_low, 4),
+            "entry_high": round(entry_high, 4),
+            "stop_loss": round(stop_loss, 4),
+            "take_profit_1": round(take_profit_1, 4),
+            "take_profit_2": round(take_profit_2, 4),
+            "risk_reward_ratio": round(risk_reward_ratio, 2)
+            if risk_reward_ratio is not None
+            else None,
+            "atr": round(atr_value, 4) if atr_value is not None else None,
+        }
+
     return SignalOut(
         symbol=result.symbol,
         signal=result.signal.value,
@@ -58,6 +114,8 @@ async def check_signal(symbol: str, db: AsyncSession = Depends(get_db)):
         reasons=result.reasons,
         price=price,
         sector=strategy.get_sector(result.symbol),
+        fundamentals=fundamentals,
+        trade_plan=trade_plan,
     )
 
 
@@ -84,7 +142,10 @@ async def get_recommendations(n: int = 5, db: AsyncSession = Depends(get_db)):
                 current_price=a["current_price"],
                 entry_price=a["entry_price"],
                 pnl_pct=a["pnl_pct"],
+                pnl=a.get("pnl"),
                 quantity=a.get("quantity"),
+                days_held=a.get("days_held"),
+                entry_date=a.get("entry_date"),
                 action=a.get("action"),
                 action_detail=a.get("action_detail"),
             )
@@ -265,6 +326,16 @@ async def get_action_plan(db: AsyncSession = Depends(get_db)):
         swaps_count=sum(1 for a in filtered_actions if a["type"] == "SWAP"),
         sector_exposure=plan.get("sector_exposure", {}),
     )
+
+
+@router.post("/scan-now", response_model=ActionPlanOut)
+async def run_scan_now(db: AsyncSession = Depends(get_db)):
+    """Force a fresh scan and invalidate in-memory caches."""
+    get_market_data().clear_caches()
+    get_sentiment().clear_cache()
+    get_commodity().clear_cache()
+    Strategy.invalidate_recommendations_cache()
+    return await get_action_plan(db)
 
 
 @router.get("/price/{symbol}")

@@ -27,9 +27,11 @@ const RANGES = [
 interface PriceChartProps {
   symbol: string;
   className?: string;
+  height?: number;
+  embedded?: boolean;
 }
 
-export function PriceChart({ symbol, className }: PriceChartProps) {
+export function PriceChart({ symbol, className, height = 220, embedded = false }: PriceChartProps) {
   const [rangeIdx, setRangeIdx] = useState(3); // default 2M
   const { data: priceData, isLoading: loading } = usePriceHistory(symbol, RANGES[rangeIdx].period);
 
@@ -44,7 +46,7 @@ export function PriceChart({ symbol, className }: PriceChartProps) {
   const gradientId = `priceGrad-${symbol.replace(/[^a-zA-Z0-9]/g, "")}`;
 
   return (
-    <div className={cn("glass-card p-5", className)}>
+    <div className={cn(!embedded && "glass-card p-5", className)}>
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-sm font-medium text-slate-400">
           {symbol} Price
@@ -68,13 +70,15 @@ export function PriceChart({ symbol, className }: PriceChartProps) {
       </div>
 
       {loading ? (
-        <Skeleton className="h-[220px] w-full rounded-lg" />
+        <div style={{ height }}>
+          <Skeleton className="h-full w-full rounded-lg" />
+        </div>
       ) : data.length === 0 ? (
-        <div className="flex h-[220px] items-center justify-center text-slate-500">
+        <div style={{ height }} className="flex items-center justify-center text-slate-500">
           No price data available
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={220}>
+        <ResponsiveContainer width="100%" height={height}>
           <AreaChart data={data}>
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">

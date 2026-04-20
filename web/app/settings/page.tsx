@@ -10,6 +10,15 @@ import {
   CheckCircle,
   AlertTriangle,
   TrendingUp,
+  Bell,
+  Link2,
+  Database,
+  Palette,
+  LineChart,
+  Download,
+  ImageIcon,
+  MessageCircle,
+  Smartphone,
 } from "lucide-react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
 import { useQueryClient } from "@tanstack/react-query";
@@ -41,6 +50,7 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [hasToken, setHasToken] = useState(false);
+  const [tab, setTab] = useState<"Trading" | "Auth" | "Notifications" | "Connections" | "Data" | "Appearance">("Trading");
   const refreshTimerRef = useRef<number | null>(null);
   const qc = useQueryClient();
 
@@ -183,7 +193,11 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Settings</h1>
+        <div className="ph">
+          <div>
+            <h1>Settings</h1>
+          </div>
+        </div>
         <div className="glass-card animate-pulse p-8">
           <div className="h-6 w-48 rounded bg-white/10" />
         </div>
@@ -193,188 +207,581 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <SearchTrigger />
+      <div className="ph">
+        <div>
+          <h1>Settings</h1>
+          <p className="sub">
+            TFSA
+            <span className="divider">·</span>
+            Changes apply immediately
+            <span className="divider">·</span>
+            <span className="font-mono text-surface-500">settings.yaml</span>
+          </p>
+        </div>
+        <div className="actions">
+          <SearchTrigger />
+        </div>
       </div>
 
-      {/* Auth status banner */}
-      <div
-        className={cn(
-          "glass-card p-5",
-          registered
-            ? "border-emerald-500/30 bg-emerald-500/5"
-            : "border-amber-500/30 bg-amber-500/5"
-        )}
-      >
-        <div className="flex items-center gap-3">
-          {registered ? (
-            <CheckCircle className="h-5 w-5 text-emerald-400" />
-          ) : (
-            <AlertTriangle className="h-5 w-5 text-amber-400" />
+      <div className="grid items-start gap-5 xl:grid-cols-[240px_minmax(0,1fr)]">
+        <div className="glass-card p-3 xl:sticky xl:top-24">
+          <div className="space-y-1">
+            {[
+              { id: "Trading", icon: LineChart },
+              { id: "Auth", icon: Shield },
+              { id: "Notifications", icon: Bell },
+              { id: "Connections", icon: Link2 },
+              { id: "Data", icon: Database },
+              { id: "Appearance", icon: Palette },
+            ].map(({ id, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setTab(id as typeof tab)}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors",
+                  tab === id
+                    ? "bg-brand-600/20 text-brand-300"
+                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {id}
+              </button>
+            ))}
+          </div>
+          <div className="mt-4 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-3 text-xs text-emerald-300">
+            All systems nominal · last sync just now
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          {/* Alerts */}
+          {error && (
+            <div className="glass-card border-red-500/30 bg-red-500/5 p-4">
+              <p className="text-sm text-red-400">{error}</p>
+            </div>
           )}
-          <div>
-            <p
-              className={cn(
-                "font-medium",
-                registered ? "text-emerald-400" : "text-amber-400"
-              )}
-            >
-              {registered ? "API Authentication Active" : "API Authentication Disabled"}
-            </p>
-            <p className="mt-1 text-sm text-slate-400">
-              {registered
-                ? "All API requests require a valid token. Register additional passkeys or authenticate below."
-                : "No passkeys registered. The API is currently open. Register a passkey to enable authentication."}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Alerts */}
-      {error && (
-        <div className="glass-card border-red-500/30 bg-red-500/5 p-4">
-          <p className="text-sm text-red-400">{error}</p>
-        </div>
-      )}
-      {success && (
-        <div className="glass-card border-emerald-500/30 bg-emerald-500/5 p-4">
-          <p className="text-sm text-emerald-400">{success}</p>
-        </div>
-      )}
-
-      {/* Passkey management */}
-      <div className="glass-card p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-brand-500/20 p-3">
-              <Shield className="h-5 w-5 text-brand-400" />
+          {success && (
+            <div className="glass-card border-emerald-500/30 bg-emerald-500/5 p-4">
+              <p className="text-sm text-emerald-400">{success}</p>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold">Passkeys</h2>
-              <p className="text-sm text-slate-400">
-                Manage your registered passkeys for authentication
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleRegister}
-            disabled={registering}
-            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500 disabled:opacity-50"
-          >
-            {registering ? (
-              <RefreshCw className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            Register Passkey
-          </button>
-        </div>
+          )}
 
-        {credentials.length > 0 ? (
-          <div className="mt-6 space-y-3">
-            {credentials.map((cred) => (
+          {tab === "Auth" && (
+            <>
+              {/* Auth status banner */}
               <div
-                key={cred.id}
-                className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3"
+                className={cn(
+                  "glass-card p-5",
+                  registered
+                    ? "border-emerald-500/30 bg-emerald-500/5"
+                    : "border-amber-500/30 bg-amber-500/5"
+                )}
               >
                 <div className="flex items-center gap-3">
-                  <Key className="h-4 w-4 text-slate-400" />
+                  {registered ? (
+                    <CheckCircle className="h-5 w-5 text-emerald-400" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-amber-400" />
+                  )}
                   <div>
-                    <p className="text-sm font-medium">{cred.name}</p>
-                    {cred.created_at && (
-                      <p className="text-xs text-slate-500">
-                        Registered{" "}
-                        {new Date(cred.created_at).toLocaleDateString()}
-                      </p>
-                    )}
+                    <p
+                      className={cn(
+                        "font-medium",
+                        registered ? "text-emerald-400" : "text-amber-400"
+                      )}
+                    >
+                      {registered ? "API Authentication Active" : "API Authentication Disabled"}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-400">
+                      {registered
+                        ? "All API requests require a valid token. Register additional passkeys or authenticate below."
+                        : "No passkeys registered. The API is currently open. Register a passkey to enable authentication."}
+                    </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDelete(cred.id)}
-                  className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-6 rounded-lg border border-dashed border-white/10 p-8 text-center">
-            <Key className="mx-auto h-8 w-8 text-slate-600" />
-            <p className="mt-2 text-sm text-slate-500">
-              No passkeys registered
-            </p>
-          </div>
-        )}
-      </div>
 
-      {registered && (
-        <div className="glass-card p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">Session</h2>
-              <p className="text-sm text-slate-400">
-                {hasToken
-                  ? "You have an active session token."
-                  : "Authenticate with your passkey to access the API."}
-              </p>
-            </div>
-            <button
-              onClick={handleLogin}
-              className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10"
-            >
-              <Key className="h-4 w-4" />
-              {hasToken ? "Re-authenticate" : "Sign In"}
-            </button>
-          </div>
-        </div>
-      )}
+              {/* Passkey management */}
+              <div className="card">
+                <div className="head">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-brand-500/20 p-3">
+                      <Shield className="h-5 w-5 text-brand-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold">Passkeys</h3>
+                      <p className="text-sm text-slate-400">
+                        Manage your registered passkeys for authentication
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleRegister}
+                    disabled={registering}
+                    className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500 disabled:opacity-50"
+                  >
+                    {registering ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )}
+                    Register Passkey
+                  </button>
+                </div>
 
-      {/* Trading settings — consolidated editable config */}
-      <div className="glass-card p-6">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-brand-500/20 p-3">
-            <TrendingUp className="h-5 w-5 text-brand-400" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold">Trading</h2>
-            <p className="text-sm text-slate-400">
-              Strategy, risk, and notification parameters from{" "}
-              <code className="rounded bg-white/5 px-1 py-0.5 text-xs">settings.yaml</code>.
-              Changes apply immediately and persist across restarts.
-            </p>
-          </div>
-        </div>
+                {credentials.length > 0 ? (
+                  <div className="space-y-3 p-5">
+                    {credentials.map((cred) => (
+                      <div
+                        key={cred.id}
+                        className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Key className="h-4 w-4 text-slate-400" />
+                          <div>
+                            <p className="text-sm font-medium">{cred.name}</p>
+                            {cred.created_at && (
+                              <p className="text-xs text-slate-500">
+                                Registered{" "}
+                                {new Date(cred.created_at).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleDelete(cred.id)}
+                          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-5">
+                    <div className="rounded-lg border border-dashed border-white/10 p-8 text-center">
+                      <Key className="mx-auto h-8 w-8 text-slate-600" />
+                      <p className="mt-2 text-sm text-slate-500">
+                        No passkeys registered
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
 
-        {tradingLoading ? (
-          <div className="mt-6 space-y-3">
-            <div className="h-5 w-32 animate-pulse rounded bg-white/10" />
-            <div className="h-12 animate-pulse rounded bg-white/5" />
-            <div className="h-12 animate-pulse rounded bg-white/5" />
-          </div>
-        ) : (
-          <div className="mt-6 space-y-8">
-            {groups.map((group) => (
-              <section key={group.id} className="space-y-4">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
-                  {group.label}
-                </h3>
-                <div className="space-y-3">
-                  {group.items.map((item) => (
-                    <SettingRow
-                      key={item.key}
-                      item={item}
-                      saving={savingKeys.has(item.key)}
-                      onSave={(value) => saveSetting(item.key, value)}
-                    />
+              {registered && (
+                <div className="card">
+                  <div className="head">
+                    <div>
+                      <h3 className="text-base font-semibold">Session</h3>
+                      <p className="text-sm text-slate-400">
+                        {hasToken
+                          ? "You have an active session token."
+                          : "Authenticate with your passkey to access the API."}
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleLogin}
+                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10"
+                    >
+                      <Key className="h-4 w-4" />
+                      {hasToken ? "Re-authenticate" : "Sign In"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {tab === "Trading" && (
+            <div className="card p-6">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="rounded-lg bg-brand-500/20 p-3">
+                  <TrendingUp className="h-5 w-5 text-brand-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold">Trading</h2>
+                  <p className="text-sm text-slate-400">
+                    Strategy, risk, and notification parameters from{" "}
+                    <code className="rounded bg-white/5 px-1 py-0.5 text-xs">settings.yaml</code>.
+                    Changes apply immediately and persist across restarts.
+                  </p>
+                </div>
+              </div>
+
+              {tradingLoading ? (
+                <div className="mt-6 space-y-3">
+                  <div className="h-5 w-32 animate-pulse rounded bg-white/10" />
+                  <div className="h-12 animate-pulse rounded bg-white/5" />
+                  <div className="h-12 animate-pulse rounded bg-white/5" />
+                </div>
+              ) : (
+                <div className="mt-6 space-y-8">
+                  {groups.map((group) => (
+                    <section key={group.id} className="space-y-4">
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+                        {group.label}
+                      </h3>
+                      <div className="space-y-3">
+                        {group.items.map((item) => (
+                          <SettingRow
+                            key={item.key}
+                            item={item}
+                            saving={savingKeys.has(item.key)}
+                            onSave={(value) => saveSetting(item.key, value)}
+                          />
+                        ))}
+                      </div>
+                    </section>
                   ))}
                 </div>
-              </section>
-            ))}
-          </div>
-        )}
+              )}
+            </div>
+          )}
+
+          {tab === "Notifications" && (
+            <>
+              <div className="card">
+                <div className="head">
+                  <h3>Delivery Rules</h3>
+                  <span className="sub">iOS VoIP push + Discord</span>
+                </div>
+                <div className="body space-y-1">
+                  <StaticToggleRow
+                    title="URGENT exits and drawdown halts"
+                    description="Immediate VoIP push and Discord notification for stop losses and risk halts."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="BUY >= 50% conviction"
+                    description="iOS push and Discord DM for top-tier opportunities."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="BUY 35-50% conviction"
+                    description="iOS push only for lower-conviction candidates."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="SWAP recommendations"
+                    description="Notify when a stronger replacement is available for an existing holding."
+                    initialOn={false}
+                  />
+                  <StaticToggleRow
+                    title="Daily morning brief"
+                    description="Scheduled summary at 8:30 ET."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="Weekly performance digest"
+                    description="Sunday digest with PnL and hit-rate recap."
+                    initialOn={false}
+                    isLast
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="card">
+                  <div className="head">
+                    <h3>Channels</h3>
+                    <span className="sub">linked</span>
+                  </div>
+                  <div className="body space-y-3">
+                    <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                      <div className="flex items-center gap-2 text-sm text-slate-300">
+                        <Smartphone className="h-4 w-4 text-brand-300" />
+                        iOS push + VoIP
+                      </div>
+                      <span className="pill-badge pb-buy">ACTIVE</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                      <div className="flex items-center gap-2 text-sm text-slate-300">
+                        <MessageCircle className="h-4 w-4 text-brand-300" />
+                        Discord DM
+                      </div>
+                      <span className="pill-badge pb-buy">ACTIVE</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card">
+                  <div className="head">
+                    <h3>Alert Timing</h3>
+                    <span className="sub">tradeoffs</span>
+                  </div>
+                  <div className="body space-y-3 text-sm">
+                    <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                      <span className="text-slate-400">Cooldown</span>
+                      <span className="font-mono text-slate-200">60 min</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                      <span className="text-slate-400">Retry delay</span>
+                      <span className="font-mono text-slate-200">30 sec</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2">
+                      <span className="text-slate-400">Max retries</span>
+                      <span className="font-mono text-slate-200">1</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === "Connections" && (
+            <div className="card">
+              <div className="head">
+                <h3>Connections</h3>
+                <span className="sub">integrations</span>
+              </div>
+              <div className="space-y-3 p-5">
+                <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3">
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-2">
+                    <ImageIcon className="h-4 w-4 text-slate-300" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">Brokerage screenshots</p>
+                    <p className="text-xs text-slate-500">OCR uploads enabled for Wealthsimple and Questrade formats.</p>
+                  </div>
+                  <button className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:bg-white/10">
+                    Manage
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3">
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-2">
+                    <MessageCircle className="h-4 w-4 text-slate-300" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">Discord</p>
+                    <p className="text-xs text-slate-500">Slash commands and real-time recommendations are active.</p>
+                  </div>
+                  <button className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:bg-white/10">
+                    Reconnect
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3">
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-2">
+                    <Smartphone className="h-4 w-4 text-slate-300" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">iOS app</p>
+                    <p className="text-xs text-slate-500">Push delivery active on iPhone 15 Pro with VoIP priority.</p>
+                  </div>
+                  <span className="pill-badge pb-buy">ACTIVE</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === "Data" && (
+            <>
+              <div className="card">
+                <div className="head">
+                  <h3>Price Feed</h3>
+                  <span className="sub">primary + fallback</span>
+                </div>
+                <div className="grid gap-4 p-5 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Primary feed</label>
+                    <select className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none">
+                      <option>Yahoo Finance (15 min)</option>
+                      <option>Alpha Vantage</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Fallback feed</label>
+                    <select className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none">
+                      <option>Questrade API</option>
+                      <option>IEX Cloud</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Scan interval</label>
+                    <input
+                      defaultValue="15 minutes (09:30-16:00 ET)"
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Symbol universe</label>
+                    <input
+                      defaultValue="TSX + CBOE CDR + CAD-hedged ETFs"
+                      className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="head">
+                  <h3>News & Sentiment Inputs</h3>
+                  <span className="sub">source health</span>
+                </div>
+                <div className="body space-y-1">
+                  <StaticToggleRow
+                    title="Reuters finance feed"
+                    description="Currently degraded, backup feed active."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="Yahoo headlines"
+                    description="Primary headline stream for catalyst extraction."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="Analyst rating aggregation"
+                    description="Consensus and revisions for sentiment scoring."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="Social sentiment stream"
+                    description="Optional source for additional context."
+                    initialOn={false}
+                    isLast
+                  />
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="head">
+                  <h3>Backups</h3>
+                  <span className="sub">automatic</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 p-5 text-sm">
+                  <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-slate-300">
+                    Daily snapshot at 00:00 ET
+                  </span>
+                  <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-slate-300">
+                    30-day retention
+                  </span>
+                  <button className="ml-auto inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 transition-colors hover:bg-white/10">
+                    <Download className="h-3.5 w-3.5" />
+                    Download latest
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === "Appearance" && (
+            <>
+              <div className="card">
+                <div className="head">
+                  <h3>Appearance</h3>
+                  <span className="sub">personal</span>
+                </div>
+                <div className="grid gap-4 p-5 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Theme</label>
+                    <select className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none">
+                      <option>Dark (default)</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Density</label>
+                    <select className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none">
+                      <option>Comfortable</option>
+                      <option>Dense</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Monospace font</label>
+                    <select className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none">
+                      <option>JetBrains Mono</option>
+                      <option>IBM Plex Mono</option>
+                      <option>SF Mono</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Number format</label>
+                    <select className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 outline-none">
+                      <option>1,234.56</option>
+                      <option>1 234,56</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="head">
+                  <h3>Accessibility & Layout</h3>
+                  <span className="sub">client-side</span>
+                </div>
+                <div className="body space-y-1">
+                  <StaticToggleRow
+                    title="Reduce motion"
+                    description="Disable sparkline animation and smooth transitions."
+                    initialOn={false}
+                  />
+                  <StaticToggleRow
+                    title="Show pre-market tab"
+                    description="Display scan-specific navigation during 04:00-09:30 ET."
+                    initialOn
+                  />
+                  <StaticToggleRow
+                    title="Compact numeric chips"
+                    description="Use denser badges and tighter number blocks on cards."
+                    initialOn={false}
+                    isLast
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-brand-500/25 bg-brand-500/10 p-4 text-sm text-brand-200">
+                Appearance changes preview locally in this web client. Core trading behavior is unaffected.
+              </div>
+            </>
+          )}
+        </div>
       </div>
+    </div>
+  );
+}
+
+function PreviewToggle({ initialOn = false }: { initialOn?: boolean }) {
+  const [on, setOn] = useState(initialOn);
+  return (
+    <button
+      type="button"
+      onClick={() => setOn((v) => !v)}
+      className={cn(
+        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
+        on ? "bg-brand-500" : "bg-white/10"
+      )}
+      aria-pressed={on}
+    >
+      <span
+        className={cn(
+          "h-5 w-5 rounded-full bg-white transition-transform",
+          on ? "translate-x-5" : "translate-x-0.5"
+        )}
+      />
+    </button>
+  );
+}
+
+function StaticToggleRow({
+  title,
+  description,
+  initialOn,
+  isLast = false,
+}: {
+  title: string;
+  description: string;
+  initialOn: boolean;
+  isLast?: boolean;
+}) {
+  return (
+    <div className={cn("flex items-center gap-4 py-3", !isLast && "border-b border-white/5")}>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-white">{title}</p>
+        <p className="mt-1 text-xs text-slate-500">{description}</p>
+      </div>
+      <PreviewToggle initialOn={initialOn} />
     </div>
   );
 }

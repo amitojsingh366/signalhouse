@@ -16,7 +16,6 @@ import { usePrivacy } from "@/lib/privacy";
 
 const RANGES = [
   { label: "1D", days: 1 },
-  { label: "3D", days: 3 },
   { label: "7D", days: 7 },
   { label: "1M", days: 30 },
   { label: "3M", days: 90 },
@@ -24,16 +23,26 @@ const RANGES = [
   { label: "ALL", days: Infinity },
 ] as const;
 
+type EquityRangeLabel = (typeof RANGES)[number]["label"];
+
 interface EquityChartProps {
   snapshots: SnapshotOut[];
   className?: string;
+  rangeLabel?: EquityRangeLabel;
+  showRangeControls?: boolean;
 }
 
-export function EquityChart({ snapshots, className }: EquityChartProps) {
+export function EquityChart({
+  snapshots,
+  className,
+  rangeLabel,
+  showRangeControls = true,
+}: EquityChartProps) {
   const { mask } = usePrivacy();
-  const [range, setRange] = useState(3); // default 1M
+  const [internalRangeLabel, setInternalRangeLabel] = useState<EquityRangeLabel>("1M");
 
-  const selected = RANGES[range];
+  const activeRange = rangeLabel ?? internalRangeLabel;
+  const selected = RANGES.find((r) => r.label === activeRange) ?? RANGES[2];
   const cutoff =
     selected.days === Infinity
       ? snapshots
@@ -51,22 +60,24 @@ export function EquityChart({ snapshots, className }: EquityChartProps) {
     <div className={cn("glass-card p-5", className)}>
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-sm font-medium text-slate-400">Equity Curve</h3>
-        <div className="flex gap-1">
-          {RANGES.map((r, i) => (
-            <button
-              key={r.label}
-              onClick={() => setRange(i)}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                i === range
-                  ? "bg-brand-600 text-white"
-                  : "text-slate-400 hover:text-white hover:bg-white/10"
-              )}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+        {showRangeControls ? (
+          <div className="flex gap-1">
+            {RANGES.map((r) => (
+              <button
+                key={r.label}
+                onClick={() => setInternalRangeLabel(r.label)}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                  r.label === activeRange
+                    ? "bg-brand-600 text-white"
+                    : "text-slate-400 hover:text-white hover:bg-white/10"
+                )}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {data.length === 0 ? (

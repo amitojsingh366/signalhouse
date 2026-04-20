@@ -27,7 +27,7 @@ export function DataTable<T>({
   onRowClick,
 }: DataTableProps<T>) {
   return (
-    <div className={cn("glass-card overflow-hidden", className)}>
+    <div className={cn("card overflow-hidden", className)}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -36,7 +36,7 @@ export function DataTable<T>({
                 <th
                   key={col.key}
                   className={cn(
-                    "px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400",
+                    "px-4 py-3 text-left font-mono text-[11px] uppercase tracking-[0.08em] text-slate-500",
                     col.className
                   )}
                 >
@@ -60,7 +60,7 @@ export function DataTable<T>({
                 <tr
                   key={keyFn(row)}
                   className={cn(
-                    "transition-colors hover:bg-white/5",
+                    "transition-colors hover:bg-white/[0.02]",
                     onRowClick && "cursor-pointer"
                   )}
                   onClick={() => onRowClick?.(row)}

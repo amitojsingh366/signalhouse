@@ -14,7 +14,7 @@ export function SearchTrigger({ className }: { className?: string }) {
   return (
     <button
       onClick={open}
-      className={`flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10 ${className ?? ""}`}
+      className={`flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.08] ${className ?? ""}`}
     >
       <Search className="h-4 w-4" />
       <span className="hidden sm:inline">Search symbol</span>

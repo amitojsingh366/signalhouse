@@ -253,7 +253,7 @@ export default function DashboardPage() {
   const lifetimePnl = pnl?.total_pnl ?? portfolio?.total_pnl ?? 0;
   const lifetimePct = pnl?.total_pnl_pct ?? portfolio?.total_pnl_pct ?? 0;
   const actionCount = plan?.actions.length ?? 0;
-  const lastScanLabel = useMemo(() => formatLastScanLabel(status?.last_scan_at), [status?.last_scan_at]);
+  const lastScanLabel = formatLastScanLabel(status?.last_scan_at);
 
   const maxPositions = plan?.max_positions ?? status?.max_positions ?? 12;
   const numPositions = plan?.num_positions ?? portfolio?.holdings.length ?? 0;

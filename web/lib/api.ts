@@ -303,10 +303,18 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ symbol, quantity, avg_cost }),
     }),
-  deleteHolding: (symbol: string) =>
-    fetchAPI<{ status: string; symbol: string }>(`/api/portfolio/holding/${encodeURIComponent(symbol)}`, {
-      method: "DELETE",
-    }),
+  deleteHolding: (symbol: string, marketPrice?: number) => {
+    const query =
+      marketPrice != null && Number.isFinite(marketPrice)
+        ? `?market_price=${encodeURIComponent(marketPrice.toString())}`
+        : "";
+    return fetchAPI<{ status: string; symbol: string }>(
+      `/api/portfolio/holding/${encodeURIComponent(symbol)}${query}`,
+      {
+        method: "DELETE",
+      },
+    );
+  },
   updateCash: (cash: number) =>
     fetchAPI<{ cash: number }>("/api/portfolio/cash", {
       method: "PUT",

@@ -267,7 +267,7 @@ private struct HoldingDetailSheet: View {
 
     private func deleteHolding() async {
         do {
-            try await client.deleteHolding(symbol: holding.symbol)
+            try await client.deleteHolding(symbol: holding.symbol, marketPrice: holding.currentPrice)
             NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
             await onDismiss()
             dismiss()

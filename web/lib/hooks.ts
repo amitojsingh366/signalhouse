@@ -172,7 +172,8 @@ export function useUpdateHolding() {
 export function useDeleteHolding() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (symbol: string) => api.deleteHolding(symbol),
+    mutationFn: ({ symbol, marketPrice }: { symbol: string; marketPrice?: number }) =>
+      api.deleteHolding(symbol, marketPrice),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.holdings });
       qc.invalidateQueries({ queryKey: queryKeys.pnl });
@@ -210,4 +211,3 @@ export function useConfirmUpload() {
     },
   });
 }
-

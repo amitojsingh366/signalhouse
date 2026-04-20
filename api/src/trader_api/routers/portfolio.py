@@ -143,12 +143,19 @@ async def update_holding(data: HoldingUpdate, db: AsyncSession = Depends(get_db)
 
 
 @router.delete("/holding/{symbol}")
-async def delete_holding(symbol: str, db: AsyncSession = Depends(get_db)):
+async def delete_holding(
+    symbol: str,
+    market_price: float | None = None,
+    db: AsyncSession = Depends(get_db),
+):
     portfolio = make_portfolio(db)
     risk = get_risk()
     symbol = symbol.upper()
-    prices = await get_market_data().get_batch_prices([symbol])
-    deleted = await portfolio.delete_holding(symbol, market_price=prices.get(symbol))
+    price = market_price
+    if price is None:
+        prices = await get_market_data().get_batch_prices([symbol])
+        price = prices.get(symbol)
+    deleted = await portfolio.delete_holding(symbol, market_price=price)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Holding {symbol} not found")
     holdings = await portfolio.get_holdings_dict()

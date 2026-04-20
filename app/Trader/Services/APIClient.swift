@@ -266,10 +266,17 @@ final class APIClient: ObservableObject {
         await invalidatePortfolioQueries()
     }
 
-    func deleteHolding(symbol: String) async throws {
+    func deleteHolding(symbol: String, marketPrice: Double? = nil) async throws {
         let encoded = symbol.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? symbol
+        let path: String
+        if let marketPrice {
+            let priceParam = "market_price=\(marketPrice)"
+            path = "/api/portfolio/holding/\(encoded)?\(priceParam)"
+        } else {
+            path = "/api/portfolio/holding/\(encoded)"
+        }
         let _: [String: AnyCodable] = try await fetch(
-            "/api/portfolio/holding/\(encoded)", method: "DELETE"
+            path, method: "DELETE"
         )
         await invalidatePortfolioQueries()
     }

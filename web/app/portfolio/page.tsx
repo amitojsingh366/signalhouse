@@ -249,7 +249,10 @@ export default function PortfolioPage() {
   }
 
   async function handleDeleteHolding(symbol: string) {
-    await deleteHolding.mutateAsync(symbol);
+    await deleteHolding.mutateAsync({
+      symbol,
+      marketPrice: selected?.symbol === symbol ? selected.current_price : undefined,
+    });
     setSelected(null);
   }
 

@@ -140,6 +140,19 @@ Both call `strategy.get_top_recommendations()` → for each of ~333 symbols:
 
 User executes trades via brokerage → reports via Discord `/buy`/`/sell`, web trade form, or iOS app → `portfolio` updates holdings and P&L in PostgreSQL → `risk` manager tracks stops.
 
+### P&L Semantics
+
+Portfolio performance is intentionally separated from cash transfers and manual corrections:
+
+- **Cash edits (`PUT /api/portfolio/cash`)** are treated as deposit/withdraw events, not P&L events. Historical snapshots and `initial_capital` are shifted so deposits/withdrawals do not change daily or total P&L.
+- **Manual holding corrections** (`PUT /api/portfolio/holding`, `DELETE /api/portfolio/holding/{symbol}`) are treated as data fixes, not executions. They do not create fake gains/losses.
+- **Total P&L dollars** use portfolio equity accounting:
+  `total_pnl = current_value - initial_capital`
+  where `current_value = cash + live market value of open positions`.
+- **Total P&L percent** uses trading cost basis only (cash excluded):
+  `total_pnl_pct = total_pnl / (open_position_cost_basis + closed_position_cost_basis)`.
+  This keeps `%` meaningful even when all positions are sold and only cash remains.
+
 ### Screenshot Upload
 
 Brokerage screenshot via Discord `/upload`, web upload page, or iOS PhotosPicker → `vision.py` calls Claude Sonnet API → parsed holdings shown with Confirm/Edit/Cancel → `portfolio.sync_from_snapshot()`.
@@ -155,7 +168,7 @@ ORM models in `api/src/trader_api/models.py`:
 | `Holding` | symbol (unique), quantity, avg_cost, entry_date | Current portfolio positions |
 | `Trade` | symbol, action (BUY/SELL), quantity, price, total, pnl, pnl_pct | Trade audit trail |
 | `DailySnapshot` | date (unique), portfolio_value, cash, positions_value | Equity curve data |
-| `PortfolioMeta` | cash, initial_capital | Single-row portfolio state |
+| `PortfolioMeta` | cash, initial_capital | Single-row portfolio state (`initial_capital` is adjusted for cash transfers/manual corrections so they are not counted as performance) |
 | `SignalHistory` | symbol, signal, strength, score, reasons | Signal audit trail |
 | `DeviceRegistration` | device_token (unique), platform, enabled, daily_disabled_notifications_date, daily_disabled_calls_date | Push notification devices with per-channel daily mute controls |
 | `NotificationLog` | device_token, symbol, signal, strength, delivered, acknowledged | Push audit trail |

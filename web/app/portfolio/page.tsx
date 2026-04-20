@@ -32,6 +32,7 @@ import { usePrivacy } from "@/lib/privacy";
 import { ScoreBreakdown, ScoreTag } from "@/components/ui/score-breakdown";
 import { CardSkeleton, HoldingsTableSkeleton } from "@/components/ui/loading";
 import { TrendProxy } from "@/components/ui/trend-proxy";
+import { buildTradeIntentHref } from "@/lib/trade-intent";
 
 type HoldingsFilter = "all" | "winners" | "losers";
 
@@ -320,7 +321,7 @@ export default function PortfolioPage() {
             Edit cash
           </button>
           <button
-            onClick={() => router.push("/trades")}
+            onClick={() => router.push(buildTradeIntentHref({ open: true }))}
             className="flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500"
           >
             <TrendingUp className="h-4 w-4" />

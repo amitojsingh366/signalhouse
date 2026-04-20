@@ -34,6 +34,7 @@ import { usePrivacy } from "@/lib/privacy";
 import { EquityChart } from "@/components/ui/equity-chart";
 import { ChartSkeleton, SignalsSkeleton } from "@/components/ui/loading";
 import { TrendProxy } from "@/components/ui/trend-proxy";
+import { buildTradeIntentHref } from "@/lib/trade-intent";
 
 const RANGES = ["1D", "7D", "1M", "3M", "1Y", "ALL"] as const;
 
@@ -240,6 +241,28 @@ export default function DashboardPage() {
   }, [plan]);
 
   const latestSignals = useMemo(() => plan?.actions.slice(0, 5) ?? [], [plan]);
+  const urgentSellHref = useMemo(
+    () =>
+      buildTradeIntentHref({
+        open: true,
+        action: "sell",
+        symbol: urgentSell?.symbol ?? null,
+        price:
+          (typeof urgentSell?.current_price === "number" ? urgentSell.current_price : null) ??
+          (typeof urgentSell?.price === "number" ? urgentSell.price : null),
+      }),
+    [urgentSell?.current_price, urgentSell?.price, urgentSell?.symbol]
+  );
+  const topConvictionHref = useMemo(
+    () =>
+      buildTradeIntentHref({
+        open: true,
+        action: "buy",
+        symbol: topConviction?.symbol ?? null,
+        price: typeof topConviction?.price === "number" ? topConviction.price : null,
+      }),
+    [topConviction?.price, topConviction?.symbol]
+  );
 
   const holdingsRows = useMemo(
     () => [...(portfolio?.holdings ?? [])].sort((a, b) => b.market_value - a.market_value).slice(0, 6),
@@ -402,7 +425,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <Link
-            href="/trades"
+            href={urgentSellHref}
             className="rounded-lg bg-red-500 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600"
           >
             Record sell
@@ -419,7 +442,7 @@ export default function DashboardPage() {
       )}
 
       <div className="qa-grid">
-        <Link href="/trades" className="qa">
+        <Link href={buildTradeIntentHref({ open: true })} className="qa">
           <span className="icn">
             <ArrowLeftRight />
           </span>
@@ -652,7 +675,7 @@ export default function DashboardPage() {
               </div>
 
               <div className="mt-4 flex gap-2">
-                <Link href="/trades" className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500">
+                <Link href={topConvictionHref} className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500">
                   <Check className="h-4 w-4" />
                   Record buy
                 </Link>

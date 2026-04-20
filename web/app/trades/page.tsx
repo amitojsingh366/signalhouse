@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useMemo, useRef, useState, useCallback, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeftRight,
   BarChart3,
@@ -51,16 +51,30 @@ function impliedFee(trade: TradeOut): number {
   return Math.max(0, Math.abs(gross - trade.total));
 }
 
-function TradeForm({ onComplete }: { onComplete: () => void }) {
+function TradeForm({
+  onComplete,
+  initialAction,
+  initialSymbol,
+  initialPrice,
+}: {
+  onComplete: () => void;
+  initialAction?: "buy" | "sell";
+  initialSymbol?: string;
+  initialPrice?: number | null;
+}) {
   const { toast } = useToast();
   const { mask } = usePrivacy();
   const recordBuy = useRecordBuy();
   const recordSell = useRecordSell();
 
-  const [action, setAction] = useState<"buy" | "sell">("buy");
-  const [symbol, setSymbol] = useState("");
+  const [action, setAction] = useState<"buy" | "sell">(initialAction ?? "buy");
+  const [symbol, setSymbol] = useState(initialSymbol ?? "");
   const [quantity, setQuantity] = useState("");
-  const [price, setPrice] = useState("");
+  const [price, setPrice] = useState(
+    typeof initialPrice === "number" && Number.isFinite(initialPrice)
+      ? initialPrice.toFixed(2)
+      : ""
+  );
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [fetchingPrice, setFetchingPrice] = useState(false);
 
@@ -85,6 +99,22 @@ function TradeForm({ onComplete }: { onComplete: () => void }) {
       setFetchingPrice(false);
     }
   }, []);
+
+  useEffect(() => {
+    setAction(initialAction ?? "buy");
+    setSymbol(initialSymbol ?? "");
+    if (typeof initialPrice === "number" && Number.isFinite(initialPrice)) {
+      setPrice(initialPrice.toFixed(2));
+    } else {
+      setPrice("");
+    }
+    setQuantity("");
+    setMarketPrice(null);
+
+    if (initialSymbol && !(typeof initialPrice === "number" && Number.isFinite(initialPrice))) {
+      void fetchMarketPrice(initialSymbol);
+    }
+  }, [fetchMarketPrice, initialAction, initialPrice, initialSymbol]);
 
   function onSymbolChange(next: string) {
     setSymbol(next);
@@ -221,13 +251,39 @@ function TradeForm({ onComplete }: { onComplete: () => void }) {
 }
 
 export default function TradesPage() {
+  return (
+    <Suspense>
+      <TradesContent />
+    </Suspense>
+  );
+}
+
+function TradesContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const qc = useQueryClient();
   const { mask } = usePrivacy();
   const { data: trades = [], isLoading, isFetching } = useTradeHistory(100);
 
-  const [showForm, setShowForm] = useState(false);
+  const requestedAction = searchParams.get("action");
+  const intentAction: "buy" | "sell" | undefined = requestedAction === "sell"
+    ? "sell"
+    : requestedAction === "buy"
+      ? "buy"
+      : undefined;
+  const intentSymbol = searchParams.get("symbol")?.trim().toUpperCase() ?? "";
+  const rawIntentPrice = searchParams.get("price");
+  const intentPrice = rawIntentPrice != null && Number.isFinite(Number(rawIntentPrice))
+    ? Number(rawIntentPrice)
+    : undefined;
+  const intentOpen = searchParams.get("open") === "1" || !!intentAction || !!intentSymbol || rawIntentPrice != null;
+
+  const [showForm, setShowForm] = useState(intentOpen);
   const [filter, setFilter] = useState<TradeFilter>("all");
+
+  useEffect(() => {
+    if (intentOpen) setShowForm(true);
+  }, [intentOpen]);
 
   const sorted = useMemo(
     () =>
@@ -375,7 +431,15 @@ export default function TradesPage() {
         </div>
       </div>
 
-      {showForm && <TradeForm onComplete={refresh} />}
+      {showForm && (
+        <TradeForm
+          key={`${intentAction ?? "buy"}:${intentSymbol}:${intentPrice ?? ""}`}
+          onComplete={refresh}
+          initialAction={intentAction}
+          initialSymbol={intentSymbol}
+          initialPrice={intentPrice}
+        />
+      )}
 
       <div className="page-tabs">
         <button className={cn(filter === "all" && "on")} onClick={() => setFilter("all")}>All <span className="c">{filterCounts.all}</span></button>

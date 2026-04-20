@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -14,7 +15,6 @@ import {
   Filter,
   Download,
   ArrowLeft,
-  Eye,
   Check,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,6 +25,7 @@ import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import { usePrivacy } from "@/lib/privacy";
 import { Skeleton, SignalCardsSkeleton } from "@/components/ui/loading";
 import { PriceChart } from "@/components/ui/price-chart";
+import { buildTradeIntentHref } from "@/lib/trade-intent";
 
 const SNOOZE_DURATIONS = [
   { label: "1h", hours: 1 },
@@ -60,7 +61,7 @@ function SnoozePopup({
   return (
     <div
       ref={ref}
-      className="absolute bottom-full left-0 z-50 mb-2 w-64 rounded-xl border border-white/10 bg-zinc-900/95 p-4 shadow-2xl backdrop-blur-xl"
+      className="absolute right-0 top-full z-50 mt-2 max-h-[min(70vh,420px)] w-64 overflow-y-auto rounded-xl border border-white/10 bg-zinc-900/95 p-4 shadow-2xl backdrop-blur-xl"
     >
       <div className="mb-3 flex items-center justify-between">
         <span className="text-sm font-medium text-white">Snooze {symbol}</span>
@@ -451,6 +452,15 @@ function SignalsContent() {
     const week52Low = numberField(fundamentals, "week_52_low");
     const week52High = numberField(fundamentals, "week_52_high");
     const avgVolume = numberField(fundamentals, "avg_volume");
+    const recordBuyHref = buildTradeIntentHref({
+      open: true,
+      action: "buy",
+      symbol: checked?.symbol ?? detailSymbol,
+      price:
+        (typeof checked?.price === "number" ? checked.price : null) ??
+        (typeof selectedAction?.price === "number" ? selectedAction.price : null) ??
+        (typeof selectedAction?.buy_price === "number" ? selectedAction.buy_price : null),
+    });
 
     return (
       <div className="space-y-5">
@@ -524,14 +534,10 @@ function SignalsContent() {
                   )}
                 </div>
 
-                <button className="inline-flex items-center gap-2 rounded-lg border border-brand-500/30 bg-brand-500/15 px-4 py-2 text-sm text-brand-200 transition-colors hover:bg-brand-500/25">
-                  <Eye className="h-4 w-4" />
-                  Add to watchlist
-                </button>
-                <button className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500">
+                <Link href={recordBuyHref} className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500">
                   <Check className="h-4 w-4" />
                   Record buy
-                </button>
+                </Link>
               </div>
             </div>
 

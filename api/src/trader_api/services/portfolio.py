@@ -357,19 +357,6 @@ class Portfolio:
         )
         return float(result.scalar_one())
 
-    async def get_realized_cost_basis(self) -> float:
-        """Cost basis of all closed positions derived from SELL trades."""
-        result = await self.db.execute(
-            select(func.coalesce(func.sum(Trade.total - Trade.pnl), 0.0)).where(
-                Trade.action == "SELL", Trade.pnl.isnot(None)
-            )
-        )
-        return float(result.scalar_one())
-
-    def get_total_pnl_baseline(self, total_cost: float, realized_cost_basis: float) -> float:
-        """Baseline for total-PnL percentage from open + closed cost basis."""
-        return max(0.0, total_cost + realized_cost_basis)
-
     async def get_portfolio_value(self, live_prices: dict[str, float]) -> float:
         meta = await self._get_meta()
         value = meta.cash
@@ -417,21 +404,13 @@ class Portfolio:
             positions_value += h["quantity"] * price
             total_cost += h["quantity"] * h["avg_cost"]
 
-        # total_pnl = current_value - initial_capital. initial_capital is
-        # shifted on manual edits (delete holding, cash edit) so those are
-        # treated as capital adjustments, not PnL events. Fall back to
-        # realized+unrealized when no baseline is set (user hasn't synced
-        # a snapshot or set cash yet).
-        if meta.initial_capital > 0:
-            initial = meta.initial_capital
-            total_pnl = current_value - initial
-        else:
-            unrealized_pnl = positions_value - total_cost
-            realized_pnl = await self.get_realized_pnl()
-            total_pnl = unrealized_pnl + realized_pnl
-            initial = current_value
-        realized_cost_basis = await self.get_realized_cost_basis()
-        baseline = self.get_total_pnl_baseline(total_cost, realized_cost_basis)
+        # Keep total PnL anchored to trade/position data:
+        # total = realized sells + unrealized open positions.
+        unrealized_pnl = positions_value - total_cost
+        realized_pnl = await self.get_realized_pnl()
+        total_pnl = unrealized_pnl + realized_pnl
+        # Derive a capital base from current equity minus gains/losses.
+        initial = max(0.0, current_value - total_pnl)
 
         # Find previous day's snapshot for daily P&L
         # Skip today's snapshot (if it exists) so we compare against yesterday
@@ -449,7 +428,7 @@ class Portfolio:
             "current_value": current_value,
             "initial_capital": initial,
             "total_pnl": total_pnl,
-            "total_pnl_pct": (total_pnl / baseline * 100) if baseline > 0 else 0.0,
+            "total_pnl_pct": (total_pnl / initial * 100) if initial > 0 else 0.0,
             "daily_pnl": current_value - yesterday_value,
             "daily_pnl_pct": (
                 (current_value - yesterday_value) / yesterday_value * 100

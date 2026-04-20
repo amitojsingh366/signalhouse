@@ -960,6 +960,10 @@
   font-weight: 500;
 }
 
+.hero-strip .big .spark {
+  margin-top: 14px;
+}
+
 .stat2 {
   padding: 18px;
   border-radius: 14px;
@@ -1213,6 +1217,96 @@
   display: block;
   width: 94px;
   height: 22px;
+}
+
+.spark {
+  width: 100%;
+  height: 48px;
+  display: block;
+}
+
+.exit-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.08), rgba(239, 68, 68, 0.02));
+  border: 1px solid rgba(239, 68, 68, 0.22);
+}
+
+.exit-banner .icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.18);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--danger);
+  flex: none;
+}
+
+.exit-banner .body {
+  flex: 1;
+  min-width: 0;
+}
+
+.exit-banner .body .t {
+  font-weight: 600;
+  color: var(--foreground);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.exit-banner .body .t .sym {
+  color: var(--danger);
+  font-family: var(--font-mono);
+}
+
+.exit-banner .body .s {
+  font-size: 13px;
+  color: var(--surface-400);
+  margin-top: 3px;
+  line-height: 1.35;
+}
+
+.sector-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 110px;
+  gap: 14px;
+  padding: 8px 0;
+  align-items: center;
+  font-size: 13px;
+}
+
+.sector-row .name {
+  color: var(--surface-300);
+}
+
+.sector-row .bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.sector-row .bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand-600), var(--brand-400));
+  border-radius: 999px;
+}
+
+.sector-row .val {
+  text-align: right;
+  font: 500 12px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.sector-row .val .m {
+  color: var(--surface-500);
+  margin-left: 6px;
 }
 
 .signal-list-card .head {
@@ -1615,6 +1709,10 @@
 @media (max-width: 768px) {
   .content-shell {
     padding: 18px 16px 44px;
+  }
+
+  .exit-banner {
+    flex-wrap: wrap;
   }
 
   .grid-4 {

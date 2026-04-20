@@ -56,7 +56,6 @@ class PortfolioMeta(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     cash: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     initial_capital: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    performance_baseline: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
 
 class AppSetting(Base):

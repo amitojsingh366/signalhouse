@@ -32,7 +32,7 @@ class Portfolio:
         result = await self.db.execute(select(PortfolioMeta))
         meta = result.scalar_one_or_none()
         if meta is None:
-            meta = PortfolioMeta(cash=0.0, initial_capital=0.0, performance_baseline=0.0)
+            meta = PortfolioMeta(cash=0.0, initial_capital=0.0)
             self.db.add(meta)
             await self.db.commit()
             await self.db.refresh(meta)

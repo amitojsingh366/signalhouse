@@ -348,10 +348,6 @@ class Portfolio:
         logger.info("Updated cash to $%.2f (delta $%.2f)", cash, delta)
         return cash
 
-    def get_total_pnl_baseline(self, total_cost: float) -> float:
-        """Baseline for total-PnL percentage (book cost basis only)."""
-        return max(0.0, total_cost)
-
     async def get_realized_pnl(self) -> float:
         """Sum of P&L from all completed sell trades."""
         result = await self.db.execute(
@@ -360,6 +356,19 @@ class Portfolio:
             )
         )
         return float(result.scalar_one())
+
+    async def get_realized_cost_basis(self) -> float:
+        """Cost basis of all closed positions derived from SELL trades."""
+        result = await self.db.execute(
+            select(func.coalesce(func.sum(Trade.total - Trade.pnl), 0.0)).where(
+                Trade.action == "SELL", Trade.pnl.isnot(None)
+            )
+        )
+        return float(result.scalar_one())
+
+    def get_total_pnl_baseline(self, total_cost: float, realized_cost_basis: float) -> float:
+        """Baseline for total-PnL percentage from open + closed cost basis."""
+        return max(0.0, total_cost + realized_cost_basis)
 
     async def get_portfolio_value(self, live_prices: dict[str, float]) -> float:
         meta = await self._get_meta()
@@ -421,7 +430,8 @@ class Portfolio:
             realized_pnl = await self.get_realized_pnl()
             total_pnl = unrealized_pnl + realized_pnl
             initial = current_value
-        baseline = self.get_total_pnl_baseline(total_cost)
+        realized_cost_basis = await self.get_realized_cost_basis()
+        baseline = self.get_total_pnl_baseline(total_cost, realized_cost_basis)
 
         # Find previous day's snapshot for daily P&L
         # Skip today's snapshot (if it exists) so we compare against yesterday

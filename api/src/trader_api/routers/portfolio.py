@@ -32,19 +32,8 @@ async def get_holdings(db: AsyncSession = Depends(get_db)):
     strategy = make_strategy(portfolio)
 
     holdings = await portfolio.get_holdings_dict()
-    if not holdings:
-        meta = await portfolio._get_meta()
-        return PortfolioSummary(
-            holdings=[],
-            total_value=meta.cash,
-            cash=meta.cash,
-            total_cost=0.0,
-            total_pnl=0.0,
-            total_pnl_pct=0.0,
-        )
-
     symbols = list(holdings.keys())
-    prices = await get_market_data().get_batch_prices(symbols)
+    prices = await get_market_data().get_batch_prices(symbols) if symbols else {}
 
     total_value = 0.0
     total_cost = 0.0
@@ -90,7 +79,8 @@ async def get_holdings(db: AsyncSession = Depends(get_db)):
         realized_pnl = await portfolio.get_realized_pnl()
         unrealized_pnl = (total_value - meta.cash) - total_cost
         total_pnl = unrealized_pnl + realized_pnl
-    baseline = portfolio.get_total_pnl_baseline(total_cost)
+    realized_cost_basis = await portfolio.get_realized_cost_basis()
+    baseline = portfolio.get_total_pnl_baseline(total_cost, realized_cost_basis)
 
     return PortfolioSummary(
         holdings=items,

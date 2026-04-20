@@ -1095,6 +1095,12 @@
   gap: 16px;
 }
 
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
 .card {
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -1126,6 +1132,87 @@
 
 .card .body {
   padding: 18px;
+}
+
+.tbl-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tbl thead th {
+  text-align: left;
+  font: 600 11px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--surface-500);
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  white-space: nowrap;
+}
+
+.tbl thead th.r {
+  text-align: right;
+}
+
+.tbl tbody td {
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--surface-200);
+  font-size: 14px;
+  line-height: 1.35;
+  vertical-align: middle;
+}
+
+.tbl tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.tbl tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.tbl td.r {
+  text-align: right;
+}
+
+.tbl .mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.tbl .sym {
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--foreground);
+}
+
+.tbl .sub {
+  color: var(--surface-500);
+  font-size: 12px;
+}
+
+.tbl .mut {
+  color: var(--surface-500);
+}
+
+.tbl .pos {
+  color: var(--success);
+}
+
+.tbl .neg {
+  color: var(--danger);
+}
+
+.spark-sm {
+  display: block;
+  width: 94px;
+  height: 22px;
 }
 
 .signal-list-card .head {
@@ -1466,6 +1553,10 @@
     grid-column: span 2;
   }
 
+  .grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .qa-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1524,6 +1615,10 @@
 @media (max-width: 768px) {
   .content-shell {
     padding: 18px 16px 44px;
+  }
+
+  .grid-4 {
+    grid-template-columns: 1fr;
   }
 
   .topbar {

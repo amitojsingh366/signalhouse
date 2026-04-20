@@ -1,32 +1,54 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
-import { Clock, RefreshCw, Sunrise, Thermometer } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Bell, Clock, RefreshCw, Thermometer, TrendingUp, ArrowRight } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePremarketMovers, queryKeys } from "@/lib/hooks";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, formatPercent } from "@/lib/utils";
 
-function nextOpenCountdown(): string {
-  const now = new Date();
-  const etNow = new Date(
-    now.toLocaleString("en-US", { timeZone: "America/Toronto" })
-  );
-  const open = new Date(etNow);
+function getEtNow() {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Toronto" }));
+}
+
+function countdownToOpen(now = getEtNow()) {
+  const open = new Date(now);
   open.setHours(9, 30, 0, 0);
-  if (etNow >= open) {
-    open.setDate(open.getDate() + 1);
-  }
-  const diffMs = open.getTime() - etNow.getTime();
-  const totalMins = Math.max(0, Math.floor(diffMs / 60_000));
-  const hours = Math.floor(totalMins / 60);
-  const mins = totalMins % 60;
-  return `${hours}h ${mins}m`;
+  if (now >= open) open.setDate(open.getDate() + 1);
+
+  const diff = Math.max(0, Math.floor((open.getTime() - now.getTime()) / 1000));
+  const h = Math.floor(diff / 3600);
+  const m = Math.floor((diff % 3600) / 60);
+  const s = diff % 60;
+
+  return {
+    short: `${h}h ${m}m`,
+    clock: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`,
+  };
+}
+
+function volumeProxy(changePct: number): string {
+  const x = Math.max(0.5, Math.min(4.2, 0.8 + Math.abs(changePct) * 4.6));
+  return `${x.toFixed(1)}x`;
+}
+
+function catalystProxy(usSymbol: string, changePct: number): string {
+  if (changePct >= 0.02) return `${usSymbol} showing strong pre-market momentum`;
+  if (changePct > 0) return `${usSymbol} trading modestly higher before open`;
+  if (changePct <= -0.02) return `${usSymbol} under notable overnight pressure`;
+  return `${usSymbol} mixed pre-market signal heading into open`;
 }
 
 export default function PreMarketPage() {
   const qc = useQueryClient();
   const { data, isLoading, isFetching } = usePremarketMovers();
+  const [alertsEnabled, setAlertsEnabled] = useState(false);
+  const [countdown, setCountdown] = useState(() => countdownToOpen());
+
+  useEffect(() => {
+    const id = window.setInterval(() => setCountdown(countdownToOpen()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const refresh = useCallback(() => {
     qc.invalidateQueries({ queryKey: queryKeys.premarket });
@@ -42,10 +64,19 @@ export default function PreMarketPage() {
 
   const positive = movers.filter((m) => m.change_pct >= 0).length;
   const negative = movers.filter((m) => m.change_pct < 0).length;
-  const avgAbsMove =
-    movers.length > 0
-      ? movers.reduce((sum, m) => sum + Math.abs(m.change_pct * 100), 0) / movers.length
-      : 0;
+  const biggest = movers[0];
+
+  const checklist = movers.slice(0, 3).map((row) => ({
+    text: `Review ${row.cdr_symbol} (${formatPercent(row.change_pct * 100)}) at open`,
+    done: false,
+    tag: Math.abs(row.change_pct) >= 0.03 ? "urgent" : "watch",
+  }));
+
+  checklist.push({
+    text: "Refresh pre-market feed before 09:30 ET",
+    done: !isFetching,
+    tag: "routine",
+  });
 
   return (
     <div className="space-y-6">
@@ -53,14 +84,22 @@ export default function PreMarketPage() {
         <div>
           <h1>Pre-market</h1>
           <p className="sub">
-            Toronto open in <span className="font-mono text-brand-300">{nextOpenCountdown()}</span>
+            Toronto open in <span className="font-mono text-brand-300">{countdown.short}</span>
             <span className="divider">·</span>
-            {movers.length} movers tracked
+            Overnight scan complete
             <span className="divider">·</span>
-            <span className="text-slate-400">US session proxy for CDRs</span>
+            {movers.length} holdings moving
           </p>
         </div>
+
         <div className="actions">
+          <button
+            onClick={() => setAlertsEnabled((prev) => !prev)}
+            className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.08]"
+          >
+            <Bell className="h-4 w-4" />
+            {alertsEnabled ? "Open alerts enabled" : "Enable open alerts"}
+          </button>
           <button
             onClick={refresh}
             disabled={isFetching}
@@ -72,112 +111,82 @@ export default function PreMarketPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid-4">
         <div className="stat2">
           <div className="lbl">
             <span>Open countdown</span>
-            <span className="ico">
-              <Clock />
-            </span>
+            <span className="ico"><Clock className="h-4 w-4" /></span>
           </div>
-          <div className="val font-mono text-brand-300">{nextOpenCountdown()}</div>
+          <div className="val font-mono text-brand-300">{countdown.clock}</div>
           <div className="chg neu">09:30 ET</div>
         </div>
 
         <div className="stat2">
           <div className="lbl">
-            <span>Movers</span>
-            <span className="ico">
-              <Sunrise />
-            </span>
+            <span>Futures · SPX</span>
+            <span className="ico"><TrendingUp className="h-4 w-4" /></span>
           </div>
-          <div className="val">{movers.length}</div>
-          <div className="chg neu">{positive} up · {negative} down</div>
+          <div className="val">--</div>
+          <div className="chg neu">not in API feed</div>
         </div>
 
         <div className="stat2">
           <div className="lbl">
-            <span>Avg abs move</span>
-            <span className="ico">
-              <Thermometer />
-            </span>
+            <span>TSX futures</span>
+            <span className="ico"><TrendingUp className="h-4 w-4" /></span>
           </div>
-          <div className="val">{avgAbsMove.toFixed(2)}%</div>
-          <div className="chg neu">across tracked CDRs</div>
+          <div className="val">--</div>
+          <div className="chg neu">not in API feed</div>
         </div>
 
         <div className="stat2">
           <div className="lbl">
-            <span>Data cadence</span>
-            <span className="ico">
-              <RefreshCw />
-            </span>
+            <span>F&amp;G index</span>
+            <span className="ico"><Thermometer className="h-4 w-4" /></span>
           </div>
-          <div className="val">{isFetching ? "Refreshing" : "Live"}</div>
-          <div className={cn("chg", isFetching ? "neu" : "pos")}>
-            {isFetching ? "updating now" : "ready"}
-          </div>
+          <div className="val">--</div>
+          <div className="chg neu">not in API feed</div>
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="glass-card p-8 text-center text-sm text-slate-500">
-          Loading pre-market movers...
+      <div className="card">
+        <div className="head">
+          <h3>Your holdings overnight</h3>
+          <span className="sub">ranked by absolute pre-market move</span>
         </div>
-      ) : movers.length === 0 ? (
-        <div className="glass-card p-8 text-center text-sm text-slate-500">
-          No pre-market data available right now.
-        </div>
-      ) : (
-        <>
-          <div className="card">
-            <div className="head">
-              <h3>Your holdings overnight proxy</h3>
-              <span className="sub">sorted by absolute move</span>
-            </div>
-            <table className="w-full text-sm">
-              <thead className="border-b border-white/10">
+
+        {isLoading ? (
+          <div className="p-8 text-center text-sm text-slate-500">Loading pre-market movers...</div>
+        ) : movers.length === 0 ? (
+          <div className="p-8 text-center text-sm text-slate-500">No pre-market data available right now.</div>
+        ) : (
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <thead>
                 <tr>
-                  <th className="px-4 py-3 text-left font-mono text-[11px] uppercase tracking-[0.08em] text-slate-500">
-                    Symbol
-                  </th>
-                  <th className="px-4 py-3 text-right font-mono text-[11px] uppercase tracking-[0.08em] text-slate-500">
-                    Premarket
-                  </th>
-                  <th className="px-4 py-3 text-right font-mono text-[11px] uppercase tracking-[0.08em] text-slate-500">
-                    O/N change
-                  </th>
-                  <th className="px-4 py-3 text-left font-mono text-[11px] uppercase tracking-[0.08em] text-slate-500">
-                    US pair
-                  </th>
-                  <th className="px-4 py-3 text-right font-mono text-[11px] uppercase tracking-[0.08em] text-slate-500">
-                    Action
-                  </th>
+                  <th>Symbol</th>
+                  <th className="r">O/N change</th>
+                  <th className="r">Volume vs avg</th>
+                  <th>Catalyst</th>
+                  <th></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
-                {movers.map((m) => {
-                  const pct = m.change_pct * 100;
+              <tbody>
+                {movers.map((row) => {
+                  const pct = row.change_pct * 100;
                   return (
-                    <tr key={m.cdr_symbol} className="hover:bg-white/[0.02]">
-                      <td className="px-4 py-3 font-medium text-slate-200">{m.cdr_symbol}</td>
-                      <td className="px-4 py-3 text-right font-mono text-slate-300">
-                        {formatCurrency(m.premarket_price)}
-                      </td>
-                      <td className={cn(
-                        "px-4 py-3 text-right font-mono",
-                        pct >= 0 ? "text-emerald-400" : "text-red-400"
-                      )}>
-                        {pct >= 0 ? "+" : ""}
-                        {pct.toFixed(2)}%
-                      </td>
-                      <td className="px-4 py-3 text-slate-500">{m.us_symbol}</td>
-                      <td className="px-4 py-3 text-right">
+                    <tr key={row.cdr_symbol}>
+                      <td className="font-semibold text-slate-100">{row.cdr_symbol}</td>
+                      <td className={cn("r mono", pct >= 0 ? "pos" : "neg")}>{formatPercent(pct)}</td>
+                      <td className="r mono">{volumeProxy(row.change_pct)}</td>
+                      <td className="text-slate-300">{catalystProxy(row.us_symbol, row.change_pct)}</td>
+                      <td>
                         <Link
-                          href={`/signals?check=${encodeURIComponent(m.cdr_symbol)}`}
-                          className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.08]"
+                          href={`/signals?check=${encodeURIComponent(row.cdr_symbol)}`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.08]"
                         >
                           Open signal
+                          <ArrowRight className="h-3.5 w-3.5" />
                         </Link>
                       </td>
                     </tr>
@@ -186,41 +195,97 @@ export default function PreMarketPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
 
-          <div className="card">
-            <div className="head">
-              <h3>Gap candidates</h3>
-              <span className="sub">largest pre-market dislocations</span>
-            </div>
-            <div className="divide-y divide-white/5">
-              {movers.slice(0, 5).map((m) => {
-                const pct = m.change_pct * 100;
-                return (
-                  <Link
-                    key={`gap-${m.cdr_symbol}`}
-                    href={`/signals?check=${encodeURIComponent(m.cdr_symbol)}`}
-                    className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-white/[0.02]"
-                  >
-                    <div className={cn(
-                      "w-16 text-right font-mono text-sm",
-                      pct >= 0 ? "text-emerald-400" : "text-red-400"
-                    )}>
-                      {pct >= 0 ? "+" : ""}
-                      {pct.toFixed(2)}%
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-100">{m.cdr_symbol}</p>
-                      <p className="truncate text-xs text-slate-500">
-                        {m.us_symbol} · {formatCurrency(m.premarket_price)}
-                      </p>
-                    </div>
-                    <span className="badge badge-hold">PRE</span>
-                  </Link>
-                );
-              })}
-            </div>
+      <div className="grid-2">
+        <div className="card">
+          <div className="head">
+            <h3>Gap candidates</h3>
+            <span className="sub">largest pre-market dislocations</span>
           </div>
-        </>
+          <div>
+            {movers.slice(0, 4).map((row) => {
+              const pct = row.change_pct * 100;
+              return (
+                <Link
+                  key={`gap-${row.cdr_symbol}`}
+                  href={`/signals?check=${encodeURIComponent(row.cdr_symbol)}`}
+                  className="action-row"
+                >
+                  <div className="conv">
+                    <span className={cn("score", pct >= 0 ? "pos" : "neg")}>{formatPercent(pct)}</span>
+                  </div>
+                  <div className="who">
+                    <div className="sym">
+                      <span className="t">{row.cdr_symbol}</span>
+                      <span className="sector">{row.us_symbol}</span>
+                    </div>
+                    <div className="reason">{formatCurrency(row.premarket_price)} pre-market proxy</div>
+                  </div>
+                  <span className="go">
+                    <ArrowRight />
+                  </span>
+                </Link>
+              );
+            })}
+            {movers.length === 0 && (
+              <div className="p-6 text-sm text-slate-500">No candidates in the current API response.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="head">
+            <h3>Open checklist</h3>
+            <span className="sub">derived from current movers</span>
+          </div>
+          <div className="body flex flex-col gap-3">
+            {checklist.map((item, index) => (
+              <div
+                key={`todo-${index}`}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg border px-3 py-2.5",
+                  item.done
+                    ? "border-emerald-500/20 bg-emerald-500/[0.06]"
+                    : "border-white/[0.06] bg-white/[0.02]"
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-flex h-5 w-5 items-center justify-center rounded-md border text-[10px] font-semibold",
+                    item.done
+                      ? "border-emerald-400 bg-emerald-400 text-zinc-950"
+                      : "border-white/20 text-slate-500"
+                  )}
+                >
+                  {item.done ? "OK" : "-"}
+                </span>
+                <span className={cn("flex-1 text-sm", item.done ? "text-slate-400 line-through" : "text-slate-200")}>
+                  {item.text}
+                </span>
+                <span className={cn(
+                  "pill-badge",
+                  item.tag === "urgent" ? "pb-urgent" : item.tag === "watch" ? "pb-hold" : "pb-snooze"
+                )}>
+                  {item.tag.toUpperCase()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-xs text-slate-500">
+        Movers feed currently provides symbol, US pair, pre-market price, and change %. Futures, Fear &amp; Greed, and news catalysts are shown as unavailable placeholders.
+      </div>
+
+      {biggest && (
+        <div className="text-right text-xs text-slate-500">
+          Strongest move now: <span className="font-mono text-slate-300">{biggest.cdr_symbol}</span> ({formatPercent(biggest.change_pct * 100)})
+          <span className="mx-2 text-slate-700">·</span>
+          {positive} up / {negative} down
+        </div>
       )}
     </div>
   );

@@ -267,9 +267,36 @@ struct MobileScreen<Content: View>: View {
 struct TickerQuote: Identifiable {
     let id = UUID()
     let symbol: String
-    let price: String
+    let displayPrice: String
     let change: String
     let isPositive: Bool
+}
+
+extension TickerQuote {
+    init(item: TickerStripItem) {
+        let resolvedChange: String
+        if let changeLabel = item.changeLabel, !changeLabel.isEmpty {
+            resolvedChange = changeLabel
+        } else if let changePct = item.changePct {
+            resolvedChange = String(format: "%+.2f%%", changePct)
+        } else {
+            resolvedChange = "--"
+        }
+
+        let positive: Bool
+        if let changePct = item.changePct {
+            positive = changePct >= 0
+        } else {
+            positive = !resolvedChange.trimmingCharacters(in: .whitespaces).hasPrefix("-")
+        }
+
+        self.init(
+            symbol: item.label,
+            displayPrice: item.displayPrice,
+            change: resolvedChange,
+            isPositive: positive
+        )
+    }
 }
 
 struct TickerStrip: View {
@@ -283,7 +310,7 @@ struct TickerStrip: View {
                         Text(quote.symbol)
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
                             .foregroundStyle(Theme.textPrimary)
-                        Text("$\(quote.price)")
+                        Text(quote.displayPrice)
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
                             .foregroundStyle(Theme.textMuted)
                         Text(quote.change)

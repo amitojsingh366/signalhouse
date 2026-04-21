@@ -287,8 +287,8 @@ private struct ActionRow: View {
     let style: ActionRowStyle
     let onSnooze: ((ActionItem) -> Void)?
 
-    private var isSellLike: Bool {
-        style == .sell || style == .snoozed
+    private var snoozeButtonTitle: String {
+        style == .snoozed ? "Unsnooze" : "Snooze"
     }
 
     var body: some View {
@@ -332,7 +332,7 @@ private struct ActionRow: View {
                 }
                 Spacer()
                 if let onSnooze {
-                    Button(isSellLike ? "Snooze" : "Unsnooze") {
+                    Button(snoozeButtonTitle) {
                         onSnooze(action)
                     }
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))

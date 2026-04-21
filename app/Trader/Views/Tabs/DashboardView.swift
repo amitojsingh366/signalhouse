@@ -8,21 +8,11 @@ struct DashboardView: View {
     @State private var pnl: PnlSummary?
     @State private var snapshots: [SnapshotOut] = []
     @State private var actionPlan: ActionPlanOut?
+    @State private var tickerQuotes: [TickerQuote] = []
     @State private var isLoading = true
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
-    }
-
-    private var tickerQuotes: [TickerQuote] {
-        [
-            .init(symbol: "SU.TO", price: "49.30", change: "-1.42%", isPositive: false),
-            .init(symbol: "CP.TO", price: "110.76", change: "+0.44%", isPositive: true),
-            .init(symbol: "MNT.TO", price: "67.01", change: "-11.56%", isPositive: false),
-            .init(symbol: "IBIT.NE", price: "31.33", change: "+11.14%", isPositive: true),
-            .init(symbol: "BNS.TO", price: "66.41", change: "-0.12%", isPositive: false),
-            .init(symbol: "BMO.TO", price: "138.22", change: "+1.08%", isPositive: true),
-        ]
     }
 
     private var primaryActions: [ActionItem] {
@@ -149,11 +139,18 @@ struct DashboardView: View {
         async let pnlTask = client.getPnl()
         async let snapshotsTask = client.getSnapshots()
         async let planTask = client.getActionPlan()
+        async let tickerStripTask = client.getTickerStrip()
 
         do { portfolio = try await portfolioTask } catch {}
         do { pnl = try await pnlTask } catch {}
         do { snapshots = try await snapshotsTask } catch {}
         do { actionPlan = try await planTask } catch {}
+        do {
+            let items = try await tickerStripTask
+            tickerQuotes = items.map(TickerQuote.init(item:))
+        } catch {
+            tickerQuotes = []
+        }
     }
 }
 
@@ -192,21 +189,21 @@ private struct DashboardActionRow: View {
     var body: some View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 8)
-                .fill(Theme.negative.opacity(0.12))
+                .fill(actionColor.opacity(0.12))
                 .frame(width: 32, height: 32)
                 .overlay(
-                    Image(systemName: "exclamationmark.triangle")
+                    Image(systemName: actionIcon)
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Theme.negative)
+                        .foregroundStyle(actionColor)
                 )
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    Text(action.type.uppercased())
+                    Text(actionLabel)
                         .font(.system(size: 11, weight: .semibold, design: .monospaced))
                         .tracking(1)
-                        .foregroundStyle(Theme.negative)
-                    Text(action.symbol ?? action.sellSymbol ?? "")
+                        .foregroundStyle(actionColor)
+                    Text(symbolText)
                         .font(.system(size: 13, weight: .semibold, design: .monospaced))
                         .foregroundStyle(Theme.textPrimary)
                 }
@@ -225,5 +222,41 @@ private struct DashboardActionRow: View {
             }
         }
         .padding(16)
+    }
+
+    private var symbolText: String {
+        if action.type == "SWAP" {
+            return "\(action.sellSymbol ?? "") → \(action.buySymbol ?? "")"
+        }
+        return action.symbol ?? action.sellSymbol ?? ""
+    }
+
+    private var actionLabel: String {
+        if action.type == "BUY", action.actionable == false {
+            return "HOLD"
+        }
+        return action.type.uppercased()
+    }
+
+    private var actionColor: Color {
+        switch action.type {
+        case "SELL":
+            return Theme.negative
+        case "SWAP":
+            return Theme.brand
+        default:
+            return action.actionable == false ? Theme.warning : Theme.positive
+        }
+    }
+
+    private var actionIcon: String {
+        switch action.type {
+        case "SELL":
+            return "exclamationmark.triangle"
+        case "SWAP":
+            return "arrow.left.arrow.right"
+        default:
+            return action.actionable == false ? "pause.fill" : "arrow.up.right"
+        }
     }
 }

@@ -1,23 +1,19 @@
 import SwiftUI
+import Combine
 
 /// Pre-market page (from More).
 struct PreMarketView: View {
     @EnvironmentObject private var config: AppConfig
 
     @State private var movers: [PremarketMover] = []
+    @State private var tickerQuotes: [TickerQuote] = []
     @State private var isLoading = true
+    @State private var now = Date()
+
+    private let marketClock = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
-    }
-
-    private var tickerQuotes: [TickerQuote] {
-        [
-            .init(symbol: "SU.TO", price: "49.30", change: "-1.42%", isPositive: false),
-            .init(symbol: "CP.TO", price: "110.76", change: "+0.44%", isPositive: true),
-            .init(symbol: "MNT.TO", price: "67.01", change: "-11.56%", isPositive: false),
-            .init(symbol: "IBIT.NE", price: "31.33", change: "+11.14%", isPositive: true),
-        ]
     }
 
     var body: some View {
@@ -25,10 +21,10 @@ struct PreMarketView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("OPENS IN 47M · 09:30 ET")
+                        Text(marketStatusLabel)
                             .font(.system(size: 10, weight: .medium, design: .monospaced))
                             .tracking(1.4)
-                            .foregroundStyle(Theme.brand)
+                            .foregroundStyle(marketStatusColor)
                         Text("CDR counterparts trading now on US markets — use this as a preview of TSX open.")
                             .font(.system(size: 13))
                             .foregroundStyle(Theme.textMuted)
@@ -79,15 +75,115 @@ struct PreMarketView: View {
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await loadData() }
         .task { await loadData() }
+        .onReceive(marketClock) { now = $0 }
     }
 
     private func loadData() async {
         isLoading = true
         defer { isLoading = false }
+
+        async let moversTask = client.getPremarketMovers()
+        async let tickerStripTask = client.getTickerStrip()
+
         do {
-            let response = try await client.getPremarketMovers()
+            let response = try await moversTask
             movers = response.movers.sorted { abs($0.changePct) > abs($1.changePct) }
         } catch {}
+
+        do {
+            let items = try await tickerStripTask
+            tickerQuotes = items.map(TickerQuote.init(item:))
+        } catch {
+            tickerQuotes = []
+        }
+    }
+
+    private var marketStatusLabel: String {
+        let interval = marketSession(for: now)
+        switch interval {
+        case .beforeOpen(let open):
+            return "OPENS IN \(countdown(to: open)) · 09:30 ET"
+        case .open:
+            return "MARKET OPEN · CLOSES 16:00 ET"
+        case .afterClose(let nextOpen):
+            return "NEXT OPEN IN \(countdown(to: nextOpen)) · 09:30 ET"
+        }
+    }
+
+    private var marketStatusColor: Color {
+        switch marketSession(for: now) {
+        case .beforeOpen:
+            return Theme.brand
+        case .open:
+            return Theme.positive
+        case .afterClose:
+            return Theme.warning
+        }
+    }
+
+    private enum MarketSession {
+        case beforeOpen(Date)
+        case open
+        case afterClose(Date)
+    }
+
+    private func marketSession(for date: Date) -> MarketSession {
+        let calendar = marketCalendar
+        let dayStart = calendar.startOfDay(for: date)
+        let weekday = calendar.component(.weekday, from: dayStart)
+
+        if isWeekend(weekday) {
+            return .afterClose(nextMarketOpen(after: date))
+        }
+
+        guard
+            let open = calendar.date(bySettingHour: 9, minute: 30, second: 0, of: dayStart),
+            let close = calendar.date(bySettingHour: 16, minute: 0, second: 0, of: dayStart)
+        else {
+            return .afterClose(nextMarketOpen(after: date))
+        }
+
+        if date < open {
+            return .beforeOpen(open)
+        }
+        if date < close {
+            return .open
+        }
+        return .afterClose(nextMarketOpen(after: date))
+    }
+
+    private func nextMarketOpen(after date: Date) -> Date {
+        let calendar = marketCalendar
+        let start = calendar.startOfDay(for: date)
+        for offset in 1...8 {
+            guard let candidateDay = calendar.date(byAdding: .day, value: offset, to: start) else { continue }
+            let weekday = calendar.component(.weekday, from: candidateDay)
+            if isWeekend(weekday) { continue }
+            if let open = calendar.date(bySettingHour: 9, minute: 30, second: 0, of: candidateDay) {
+                return open
+            }
+        }
+        return date
+    }
+
+    private func countdown(to target: Date) -> String {
+        let totalSeconds = max(0, Int(target.timeIntervalSince(now)))
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        if hours > 0 {
+            return "\(hours)H \(minutes)M"
+        }
+        return "\(minutes)M"
+    }
+
+    private var marketCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York") ?? .current
+        return calendar
+    }
+
+    private func isWeekend(_ weekday: Int) -> Bool {
+        weekday == 1 || weekday == 7
     }
 }
 

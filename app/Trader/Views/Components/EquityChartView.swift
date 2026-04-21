@@ -41,19 +41,22 @@ struct EquityChartView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Equity Curve")
-                    .font(.subheadline)
+                    .font(AppFont.sans(14, weight: .medium))
                     .foregroundStyle(Theme.textMuted)
                 Spacer()
                 Picker("Range", selection: $selectedRange) {
-                    ForEach(ranges, id: \.self) { Text($0) }
+                    ForEach(ranges, id: \.self) { range in
+                        Text(range).tag(range)
+                    }
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 200)
+                .tint(Theme.brand)
             }
 
             if filtered.isEmpty {
                 Text("No snapshot data yet")
-                    .font(.caption)
+                    .font(AppFont.sans(12))
                     .foregroundStyle(Theme.textDimmed)
                     .frame(maxWidth: .infinity, minHeight: 200)
             } else {
@@ -96,19 +99,23 @@ struct EquityChartView: View {
                         AxisValueLabel {
                             if let d = value.as(Date.self) {
                                 Text(d, format: .dateTime.month(.abbreviated).day())
-                                    .font(.caption2)
+                                    .font(AppFont.mono(10, weight: .medium))
                             }
                         }
                         .foregroundStyle(Theme.textDimmed)
                     }
                 }
                 .chartYAxis {
-                    AxisMarks { _ in
+                    AxisMarks(position: .leading) { _ in
                         AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
                             .foregroundStyle(Color.white.opacity(0.06))
                         AxisValueLabel()
+                            .font(AppFont.mono(10, weight: .medium))
                             .foregroundStyle(Theme.textDimmed)
                     }
+                }
+                .chartPlotStyle { plot in
+                    plot.padding(.leading, 8)
                 }
                 .frame(height: 220)
             }

@@ -28,7 +28,7 @@ struct PortfolioView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("\(portfolio?.holdings.count ?? 0) positions")
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .font(AppFont.mono(10, weight: .medium))
                             .tracking(1.4)
                             .foregroundStyle(Theme.brand)
 
@@ -52,7 +52,7 @@ struct PortfolioView: View {
                                         HStack(spacing: 6) {
                                             MobileValueLabel(text: Formatting.currency(portfolio?.cash ?? 0), color: Theme.textPrimary)
                                             Image(systemName: "pencil")
-                                                .font(.system(size: 10, weight: .semibold))
+                                                .font(AppFont.sans(10, weight: .semibold))
                                                 .foregroundStyle(Theme.textDimmed)
                                         }
                                     }
@@ -82,7 +82,7 @@ struct PortfolioView: View {
                                 }
                             } else if filteredHoldings.isEmpty {
                                 Text("No holdings")
-                                    .font(.system(size: 13))
+                                    .font(AppFont.sans(13))
                                     .foregroundStyle(Theme.textMuted)
                                     .padding(16)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -165,10 +165,10 @@ private struct HoldingRow: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
                 Text(holding.symbol)
-                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                    .font(AppFont.mono(14, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                 Text("\(Formatting.number(holding.quantity, decimals: 4)) sh · avg \(Formatting.currency(holding.avgCost)) · now \(Formatting.currency(holding.currentPrice))")
-                    .font(.system(size: 11, weight: .regular, design: .monospaced))
+                    .font(AppFont.mono(12, weight: .regular))
                     .foregroundStyle(Theme.textDimmed)
                     .lineLimit(1)
                 MobileSignalPill(text: "\(holding.signal) · \(Int((holding.strength * 100).rounded()))%", style: signalStyle)
@@ -178,10 +178,10 @@ private struct HoldingRow: View {
 
             VStack(alignment: .trailing, spacing: 5) {
                 Text(Formatting.currency(holding.marketValue))
-                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                    .font(AppFont.mono(14, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                 Text(Formatting.percent(holding.pnlPct))
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .font(AppFont.mono(12, weight: .semibold))
                     .foregroundStyle(Formatting.pnlColor(holding.pnlPct))
             }
         }
@@ -209,14 +209,14 @@ private struct SectorExposureCard: View {
         MobileCard {
             if sectors.isEmpty {
                 Text("No sector data")
-                    .font(.system(size: 12))
+                    .font(AppFont.sans(12))
                     .foregroundStyle(Theme.textMuted)
                     .padding(16)
             } else {
                 ForEach(Array(sectors.prefix(4).enumerated()), id: \.offset) { index, sector in
                     HStack(spacing: 10) {
                         Text(sector.0.capitalized)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(AppFont.sans(12, weight: .medium))
                             .foregroundStyle(Theme.textPrimary)
                             .frame(width: 90, alignment: .leading)
 
@@ -238,7 +238,7 @@ private struct SectorExposureCard: View {
                         .frame(height: 8)
 
                         Text(Formatting.percent(sector.1 * 100))
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .font(AppFont.mono(12, weight: .medium))
                             .foregroundStyle(Theme.brand)
                     }
                     .padding(.horizontal, 16)
@@ -256,79 +256,10 @@ private struct SectorExposureCard: View {
 struct HoldingDetailView: View {
     let holding: HoldingAdvice
 
-    private var totalScore: Double {
-        holding.technicalScore + holding.sentimentScore + holding.commodityScore
-    }
-
     var body: some View {
-        MobileScreen {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 14) {
-                    MobileSectionLabel("Position")
-                    MobileCard {
-                        MobileDefRow(label: "Symbol") { MobileValueLabel(text: holding.symbol, color: Theme.textPrimary) }
-                        Divider().overlay(Theme.line)
-                        MobileDefRow(label: "Quantity") { MobileValueLabel(text: Formatting.number(holding.quantity, decimals: 4)) }
-                        Divider().overlay(Theme.line)
-                        MobileDefRow(label: "Avg cost") { MobileValueLabel(text: Formatting.currency(holding.avgCost)) }
-                        Divider().overlay(Theme.line)
-                        MobileDefRow(label: "Current") { MobileValueLabel(text: Formatting.currency(holding.currentPrice)) }
-                        Divider().overlay(Theme.line)
-                        MobileDefRow(label: "Market value") { MobileValueLabel(text: Formatting.currency(holding.marketValue), color: Theme.textPrimary) }
-                        Divider().overlay(Theme.line)
-                        MobileDefRow(label: "P&L") {
-                            MobileValueLabel(
-                                text: "\(Formatting.currency(holding.pnl)) · \(Formatting.percent(holding.pnlPct))",
-                                color: Formatting.pnlColor(holding.pnlPct)
-                            )
-                        }
-                    }
-
-                    MobileSectionLabel("Signal")
-                    MobileCard {
-                        MobileDefRow(label: "Recommendation") {
-                            SignalBadgeView(signal: holding.signal, strength: holding.strength)
-                        }
-                        Divider().overlay(Theme.line)
-                        MobileDefRow(label: "Action") {
-                            MobileValueLabel(text: holding.action.uppercased(), color: Theme.textPrimary)
-                        }
-                        Divider().overlay(Theme.line)
-                        Text(holding.actionDetail)
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.textMuted)
-                            .padding(16)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    MobileSectionLabel("Score Breakdown")
-                    MobileCard {
-                        ScoreMixCard(
-                            technical: holding.technicalScore,
-                            sentiment: holding.sentimentScore,
-                            commodity: holding.commodityScore,
-                            total: totalScore
-                        )
-                        .padding(16)
-                        ForEach(holding.reasons, id: \.self) { reason in
-                            Divider().overlay(Theme.line)
-                            HStack(spacing: 10) {
-                                Circle()
-                                    .fill(scoreReasonDotColor(reason))
-                                    .frame(width: 6, height: 6)
-                                ScoreReasonRow(text: reason)
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 11)
-                        }
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 60)
-            }
-        }
-        .navigationTitle(holding.symbol)
-        .navigationBarTitleDisplayMode(.inline)
+        InstrumentDetailView(
+            snapshot: InstrumentSignalSnapshot(holding: holding),
+            position: holding
+        )
     }
 }

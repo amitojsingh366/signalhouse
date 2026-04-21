@@ -23,6 +23,7 @@ struct SettingsView: View {
     )
     @State private var updatingHybridMode = false
     @State private var updatingOversoldMode = false
+    @State private var updatingNotificationPrefs = false
     @State private var strategyRefreshTask: Task<Void, Never>?
 
     private var client: APIClient {
@@ -89,40 +90,45 @@ struct SettingsView: View {
                             )
                         )
                         .disabled(updatingHybridMode || updatingOversoldMode)
-                        Divider().overlay(Theme.line)
-                        MobileDefRow(label: "Take-profit target") {
-                            MobileValueLabel(text: takeProfitTargetLabel)
-                        }
-                        Divider().overlay(Theme.line)
-                        MobileDefRow(label: "Stop-loss floor") {
-                            MobileValueLabel(text: stopLossFloorLabel)
-                        }
-                        Divider().overlay(Theme.line)
-                        MobileDefRow(label: "Max positions") {
-                            MobileValueLabel(text: "\(tradingSettings.maxPositions)")
-                        }
                     }
 
                     MobileSectionLabel("Notifications")
                     MobileCard {
-                        ToggleRow(title: "Push notifications", description: nil, isOn: $notifEnabled)
-                            .onChange(of: notifEnabled) { _, newValue in
-                                Task { await toggleEnabled(newValue) }
-                            }
+                        ToggleRow(
+                            title: "Push notifications",
+                            description: nil,
+                            isOn: Binding(
+                                get: { notifEnabled },
+                                set: { newValue in
+                                    Task { await setPushNotificationsEnabled(newValue) }
+                                }
+                            )
+                        )
+                        .disabled(updatingNotificationPrefs || pushManager.deviceToken == nil)
                         Divider().overlay(Theme.line)
-                        SettingsActionRow(
-                            title: isNotificationsMutedToday ? "Unmute notifications for today" : "Mute notifications for today",
-                            color: Theme.warning
-                        ) {
-                            Task { await toggleNotificationsMuteToday() }
-                        }
+                        ToggleRow(
+                            title: "Mute notifications for today",
+                            description: nil,
+                            isOn: Binding(
+                                get: { isNotificationsMutedToday },
+                                set: { newValue in
+                                    Task { await setNotificationsMutedToday(newValue) }
+                                }
+                            )
+                        )
+                        .disabled(updatingNotificationPrefs || pushManager.deviceToken == nil)
                         Divider().overlay(Theme.line)
-                        SettingsActionRow(
-                            title: isCallsMutedToday ? "Unmute calls for today" : "Mute calls for today",
-                            color: Theme.warning
-                        ) {
-                            Task { await toggleCallsMuteToday() }
-                        }
+                        ToggleRow(
+                            title: "Mute calls for today",
+                            description: nil,
+                            isOn: Binding(
+                                get: { isCallsMutedToday },
+                                set: { newValue in
+                                    Task { await setCallsMutedToday(newValue) }
+                                }
+                            )
+                        )
+                        .disabled(updatingNotificationPrefs || pushManager.deviceToken == nil)
                         Divider().overlay(Theme.line)
                         MobileDefRow(label: "Device token") {
                             MobileValueLabel(text: tokenPrefix)
@@ -172,14 +178,6 @@ struct SettingsView: View {
         return String(token.prefix(12)) + "..."
     }
 
-    private var takeProfitTargetLabel: String {
-        String(format: "+%.1f%%", tradingSettings.takeProfitPct * 100)
-    }
-
-    private var stopLossFloorLabel: String {
-        String(format: "-%.1f%%", tradingSettings.stopLossPct * 100)
-    }
-
     private func registerPasskey() async {
         isRegistering = true
         authError = nil
@@ -214,23 +212,15 @@ struct SettingsView: View {
 
         guard let token = pushManager.deviceToken else {
             notifHistory = []
+            notifEnabled = false
+            isNotificationsMutedToday = false
+            isCallsMutedToday = false
             return
         }
 
         do {
             let prefs = try await client.getNotificationPrefs(token: token)
-            notifEnabled = prefs.enabled
-            let today = ISO8601DateFormatter().string(from: Date()).prefix(10)
-            isNotificationsMutedToday = isMutedToday(
-                specificDate: prefs.dailyDisabledNotificationsDate,
-                fallbackDate: prefs.dailyDisabledDate,
-                today: String(today)
-            )
-            isCallsMutedToday = isMutedToday(
-                specificDate: prefs.dailyDisabledCallsDate,
-                fallbackDate: prefs.dailyDisabledDate,
-                today: String(today)
-            )
+            applyNotificationPrefs(prefs)
         } catch {}
 
         do {
@@ -238,45 +228,81 @@ struct SettingsView: View {
         } catch {}
     }
 
-    private func toggleEnabled(_ enabled: Bool) async {
+    private func applyNotificationPrefs(_ prefs: NotificationPrefsOut) {
+        notifEnabled = prefs.enabled
+        let today = ISO8601DateFormatter().string(from: Date()).prefix(10)
+        isNotificationsMutedToday = isMutedToday(
+            specificDate: prefs.dailyDisabledNotificationsDate,
+            fallbackDate: prefs.dailyDisabledDate,
+            today: String(today)
+        )
+        isCallsMutedToday = isMutedToday(
+            specificDate: prefs.dailyDisabledCallsDate,
+            fallbackDate: prefs.dailyDisabledDate,
+            today: String(today)
+        )
+    }
+
+    private func setPushNotificationsEnabled(_ enabled: Bool) async {
         guard let token = pushManager.deviceToken else { return }
+        guard !updatingNotificationPrefs else { return }
+        let previous = notifEnabled
+        notifEnabled = enabled
+        updatingNotificationPrefs = true
+        defer { updatingNotificationPrefs = false }
+
         do {
-            _ = try await client.updateNotificationPrefs(
+            let prefs = try await client.updateNotificationPrefs(
                 token: token,
                 enabled: enabled,
                 dailyDisabled: nil
             )
+            applyNotificationPrefs(prefs)
         } catch {
-            notifEnabled = !enabled
+            notifEnabled = previous
         }
     }
 
-    private func toggleNotificationsMuteToday() async {
+    private func setNotificationsMutedToday(_ muted: Bool) async {
         guard let token = pushManager.deviceToken else { return }
-        let newMuted = !isNotificationsMutedToday
+        guard !updatingNotificationPrefs else { return }
+        let previous = isNotificationsMutedToday
+        isNotificationsMutedToday = muted
+        updatingNotificationPrefs = true
+        defer { updatingNotificationPrefs = false }
+
         do {
-            _ = try await client.updateNotificationPrefs(
+            let prefs = try await client.updateNotificationPrefs(
                 token: token,
                 enabled: nil,
                 dailyDisabled: nil,
-                dailyDisabledNotifications: newMuted
+                dailyDisabledNotifications: muted
             )
-            isNotificationsMutedToday = newMuted
-        } catch {}
+            applyNotificationPrefs(prefs)
+        } catch {
+            isNotificationsMutedToday = previous
+        }
     }
 
-    private func toggleCallsMuteToday() async {
+    private func setCallsMutedToday(_ muted: Bool) async {
         guard let token = pushManager.deviceToken else { return }
-        let newMuted = !isCallsMutedToday
+        guard !updatingNotificationPrefs else { return }
+        let previous = isCallsMutedToday
+        isCallsMutedToday = muted
+        updatingNotificationPrefs = true
+        defer { updatingNotificationPrefs = false }
+
         do {
-            _ = try await client.updateNotificationPrefs(
+            let prefs = try await client.updateNotificationPrefs(
                 token: token,
                 enabled: nil,
                 dailyDisabled: nil,
-                dailyDisabledCalls: newMuted
+                dailyDisabledCalls: muted
             )
-            isCallsMutedToday = newMuted
-        } catch {}
+            applyNotificationPrefs(prefs)
+        } catch {
+            isCallsMutedToday = previous
+        }
     }
 
     private func isMutedToday(specificDate: String?, fallbackDate: String?, today: String) -> Bool {
@@ -383,8 +409,33 @@ private struct SettingsActionRow: View {
     }
 }
 
+private enum NotificationChannelKind {
+    case call
+    case text
+    case both
+}
+
 private struct NotificationHistoryRow: View {
     let notification: NotificationLogOut
+
+    private var channelKind: NotificationChannelKind {
+        let kind = (notification.notificationType ?? "").lowercased()
+        if kind.contains("call") || kind.contains("voip") {
+            return .call
+        }
+        if kind.contains("text")
+            || kind.contains("notification")
+            || kind.contains("push")
+            || kind.contains("alert")
+            || kind.contains("premarket")
+            || kind.contains("briefing")
+            || kind.contains("close")
+            || kind.contains("recap") {
+            return .text
+        }
+        // Most trading signal logs are produced as call + alert together.
+        return .both
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -397,8 +448,35 @@ private struct NotificationHistoryRow: View {
                     .foregroundStyle(Theme.textDimmed)
             }
             Spacer()
-            SignalBadgeView(signal: notification.signal, strength: notification.strength)
+            VStack(alignment: .trailing, spacing: 8) {
+                NotificationTypeBadge(kind: channelKind)
+                SignalBadgeView(signal: notification.signal, strength: notification.strength)
+            }
         }
         .padding(16)
+    }
+}
+
+private struct NotificationTypeBadge: View {
+    let kind: NotificationChannelKind
+
+    var body: some View {
+        HStack(spacing: 4) {
+            switch kind {
+            case .call:
+                Image(systemName: "phone.fill")
+            case .text:
+                Image(systemName: "message.fill")
+            case .both:
+                Image(systemName: "message.fill")
+                Image(systemName: "phone.fill")
+            }
+        }
+        .font(AppFont.sans(10, weight: .bold))
+        .foregroundStyle(Theme.brand)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(Theme.brand.opacity(0.14))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }

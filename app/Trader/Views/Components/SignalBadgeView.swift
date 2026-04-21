@@ -8,11 +8,11 @@ struct SignalBadgeView: View {
     var body: some View {
         HStack(spacing: 4) {
             Text(signal.uppercased())
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .font(AppFont.mono(11, weight: .semibold))
                 .fontWeight(.semibold)
             if let strength {
                 Text("\(Int(strength * 100))%")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .font(AppFont.mono(11, weight: .semibold))
                     .opacity(0.75)
             }
         }

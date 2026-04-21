@@ -27,7 +27,7 @@ struct DashboardView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("TFSA · \(Date.now.formatted(date: .omitted, time: .shortened))")
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .font(AppFont.mono(10, weight: .medium))
                             .tracking(1.4)
                             .foregroundStyle(Theme.brand)
 
@@ -66,7 +66,7 @@ struct DashboardView: View {
                             Button("View all") {
                                 NotificationCenter.default.post(name: .openActionsTab, object: nil)
                             }
-                            .font(.system(size: 12, weight: .medium))
+                            .font(AppFont.sans(12, weight: .medium))
                             .foregroundStyle(Theme.brand)
                             .buttonStyle(.plain)
                         }
@@ -83,13 +83,22 @@ struct DashboardView: View {
                                 }
                             } else if primaryActions.isEmpty {
                                 Text("No immediate actions")
-                                    .font(.system(size: 13))
+                                    .font(AppFont.sans(13))
                                     .foregroundStyle(Theme.textMuted)
                                     .padding(16)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             } else {
                                 ForEach(Array(primaryActions.enumerated()), id: \.element.id) { index, action in
-                                    DashboardActionRow(action: action)
+                                    if let detailSignal = signal(from: action) {
+                                        NavigationLink {
+                                            SignalDetailView(signal: detailSignal)
+                                        } label: {
+                                            DashboardActionRow(action: action)
+                                        }
+                                        .buttonStyle(.plain)
+                                    } else {
+                                        DashboardActionRow(action: action)
+                                    }
                                     if index < primaryActions.count - 1 {
                                         Divider().overlay(Theme.line)
                                     }
@@ -116,6 +125,7 @@ struct DashboardView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 10)
                     .padding(.bottom, 140)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .navigationTitle("Dashboard")
@@ -132,6 +142,30 @@ struct DashboardView: View {
         guard let portfolio, portfolio.totalValue > 0 else { return "0% allocated" }
         let allocated = ((portfolio.totalValue - portfolio.cash) / portfolio.totalValue) * 100
         return "\(Int(allocated.rounded()))% allocated"
+    }
+
+    private func signal(from action: ActionItem) -> SignalOut? {
+        guard let symbol = action.symbol ?? action.sellSymbol ?? action.buySymbol, !symbol.isEmpty else {
+            return nil
+        }
+        let technical = action.technicalScore ?? 0
+        let sentiment = action.sentimentScore ?? 0
+        let commodity = action.commodityScore ?? 0
+        let total = action.score ?? (technical + sentiment + commodity)
+        let reasons = (action.reasons?.isEmpty == false ? action.reasons : [action.reason]) ?? [action.reason]
+
+        return SignalOut(
+            symbol: symbol,
+            signal: action.type,
+            strength: action.strength ?? 0,
+            score: total,
+            technicalScore: technical,
+            sentimentScore: sentiment,
+            commodityScore: commodity,
+            reasons: reasons,
+            price: action.price ?? action.sellPrice ?? action.buyPrice,
+            sector: action.sector
+        )
     }
 
     private func loadData() async {
@@ -167,17 +201,17 @@ private struct DashboardKPI: View {
         MobileCard {
             VStack(alignment: .leading, spacing: 10) {
                 Text(title.uppercased())
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .font(AppFont.mono(10, weight: .medium))
                     .tracking(1.2)
                     .foregroundStyle(Theme.textDimmed)
                 Text(value)
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .font(AppFont.sans(32, weight: .bold))
                     .tracking(-0.8)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
                     .foregroundStyle(Theme.textPrimary)
                 Text(detail)
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .font(AppFont.mono(12, weight: .medium))
                     .foregroundStyle(detailColor)
             }
             .padding(14)
@@ -203,15 +237,15 @@ private struct DashboardActionRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
                     Text(actionLabel)
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .font(AppFont.mono(11, weight: .semibold))
                         .tracking(1)
                         .foregroundStyle(actionColor)
                     Text(symbolText)
-                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .font(AppFont.mono(13, weight: .semibold))
                         .foregroundStyle(Theme.textPrimary)
                 }
                 Text(action.reason)
-                    .font(.system(size: 12))
+                    .font(AppFont.sans(12))
                     .foregroundStyle(Theme.textMuted)
                     .lineLimit(1)
             }
@@ -220,7 +254,7 @@ private struct DashboardActionRow: View {
 
             if let pnl = action.pnlPct {
                 Text(Formatting.percent(pnl))
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .font(AppFont.mono(12, weight: .semibold))
                     .foregroundStyle(Formatting.pnlColor(pnl))
             }
         }

@@ -41,19 +41,19 @@ struct MobileKickerTitle: View {
                     .fill(kickerColor)
                     .frame(width: 6, height: 6)
                 Text(kicker.uppercased())
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .font(AppFont.mono(10, weight: .medium))
                     .tracking(1.4)
                     .foregroundStyle(kickerColor)
             }
 
             Text(title)
-                .font(.system(size: 40, weight: .bold))
+                .font(AppFont.sans(40, weight: .bold))
                 .tracking(-1)
                 .foregroundStyle(Theme.textPrimary)
 
             if let subtitle {
                 Text(subtitle)
-                    .font(.system(size: 13))
+                    .font(AppFont.sans(13))
                     .foregroundStyle(Theme.textMuted)
             }
         }
@@ -72,7 +72,7 @@ struct MobileSectionLabel<Trailing: View>: View {
     var body: some View {
         HStack {
             Text(title.uppercased())
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .font(AppFont.mono(10, weight: .semibold))
                 .tracking(1.4)
                 .foregroundStyle(Theme.textDimmed)
             Spacer()
@@ -84,35 +84,53 @@ struct MobileSectionLabel<Trailing: View>: View {
 struct MobileSearchField: View {
     let placeholder: String
     @Binding var text: String
+    @FocusState private var isFocused: Bool
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(Theme.textDimmed)
-            TextField(placeholder, text: $text)
-                .textInputAutocapitalization(.characters)
-                .autocorrectionDisabled()
-                .foregroundStyle(Theme.textPrimary)
-            if !text.isEmpty {
+        HStack(spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .font(AppFont.sans(14, weight: .medium))
+                    .foregroundStyle(Theme.textDimmed)
+                TextField(placeholder, text: $text)
+                    .focused($isFocused)
+                    .submitLabel(.search)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .foregroundStyle(Theme.textPrimary)
+                if !text.isEmpty {
+                    Button {
+                        text = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(Theme.textDimmed)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .font(AppFont.sans(15))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Theme.surface1)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Theme.line, lineWidth: 1)
+            )
+
+            if isFocused || !text.isEmpty {
                 Button {
                     text = ""
+                    isFocused = false
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(Theme.textDimmed)
+                    Text("Cancel")
+                        .font(AppFont.sans(14, weight: .medium))
+                        .foregroundStyle(Theme.brand)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .font(.system(size: 14))
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(Theme.surface1)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Theme.line, lineWidth: 1)
-        )
+        .animation(.easeInOut(duration: 0.16), value: isFocused || !text.isEmpty)
     }
 }
 
@@ -130,7 +148,7 @@ struct MobileSignalPill: View {
 
     var body: some View {
         Text(text.uppercased())
-            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            .font(AppFont.mono(11, weight: .semibold))
             .tracking(1)
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
@@ -186,11 +204,11 @@ struct MobileDefRow<Value: View>: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(label)
-                .font(.system(size: 14))
+                .font(AppFont.sans(15))
                 .foregroundStyle(Theme.textPrimary)
             Spacer()
             value
-                .font(.system(size: 14, weight: .medium, design: .monospaced))
+                .font(AppFont.mono(15, weight: .medium))
                 .foregroundStyle(Theme.textMuted)
                 .multilineTextAlignment(.trailing)
         }
@@ -205,7 +223,7 @@ struct MobileValueLabel: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 14, weight: .medium, design: .monospaced))
+            .font(AppFont.mono(15, weight: .medium))
             .foregroundStyle(color)
     }
 }
@@ -226,7 +244,7 @@ struct MobileScreen<Content: View>: View {
 }
 
 struct TickerQuote: Identifiable {
-    let id = UUID()
+    var id: String { "\(symbol)-\(displayPrice)-\(change)" }
     let symbol: String
     let displayPrice: String
     let change: String
@@ -262,26 +280,55 @@ extension TickerQuote {
 
 struct TickerStrip: View {
     let quotes: [TickerQuote]
+    @State private var singleTrackWidth: CGFloat = 1
+    @State private var startTime = Date()
+
+    private let itemSpacing: CGFloat = 18
+    private let trackSpacing: CGFloat = 26
+    private let speed: CGFloat = 34
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 22) {
-                ForEach(quotes) { quote in
-                    HStack(spacing: 7) {
-                        Text(quote.symbol)
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundStyle(Theme.textPrimary)
-                        Text(quote.displayPrice)
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundStyle(Theme.textMuted)
-                        Text(quote.change)
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(quote.isPositive ? Theme.positive : Theme.negative)
+        GeometryReader { proxy in
+            let containerWidth = max(proxy.size.width, 1)
+            ZStack {
+                if quotes.isEmpty {
+                    EmptyView()
+                } else {
+                    TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                        let cycleWidth = max(singleTrackWidth + trackSpacing, 1)
+                        let elapsed = CGFloat(context.date.timeIntervalSince(startTime))
+                        let progress = elapsed * speed
+                        let offset = -progress.truncatingRemainder(dividingBy: cycleWidth)
+
+                        HStack(spacing: trackSpacing) {
+                            tickerTrack
+                                .fixedSize(horizontal: true, vertical: false)
+                            tickerTrack
+                                .fixedSize(horizontal: true, vertical: false)
+                        }
+                        .offset(x: offset)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .frame(width: containerWidth, alignment: .leading)
+                    .mask(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0),
+                                .init(color: .black, location: 0.06),
+                                .init(color: .black, location: 0.94),
+                                .init(color: .clear, location: 1)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .onPreferenceChange(TickerTrackWidthKey.self) { singleTrackWidth = max($0, 1) }
+                    .onAppear { startTime = Date() }
                 }
             }
-            .padding(.horizontal, 4)
+            .frame(width: containerWidth, height: 18, alignment: .leading)
         }
+        .frame(height: 18)
         .padding(.vertical, 10)
         .background(Theme.surface0)
         .overlay(
@@ -296,5 +343,42 @@ struct TickerStrip: View {
                 .frame(height: 1),
             alignment: .bottom
         )
+        .clipped()
+    }
+
+    private var tickerTrack: some View {
+        HStack(spacing: itemSpacing) {
+            ForEach(Array(quotes.enumerated()), id: \.offset) { index, quote in
+                HStack(spacing: 7) {
+                    Text(quote.symbol)
+                        .font(AppFont.mono(12, weight: .medium))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(quote.displayPrice)
+                        .font(AppFont.mono(12, weight: .medium))
+                        .foregroundStyle(Theme.textMuted)
+                    Text(quote.change)
+                        .font(AppFont.mono(12, weight: .semibold))
+                        .foregroundStyle(quote.isPositive ? Theme.positive : Theme.negative)
+                }
+                if index < quotes.count - 1 {
+                    Rectangle()
+                        .fill(Theme.line)
+                        .frame(width: 1, height: 12)
+                }
+            }
+        }
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(key: TickerTrackWidthKey.self, value: proxy.size.width)
+            }
+        )
+    }
+}
+
+private struct TickerTrackWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 1
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }

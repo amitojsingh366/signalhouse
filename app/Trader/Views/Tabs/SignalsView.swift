@@ -236,16 +236,16 @@ private struct ActionSummaryCard: View {
         MobileCard {
             VStack(alignment: .leading, spacing: 8) {
                 Text(title.uppercased())
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .font(AppFont.mono(11, weight: .medium))
                     .tracking(1.2)
                     .foregroundStyle(Theme.textDimmed)
                 Text(value)
-                    .font(.system(size: 16, weight: .bold, design: .monospaced))
+                    .font(AppFont.mono(18, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.65)
+                    .minimumScaleFactor(0.75)
             }
-            .padding(11)
+            .padding(13)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }

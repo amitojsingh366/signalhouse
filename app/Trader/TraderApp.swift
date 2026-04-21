@@ -33,6 +33,7 @@ struct TraderApp: App {
             .environmentObject(pushManager)
             .environmentObject(authManager)
             .preferredColorScheme(.dark)
+            .font(AppFont.sans(15))
             .tint(Theme.brand)
         }
     }

@@ -48,18 +48,8 @@ struct ActionDetailView: View {
         }
     }
 
-    private var filteredScoreReasons: [String] {
-        (action.reasons ?? []).filter { !$0.hasPrefix("Price:") && !$0.hasPrefix("ATR:") }
-    }
-
     private var totalScore: Double {
         action.score ?? (action.technicalScore ?? 0) + (action.sentimentScore ?? 0) + (action.commodityScore ?? 0)
-    }
-
-    private var scoreStyle: MobileSignalStyle {
-        if totalScore >= 3 { return .buy }
-        if totalScore <= -3 { return .sell }
-        return .hold
     }
 
     var body: some View {
@@ -67,17 +57,14 @@ struct ActionDetailView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     MobileSectionLabel("Price history") {
-                        HStack(spacing: 4) {
+                        Picker("Range", selection: $selectedRange) {
                             ForEach(ranges, id: \.self) { range in
-                                Button(range) { selectedRange = range }
-                                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 5)
-                                    .background(selectedRange == range ? Theme.brand : Theme.surface2)
-                                    .foregroundStyle(selectedRange == range ? Color.black : Theme.textMuted)
-                                    .clipShape(Capsule())
+                                Text(range).tag(range)
                             }
                         }
+                        .pickerStyle(.segmented)
+                        .frame(width: 200)
+                        .tint(Theme.brand)
                     }
 
                     MobileCard {
@@ -89,7 +76,7 @@ struct ActionDetailView: View {
                                 .shimmer()
                         } else if filteredBars.isEmpty {
                             Text("No price data available")
-                                .font(.system(size: 12))
+                                .font(AppFont.sans(12))
                                 .foregroundStyle(Theme.textMuted)
                                 .padding(16)
                         } else {
@@ -125,38 +112,13 @@ struct ActionDetailView: View {
 
                     MobileSectionLabel("Score breakdown")
                     MobileCard {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                Text("\(totalScore >= 0 ? "+" : "")\(String(format: "%.2f", totalScore))")
-                                    .font(.system(size: 36, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(Formatting.pnlColor(totalScore))
-                                Text("/ 9.00")
-                                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                    .foregroundStyle(Theme.textDimmed)
-                                Spacer()
-                                MobileSignalPill(text: action.type, style: scoreStyle)
-                            }
-
-                            ScoreMixCard(
-                                technical: action.technicalScore ?? 0,
-                                sentiment: action.sentimentScore ?? 0,
-                                commodity: action.commodityScore ?? 0,
-                                total: totalScore
-                            )
-
-                            ForEach(filteredScoreReasons, id: \.self) { reason in
-                                HStack(spacing: 10) {
-                                    Circle()
-                                        .fill(scoreReasonDotColor(reason))
-                                        .frame(width: 6, height: 6)
-                                    ScoreReasonRow(text: reason)
-                                }
-                                if reason != filteredScoreReasons.last {
-                                    Divider().overlay(Theme.line)
-                                }
-                            }
-                        }
-                        .padding(16)
+                        MobileScoreBreakdownCard(
+                            total: totalScore,
+                            technical: action.technicalScore ?? 0,
+                            sentiment: action.sentimentScore ?? 0,
+                            commodity: action.commodityScore ?? 0,
+                            reasons: action.reasons ?? []
+                        )
                     }
                 }
                 .padding(.horizontal, 20)

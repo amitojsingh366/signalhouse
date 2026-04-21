@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Signalhouse mobile design tokens ported from the handoff bundle.
 enum Theme {
@@ -28,6 +31,51 @@ enum Theme {
     static let textMuted = Color(hex: "#9898a8")
     static let textDimmed = Color(hex: "#5a5a6a")
 
+}
+
+enum AppFont {
+    static func sans(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        if let montserratName = montserratName(for: weight), hasFont(named: montserratName) {
+            return .custom(montserratName, size: size)
+        }
+        if hasFont(named: "Montserrat") {
+            return .custom("Montserrat", size: size)
+        }
+        return .system(size: size, weight: weight)
+    }
+
+    static func mono(_ size: CGFloat, weight: Font.Weight = .medium) -> Font {
+        .system(size: size, weight: weight, design: .monospaced)
+    }
+
+    private static func montserratName(for weight: Font.Weight) -> String? {
+        switch weight {
+        case .black:
+            return "Montserrat-Black"
+        case .heavy:
+            return "Montserrat-ExtraBold"
+        case .bold:
+            return "Montserrat-Bold"
+        case .semibold:
+            return "Montserrat-SemiBold"
+        case .medium:
+            return "Montserrat-Medium"
+        case .light:
+            return "Montserrat-Light"
+        case .thin:
+            return "Montserrat-Thin"
+        default:
+            return "Montserrat-Regular"
+        }
+    }
+
+    private static func hasFont(named name: String) -> Bool {
+        #if canImport(UIKit)
+        return UIFont(name: name, size: 14) != nil
+        #else
+        return true
+        #endif
+    }
 }
 
 // MARK: - Glass Card Modifier

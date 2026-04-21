@@ -27,6 +27,12 @@ struct TradesView: View {
         case sell = "SELL"
     }
 
+    private enum TradeField: Hashable {
+        case symbol
+        case quantity
+        case price
+    }
+
     @State private var action: TradeAction = .buy
     @State private var symbol = ""
     @State private var quantity = ""
@@ -37,6 +43,7 @@ struct TradesView: View {
     @State private var isLoading = true
     @State private var successMessage: String?
     @State private var errorMessage: String?
+    @FocusState private var focusedField: TradeField?
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
@@ -62,9 +69,28 @@ struct TradesView: View {
                                 }
                                 .pickerStyle(.segmented)
 
-                                tradeInput("Symbol (e.g. SHOP.TO)", text: $symbol, uppercase: true)
-                                tradeInput("Quantity", text: $quantity, keyboard: .decimalPad)
-                                tradeInput("Price per share", text: $price, keyboard: .decimalPad)
+                                tradeInput(
+                                    "Symbol (e.g. SHOP.TO)",
+                                    text: $symbol,
+                                    field: .symbol,
+                                    keyboard: .asciiCapable,
+                                    uppercase: true,
+                                    submitLabel: .next
+                                )
+                                tradeInput(
+                                    "Quantity",
+                                    text: $quantity,
+                                    field: .quantity,
+                                    keyboard: .decimalPad,
+                                    submitLabel: .next
+                                )
+                                tradeInput(
+                                    "Price per share",
+                                    text: $price,
+                                    field: .price,
+                                    keyboard: .decimalPad,
+                                    submitLabel: .done
+                                )
 
                                 Button {
                                     Task { await submitTrade() }
@@ -151,6 +177,15 @@ struct TradesView: View {
             }
             .navigationTitle("Trades")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        focusedField = nil
+                    }
+                    .font(AppFont.sans(15, weight: .semibold))
+                }
+            }
             .refreshable { await loadHistory() }
             .task { await loadHistory() }
         }
@@ -160,22 +195,34 @@ struct TradesView: View {
     private func tradeInput(
         _ placeholder: String,
         text: Binding<String>,
+        field: TradeField,
         keyboard: UIKeyboardType = .default,
-        uppercase: Bool = false
+        uppercase: Bool = false,
+        submitLabel: SubmitLabel = .done
     ) -> some View {
         TextField(placeholder, text: text)
+            .focused($focusedField, equals: field)
             .keyboardType(keyboard)
+            .submitLabel(submitLabel)
             .textInputAutocapitalization(uppercase ? .characters : .never)
             .autocorrectionDisabled()
+            .font(AppFont.sans(16))
             .foregroundStyle(Theme.textPrimary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(Theme.surface0)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Theme.line, lineWidth: 1)
-            )
+            .textFieldStyle(.roundedBorder)
+            .onSubmit {
+                advanceFocus(from: field)
+            }
+    }
+
+    private func advanceFocus(from field: TradeField) {
+        switch field {
+        case .symbol:
+            focusedField = .quantity
+        case .quantity:
+            focusedField = .price
+        case .price:
+            focusedField = nil
+        }
     }
 
     private func submitTrade() async {

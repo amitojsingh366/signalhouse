@@ -18,6 +18,13 @@ private func parseScoreReason(_ text: String) -> ParsedScoreReason? {
     return ParsedScoreReason(label: label, rawScore: score, value: value)
 }
 
+func scoreReasonDotColor(_ text: String) -> Color {
+    guard let parsed = parseScoreReason(text) else {
+        return Theme.textDimmed
+    }
+    return Formatting.pnlColor(parsed.value)
+}
+
 struct ScoreReasonRow: View {
     let text: String
 

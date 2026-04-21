@@ -147,7 +147,7 @@ struct ActionDetailView: View {
                             ForEach(filteredScoreReasons, id: \.self) { reason in
                                 HStack(spacing: 10) {
                                     Circle()
-                                        .fill(reason.contains("-") ? Theme.negative : Theme.positive)
+                                        .fill(scoreReasonDotColor(reason))
                                         .frame(width: 6, height: 6)
                                     ScoreReasonRow(text: reason)
                                 }

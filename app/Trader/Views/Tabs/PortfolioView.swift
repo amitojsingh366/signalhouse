@@ -314,7 +314,7 @@ struct HoldingDetailView: View {
                             Divider().overlay(Theme.line)
                             HStack(spacing: 10) {
                                 Circle()
-                                    .fill(reason.contains("-") ? Theme.negative : Theme.positive)
+                                    .fill(scoreReasonDotColor(reason))
                                     .frame(width: 6, height: 6)
                                 ScoreReasonRow(text: reason)
                             }

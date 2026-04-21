@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -80,17 +80,31 @@ class RiskManager:
 
         return max(shares, 1) if max_dollars >= price else 0
 
-    def register_entry(self, symbol: str, price: float, quantity: float) -> None:
-        stop = price * (1 - self.risk["stop_loss_pct"])
+    def register_entry(
+        self,
+        symbol: str,
+        price: float,
+        quantity: float,
+        *,
+        entry_time: datetime | None = None,
+        highest_price: float | None = None,
+        stop_price: float | None = None,
+    ) -> None:
+        default_stop = price * (1 - self.risk["stop_loss_pct"])
         self.open_trades[symbol] = OpenTrade(
             symbol=symbol,
             entry_price=price,
             quantity=quantity,
-            entry_time=datetime.now(),
-            highest_price=price,
-            stop_price=stop,
+            entry_time=entry_time or datetime.now(),
+            highest_price=max(price, highest_price or price),
+            stop_price=max(0.0, stop_price if stop_price is not None else default_stop),
         )
-        logger.info("Registered entry: %s @ $%.2f, stop @ $%.2f", symbol, price, stop)
+        logger.info(
+            "Registered entry: %s @ $%.2f, stop @ $%.2f",
+            symbol,
+            price,
+            self.open_trades[symbol].stop_price,
+        )
 
     def register_exit(self, symbol: str) -> None:
         if symbol in self.open_trades:
@@ -158,5 +172,9 @@ class RiskManager:
         trade = self.open_trades.get(symbol)
         if trade is None:
             return False
-        days_held = (datetime.now() - trade.entry_time).days
+        entry_time = trade.entry_time
+        if entry_time.tzinfo is None or entry_time.tzinfo.utcoffset(entry_time) is None:
+            days_held = (datetime.now() - entry_time).days
+        else:
+            days_held = (datetime.now(UTC) - entry_time.astimezone(UTC)).days
         return days_held >= self.config["strategy"]["max_hold_days"]

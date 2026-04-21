@@ -23,6 +23,7 @@ from trader_api.schemas import (
     SparkPoint,
     TradeOut,
 )
+from trader_api.services.strategy import Strategy
 
 router = APIRouter(
     prefix="/api/portfolio",
@@ -185,6 +186,7 @@ async def update_holding(data: HoldingUpdate, db: AsyncSession = Depends(get_db)
         meta.initial_capital,
         preserve_existing_state=True,
     )
+    Strategy.invalidate_recommendations_cache()
     return HoldingOut(**result)
 
 
@@ -205,6 +207,7 @@ async def delete_holding(symbol: str, db: AsyncSession = Depends(get_db)):
         meta.initial_capital,
         preserve_existing_state=True,
     )
+    Strategy.invalidate_recommendations_cache()
     return {"status": "deleted", "symbol": symbol.upper()}
 
 
@@ -212,4 +215,5 @@ async def delete_holding(symbol: str, db: AsyncSession = Depends(get_db)):
 async def update_cash(data: CashUpdate, db: AsyncSession = Depends(get_db)):
     portfolio = make_portfolio(db)
     new_cash = await portfolio.update_cash(data.cash)
+    Strategy.invalidate_recommendations_cache()
     return {"cash": new_cash}

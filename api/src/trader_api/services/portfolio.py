@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trader_api.models import DailySnapshot, Holding, PortfolioMeta, Trade
+from trader_api.services.datetime_utils import parse_entry_datetime
 from trader_api.services.risk import RiskManager
 
 logger = logging.getLogger(__name__)
@@ -470,6 +471,7 @@ class Portfolio:
         holdings: dict[str, dict[str, Any]],
         initial_capital: float,
         preserve_existing_state: bool = False,
+        live_prices: dict[str, float] | None = None,
     ) -> None:
         """Replay open holdings into the RiskManager.
 
@@ -492,7 +494,22 @@ class Portfolio:
                 trade.entry_price = h["avg_cost"]
                 trade.quantity = h["quantity"]
                 continue
-            risk.register_entry(symbol, h["avg_cost"], h["quantity"])
+            entry_time = parse_entry_datetime(h.get("entry_date"))
+            risk.register_entry(
+                symbol,
+                h["avg_cost"],
+                h["quantity"],
+                entry_time=entry_time,
+            )
+            # Reconstruct trailing stop from current price at startup sync.
+            # We cannot recover historical intraday peaks from DB, but this
+            # avoids resetting all tracked positions to a fresh hard stop.
+            if (
+                live_prices is not None
+                and symbol in live_prices
+                and live_prices[symbol] > 0
+            ):
+                risk.update_stops(symbol, live_prices[symbol])
 
         if initial_capital > 0:
             risk.peak_portfolio_value = initial_capital

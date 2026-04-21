@@ -107,6 +107,41 @@ async def _run_scan(config: dict[str, Any]) -> None:
         # Use central notification dispatcher for push dedup
         recs = strategy._cached_recommendations
         if recs:
+            notif_cfg = config.get("notifications", {})
+            min_strength = float(notif_cfg.get("min_strength", 0.40))
+            buy_signals = recs.get("buys", [])
+            qualifying_buy_count = 0
+            for sig in buy_signals:
+                strength = (
+                    sig.get("strength", 0.0)
+                    if isinstance(sig, dict)
+                    else getattr(sig, "strength", 0.0)
+                )
+                if strength >= min_strength:
+                    qualifying_buy_count += 1
+
+            buy_block_reason = str(recs.get("buy_block_reason", "") or "")
+            if buy_block_reason.startswith("Risk halt active"):
+                buy_suppression = "risk"
+            elif buy_block_reason:
+                buy_suppression = "regime"
+            elif qualifying_buy_count == 0:
+                buy_suppression = "strength"
+            else:
+                buy_suppression = "none"
+
+            logger.info(
+                (
+                    "Scheduler buy push suppression=%s "
+                    "(buy_signals=%d, qualifying=%d, min_strength=%.2f, block_reason=%s)"
+                ),
+                buy_suppression,
+                len(buy_signals),
+                qualifying_buy_count,
+                min_strength,
+                buy_block_reason or "none",
+            )
+
             dispatcher = get_dispatcher()
             async with async_session() as db:
                 await dispatcher.dispatch_push_signals(db, recs, config)

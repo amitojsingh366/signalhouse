@@ -42,7 +42,10 @@ struct SignalsView: View {
             MobileScreen {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
-                        MobileKickerTitle(kicker: "Live · TSX open", title: "Action plan")
+                        Text("LIVE · TSX OPEN")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .tracking(1.4)
+                            .foregroundStyle(Theme.brand)
 
                         MobileSearchField(placeholder: "Search symbol (e.g. SHOP.TO)", text: $searchText)
                             .onSubmit {
@@ -149,7 +152,8 @@ struct SignalsView: View {
                     .padding(.bottom, 140)
                 }
             }
-            .navigationBarHidden(true)
+            .navigationTitle("Action plan")
+            .navigationBarTitleDisplayMode(.large)
             .refreshable { await loadData() }
             .task { await loadData() }
             .onReceive(NotificationCenter.default.publisher(for: .portfolioDidChange)) { _ in

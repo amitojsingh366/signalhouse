@@ -24,11 +24,15 @@ struct PreMarketView: View {
         MobileScreen {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
-                    MobileKickerTitle(
-                        kicker: "Opens in 47m · 09:30 ET",
-                        title: "Pre-market",
-                        subtitle: "CDR counterparts trading now on US markets — use this as a preview of TSX open."
-                    )
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("OPENS IN 47M · 09:30 ET")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .tracking(1.4)
+                            .foregroundStyle(Theme.brand)
+                        Text("CDR counterparts trading now on US markets — use this as a preview of TSX open.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.textMuted)
+                    }
 
                     TickerStrip(quotes: tickerQuotes)
 

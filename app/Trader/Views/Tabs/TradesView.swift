@@ -40,7 +40,10 @@ struct TradesView: View {
             MobileScreen {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
-                        MobileKickerTitle(kicker: "Journal", title: "Trades")
+                        Text("JOURNAL")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .tracking(1.4)
+                            .foregroundStyle(Theme.brand)
 
                         MobileSectionLabel("Record Trade")
                         MobileCard {
@@ -131,7 +134,8 @@ struct TradesView: View {
                     .padding(.bottom, 140)
                 }
             }
-            .navigationBarHidden(true)
+            .navigationTitle("Trades")
+            .navigationBarTitleDisplayMode(.large)
             .refreshable { await loadHistory() }
             .task { await loadHistory() }
         }

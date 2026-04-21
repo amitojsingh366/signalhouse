@@ -15,11 +15,10 @@ struct StatusView: View {
         MobileScreen {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
-                    MobileKickerTitle(
-                        kicker: "All systems normal",
-                        title: "Status",
-                        kickerColor: Theme.positive
-                    )
+                    Text("ALL SYSTEMS NORMAL")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .tracking(1.4)
+                        .foregroundStyle(Theme.positive)
 
                     MobileSectionLabel("Scanner")
                     MobileCard {

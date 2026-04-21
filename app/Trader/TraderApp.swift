@@ -131,25 +131,38 @@ struct MainTabView: View {
     @State private var morePath = NavigationPath()
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Group {
-                switch selectedTab {
-                case .dashboard:
-                    DashboardView()
-                case .portfolio:
-                    PortfolioView()
-                case .actions:
-                    SignalsView()
-                case .trades:
-                    TradesView()
-                case .more:
-                    MoreView(path: $morePath)
+        TabView(selection: $selectedTab) {
+            DashboardView()
+                .tabItem {
+                    Label("Dashboard", systemImage: "house")
                 }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .tag(AppTab.dashboard)
 
-            MobileTabBar(selectedTab: $selectedTab)
+            PortfolioView()
+                .tabItem {
+                    Label("Portfolio", systemImage: "briefcase")
+                }
+                .tag(AppTab.portfolio)
+
+            SignalsView()
+                .tabItem {
+                    Label("Actions", systemImage: "bolt")
+                }
+                .tag(AppTab.actions)
+
+            TradesView()
+                .tabItem {
+                    Label("Trades", systemImage: "arrow.left.arrow.right")
+                }
+                .tag(AppTab.trades)
+
+            MoreView(path: $morePath)
+                .tabItem {
+                    Label("More", systemImage: "ellipsis")
+                }
+                .tag(AppTab.more)
         }
+        .tint(Theme.brand)
         .onChange(of: pushManager.deepLink) { _, link in
             guard let link else { return }
             switch link {

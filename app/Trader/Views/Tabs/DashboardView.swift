@@ -36,10 +36,10 @@ struct DashboardView: View {
             MobileScreen {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
-                        MobileKickerTitle(
-                            kicker: "TFSA · \(Date.now.formatted(date: .omitted, time: .shortened))",
-                            title: "Dashboard"
-                        )
+                        Text("TFSA · \(Date.now.formatted(date: .omitted, time: .shortened))")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .tracking(1.4)
+                            .foregroundStyle(Theme.brand)
 
                         TickerStrip(quotes: tickerQuotes)
 
@@ -125,7 +125,8 @@ struct DashboardView: View {
                     .padding(.bottom, 140)
                 }
             }
-            .navigationBarHidden(true)
+            .navigationTitle("Dashboard")
+            .navigationBarTitleDisplayMode(.large)
             .refreshable { await loadData() }
             .task { await loadData() }
             .onReceive(NotificationCenter.default.publisher(for: .portfolioDidChange)) { _ in

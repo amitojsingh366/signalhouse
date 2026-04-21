@@ -22,7 +22,10 @@ struct MoreView: View {
             MobileScreen {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        MobileKickerTitle(kicker: "TFSA", title: "More")
+                        Text("TFSA")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .tracking(1.4)
+                            .foregroundStyle(Theme.brand)
 
                         MobileSectionLabel("Tools")
 
@@ -65,7 +68,8 @@ struct MoreView: View {
                     .padding(.bottom, 140)
                 }
             }
-            .navigationBarHidden(true)
+            .navigationTitle("More")
+            .navigationBarTitleDisplayMode(.large)
             .navigationDestination(for: MoreRoute.self) { route in
                 switch route {
                 case .upload:

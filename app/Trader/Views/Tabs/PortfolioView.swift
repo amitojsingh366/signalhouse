@@ -27,10 +27,10 @@ struct PortfolioView: View {
             MobileScreen {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
-                        MobileKickerTitle(
-                            kicker: "\(portfolio?.holdings.count ?? 0) positions",
-                            title: "Portfolio"
-                        )
+                        Text("\(portfolio?.holdings.count ?? 0) positions")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .tracking(1.4)
+                            .foregroundStyle(Theme.brand)
 
                         MobileSearchField(placeholder: "Filter holdings", text: $searchText)
 
@@ -113,7 +113,8 @@ struct PortfolioView: View {
                     .padding(.bottom, 140)
                 }
             }
-            .navigationBarHidden(true)
+            .navigationTitle("Portfolio")
+            .navigationBarTitleDisplayMode(.large)
             .refreshable { await loadData() }
             .task { await loadData() }
             .alert("Edit Cash Balance", isPresented: $showCashEdit) {

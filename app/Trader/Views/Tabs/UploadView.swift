@@ -20,7 +20,10 @@ struct UploadView: View {
         MobileScreen {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
-                    MobileKickerTitle(kicker: "OCR", title: "Upload screenshot")
+                    Text("OCR")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .tracking(1.4)
+                        .foregroundStyle(Theme.brand)
 
                     MobileSectionLabel("Import")
                     MobileCard {

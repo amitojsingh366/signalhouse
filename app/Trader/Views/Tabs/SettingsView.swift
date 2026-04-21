@@ -30,7 +30,10 @@ struct SettingsView: View {
         MobileScreen {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
-                    MobileKickerTitle(kicker: "TFSA", title: "Settings")
+                    Text("TFSA")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .tracking(1.4)
+                        .foregroundStyle(Theme.brand)
 
                     MobileSectionLabel("Authentication")
                     MobileCard {

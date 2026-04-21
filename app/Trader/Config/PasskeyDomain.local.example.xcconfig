@@ -1,0 +1,3 @@
+// Copy this file to PasskeyDomain.local.xcconfig (same folder)
+// and set your private passkey RP domain.
+PASSKEY_RP_DOMAIN = trading.amitoj.net

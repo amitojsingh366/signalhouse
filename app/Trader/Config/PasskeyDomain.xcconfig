@@ -1,0 +1,7 @@
+// Shared passkey relying-party domain config.
+// This value is safe to keep as a placeholder in OSS.
+PASSKEY_RP_DOMAIN = yourdomain.com
+
+// Local override (gitignored). Example:
+// PASSKEY_RP_DOMAIN = trading.amitoj.net
+#include? "PasskeyDomain.local.xcconfig"

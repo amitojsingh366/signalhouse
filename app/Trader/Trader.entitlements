@@ -8,7 +8,7 @@
 	<string>development</string>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
-		<string>webcredentials:yourdomain.com</string>
+		<string>webcredentials:$(PASSKEY_RP_DOMAIN)</string>
 	</array>
 </dict>
 </plist>

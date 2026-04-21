@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Shield,
   ChevronDown,
@@ -930,6 +930,25 @@ function NumberControl({
   }, [value]);
 
   const effectiveStep = step ?? (type === "int" ? 1 : 0.01);
+  const stepPrecision = useMemo(() => {
+    if (type !== "float") return 0;
+    const serialized = String(effectiveStep);
+    if (serialized.includes("e-")) {
+      const [base, exp] = serialized.split("e-");
+      const exponent = Number.parseInt(exp ?? "0", 10);
+      const decimals = (base.split(".")[1] ?? "").length;
+      return exponent + decimals;
+    }
+    return (serialized.split(".")[1] ?? "").length;
+  }, [effectiveStep, type]);
+
+  const roundToStepPrecision = useCallback(
+    (input: number): number => {
+      if (type !== "float" || stepPrecision <= 0) return input;
+      return Number(input.toFixed(stepPrecision));
+    },
+    [stepPrecision, type]
+  );
 
   const clampValue = useCallback(
     (input: number): number => {
@@ -970,10 +989,11 @@ function NumberControl({
     (direction: 1 | -1) => {
       const parsed = parseDraft();
       const base = parsed ?? value ?? 0;
-      const next = clampValue(base + direction * effectiveStep);
+      const stepped = base + direction * effectiveStep;
+      const next = clampValue(roundToStepPrecision(stepped));
       commit(next);
     },
-    [clampValue, commit, effectiveStep, parseDraft, value]
+    [clampValue, commit, effectiveStep, parseDraft, roundToStepPrecision, value]
   );
 
   return (

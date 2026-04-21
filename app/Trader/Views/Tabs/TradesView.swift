@@ -16,6 +16,12 @@ struct TradesView: View {
         return formatter
     }()
 
+    fileprivate static let csvFilenameFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return formatter
+    }()
+
     enum TradeAction: String, CaseIterable {
         case buy = "BUY"
         case sell = "SELL"
@@ -27,6 +33,7 @@ struct TradesView: View {
     @State private var price = ""
     @State private var isSubmitting = false
     @State private var trades: [TradeOut] = []
+    @State private var csvExportURL: URL?
     @State private var isLoading = true
     @State private var successMessage: String?
     @State private var errorMessage: String?
@@ -98,9 +105,17 @@ struct TradesView: View {
                         HStack {
                             MobileSectionLabel("Recent · 14 days")
                             Spacer()
-                            Text("Export CSV")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(Theme.brand)
+                            if let csvExportURL {
+                                ShareLink(item: csvExportURL) {
+                                    Text("Export CSV")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(Theme.brand)
+                                }
+                            } else {
+                                Text("Export CSV")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(Theme.textDimmed)
+                            }
                         }
 
                         MobileCard {
@@ -206,7 +221,10 @@ struct TradesView: View {
                 }
                 return (lhs.id ?? 0) > (rhs.id ?? 0)
             }
-        } catch {}
+            refreshCSVExport()
+        } catch {
+            csvExportURL = nil
+        }
     }
 
     private func timestamp(for trade: TradeOut) -> Date {
@@ -214,6 +232,48 @@ struct TradesView: View {
         if let parsed = Self.isoWithFractional.date(from: raw) { return parsed }
         if let parsed = Self.isoWithoutFractional.date(from: raw) { return parsed }
         return .distantPast
+    }
+
+    private func refreshCSVExport() {
+        guard !trades.isEmpty else {
+            csvExportURL = nil
+            return
+        }
+
+        let filename = "signalhouse-trades-\(Self.csvFilenameFormatter.string(from: Date())).csv"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+        let content = csvContent()
+
+        do {
+            try content.write(to: url, atomically: true, encoding: .utf8)
+            csvExportURL = url
+        } catch {
+            csvExportURL = nil
+        }
+    }
+
+    private func csvContent() -> String {
+        let header = "id,timestamp,action,symbol,quantity,price,total,pnl,pnl_pct"
+        let rows = trades.map(csvRow(for:))
+        return ([header] + rows).joined(separator: "\n")
+    }
+
+    private func csvRow(for trade: TradeOut) -> String {
+        [
+            csvField(trade.id.map(String.init) ?? ""),
+            csvField(trade.timestamp ?? ""),
+            csvField(trade.action),
+            csvField(trade.symbol),
+            csvField(String(format: "%.4f", trade.quantity)),
+            csvField(String(format: "%.2f", trade.price)),
+            csvField(String(format: "%.2f", trade.total)),
+            csvField(trade.pnl.map { String(format: "%.2f", $0) } ?? ""),
+            csvField(trade.pnlPct.map { String(format: "%.4f", $0) } ?? ""),
+        ].joined(separator: ",")
+    }
+
+    private func csvField(_ value: String) -> String {
+        "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
     }
 }
 

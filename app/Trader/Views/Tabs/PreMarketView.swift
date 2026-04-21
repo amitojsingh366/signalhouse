@@ -7,6 +7,7 @@ struct PreMarketView: View {
 
     @State private var movers: [PremarketMover] = []
     @State private var tickerQuotes: [TickerQuote] = []
+    @State private var sortMode: PremarketSortMode = .magnitude
     @State private var isLoading = true
     @State private var now = Date()
 
@@ -14,6 +15,19 @@ struct PreMarketView: View {
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
+    }
+
+    private var sortedMovers: [PremarketMover] {
+        switch sortMode {
+        case .magnitude:
+            return movers.sorted { abs($0.changePct) > abs($1.changePct) }
+        case .gainers:
+            return movers.sorted { $0.changePct > $1.changePct }
+        case .losers:
+            return movers.sorted { $0.changePct < $1.changePct }
+        case .symbol:
+            return movers.sorted { $0.cdrSymbol < $1.cdrSymbol }
+        }
     }
 
     var body: some View {
@@ -33,15 +47,29 @@ struct PreMarketView: View {
                     TickerStrip(quotes: tickerQuotes)
 
                     HStack {
-                        MobileSectionLabel("CDR moves · \(movers.count)")
+                        MobileSectionLabel("CDR moves · \(sortedMovers.count)")
                         Spacer()
-                        Text("Sort")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(Theme.brand)
+                        Menu {
+                            ForEach(PremarketSortMode.allCases) { mode in
+                                Button {
+                                    sortMode = mode
+                                } label: {
+                                    if mode == sortMode {
+                                        Label(mode.title, systemImage: "checkmark")
+                                    } else {
+                                        Text(mode.title)
+                                    }
+                                }
+                            }
+                        } label: {
+                            Label(sortMode.title, systemImage: "arrow.up.arrow.down")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(Theme.brand)
+                        }
                     }
 
                     MobileCard {
-                        if isLoading && movers.isEmpty {
+                        if isLoading && sortedMovers.isEmpty {
                             ForEach(0..<6, id: \.self) { index in
                                 PremarketMoverSkeleton()
                                     .padding(.horizontal, 16)
@@ -50,16 +78,16 @@ struct PreMarketView: View {
                                     Divider().overlay(Theme.line)
                                 }
                             }
-                        } else if movers.isEmpty {
+                        } else if sortedMovers.isEmpty {
                             Text("No pre-market data available")
                                 .font(.system(size: 13))
                                 .foregroundStyle(Theme.textMuted)
                                 .padding(16)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         } else {
-                            ForEach(Array(movers.enumerated()), id: \.element.id) { index, mover in
+                            ForEach(Array(sortedMovers.enumerated()), id: \.element.id) { index, mover in
                                 PreMarketRow(mover: mover)
-                                if index < movers.count - 1 {
+                                if index < sortedMovers.count - 1 {
                                     Divider().overlay(Theme.line)
                                 }
                             }
@@ -87,7 +115,7 @@ struct PreMarketView: View {
 
         do {
             let response = try await moversTask
-            movers = response.movers.sorted { abs($0.changePct) > abs($1.changePct) }
+            movers = response.movers
         } catch {}
 
         do {
@@ -184,6 +212,24 @@ struct PreMarketView: View {
 
     private func isWeekend(_ weekday: Int) -> Bool {
         weekday == 1 || weekday == 7
+    }
+}
+
+private enum PremarketSortMode: String, CaseIterable, Identifiable {
+    case magnitude
+    case gainers
+    case losers
+    case symbol
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .magnitude: return "By Move"
+        case .gainers: return "Top Gainers"
+        case .losers: return "Top Losers"
+        case .symbol: return "Symbol"
+        }
     }
 }
 

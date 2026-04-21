@@ -134,31 +134,31 @@ struct MainTabView: View {
         TabView(selection: $selectedTab) {
             DashboardView()
                 .tabItem {
-                    Label("Dashboard", systemImage: "house")
+                    Label(AppTab.dashboard.title, systemImage: AppTab.dashboard.icon)
                 }
                 .tag(AppTab.dashboard)
 
             PortfolioView()
                 .tabItem {
-                    Label("Portfolio", systemImage: "briefcase")
+                    Label(AppTab.portfolio.title, systemImage: AppTab.portfolio.icon)
                 }
                 .tag(AppTab.portfolio)
 
             SignalsView()
                 .tabItem {
-                    Label("Actions", systemImage: "bolt")
+                    Label(AppTab.actions.title, systemImage: AppTab.actions.icon)
                 }
                 .tag(AppTab.actions)
 
             TradesView()
                 .tabItem {
-                    Label("Trades", systemImage: "arrow.left.arrow.right")
+                    Label(AppTab.trades.title, systemImage: AppTab.trades.icon)
                 }
                 .tag(AppTab.trades)
 
             MoreView(path: $morePath)
                 .tabItem {
-                    Label("More", systemImage: "ellipsis")
+                    Label(AppTab.more.title, systemImage: AppTab.more.icon)
                 }
                 .tag(AppTab.more)
         }

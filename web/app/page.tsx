@@ -11,6 +11,7 @@ import {
   Check,
   Download,
   TrendingDown,
+  Upload,
   Wallet,
   Zap,
 } from "lucide-react";
@@ -600,7 +601,7 @@ export default function DashboardPage() {
 
         <Link href="/upload" className="qa">
           <span className="icn">
-            <Download />
+            <Upload />
           </span>
           <div className="t">
             <div className="a">Upload screenshot</div>

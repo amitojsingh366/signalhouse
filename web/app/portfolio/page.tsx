@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Trash2,
   TrendingUp,
+  Upload,
   Wallet,
   X,
 } from "lucide-react";
@@ -352,7 +353,7 @@ export default function PortfolioPage() {
             onClick={() => router.push("/upload")}
             className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.08]"
           >
-            <Download className="h-4 w-4" />
+            <Upload className="h-4 w-4" />
             Upload screenshot
           </button>
           <button

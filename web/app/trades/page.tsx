@@ -13,6 +13,7 @@ import {
   Plus,
   RefreshCw,
   TrendingUp,
+  Upload,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -364,7 +365,7 @@ function TradesContent() {
             onClick={() => router.push("/upload")}
             className="flex items-center gap-2 rounded-lg border border-brand-500/20 bg-brand-500/15 px-3 py-2 text-sm text-brand-200 transition-colors hover:bg-brand-500/25"
           >
-            <Download className="h-4 w-4" />
+            <Upload className="h-4 w-4" />
             Upload screenshot
           </button>
           <button

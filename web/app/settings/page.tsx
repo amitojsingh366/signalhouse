@@ -1034,6 +1034,10 @@ function NumberControl({
         <button
           type="button"
           disabled={disabled}
+          onMouseDown={(e) => {
+            // Keep focus on the input so stepper clicks don't fire an extra blur-commit first.
+            e.preventDefault();
+          }}
           onClick={() => stepBy(1)}
           className="flex h-1/2 items-center justify-center text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-200 disabled:cursor-not-allowed"
           aria-label="Increase value"
@@ -1043,6 +1047,10 @@ function NumberControl({
         <button
           type="button"
           disabled={disabled}
+          onMouseDown={(e) => {
+            // Keep focus on the input so stepper clicks don't fire an extra blur-commit first.
+            e.preventDefault();
+          }}
           onClick={() => stepBy(-1)}
           className="flex h-1/2 items-center justify-center border-t border-white/10 text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-200 disabled:cursor-not-allowed"
           aria-label="Decrease value"

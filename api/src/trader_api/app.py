@@ -49,7 +49,18 @@ async def lifespan(app: FastAPI):
         p = make_portfolio(db)
         holdings = await p.get_holdings_dict()
         meta = await p._get_meta()
-        p.sync_risk_manager(get_risk(), holdings, meta.initial_capital)
+        symbols = list(holdings.keys())
+        prices = (
+            await get_market_data().get_batch_prices(symbols)
+            if symbols
+            else {}
+        )
+        p.sync_risk_manager(
+            get_risk(),
+            holdings,
+            meta.initial_capital,
+            live_prices=prices,
+        )
 
     logger = logging.getLogger(__name__)
     logger.info(

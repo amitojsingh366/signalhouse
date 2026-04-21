@@ -11,7 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from trader_api.auth import require_auth
 from trader_api.database import get_db
-from trader_api.deps import get_config, get_market_data, get_risk, make_portfolio
+from trader_api.deps import (
+    get_config,
+    get_market_data,
+    get_risk,
+    make_portfolio,
+    make_strategy,
+)
 from trader_api.schemas import StatusOut, UploadConfirm, UploadHolding
 from trader_api.services.strategy import Strategy
 from trader_api.services.vision import parse_holdings_screenshot
@@ -36,7 +42,12 @@ async def get_status(db: AsyncSession = Depends(get_db)):
     config = get_config()
     risk = get_risk()
     portfolio = make_portfolio(db)
+    strategy = make_strategy(portfolio)
     holdings = await portfolio.get_holdings_dict()
+    symbols = list(holdings.keys())
+    prices = await get_market_data().get_batch_prices(symbols) if symbols else {}
+    current_value = await portfolio.get_portfolio_value(prices)
+    await strategy._check_risk_halt(current_value)
 
     return StatusOut(
         symbols_tracked=len(get_market_data().symbols),
@@ -86,6 +97,7 @@ async def confirm_upload(data: UploadConfirm, db: AsyncSession = Depends(get_db)
 
     holdings = [h.model_dump() for h in data.holdings]
     await portfolio.sync_from_snapshot(holdings, risk)
+    Strategy.invalidate_recommendations_cache()
     return {"status": "ok", "count": len(holdings)}
 
 

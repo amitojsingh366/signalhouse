@@ -80,17 +80,31 @@ class RiskManager:
 
         return max(shares, 1) if max_dollars >= price else 0
 
-    def register_entry(self, symbol: str, price: float, quantity: float) -> None:
-        stop = price * (1 - self.risk["stop_loss_pct"])
+    def register_entry(
+        self,
+        symbol: str,
+        price: float,
+        quantity: float,
+        *,
+        entry_time: datetime | None = None,
+        highest_price: float | None = None,
+        stop_price: float | None = None,
+    ) -> None:
+        default_stop = price * (1 - self.risk["stop_loss_pct"])
         self.open_trades[symbol] = OpenTrade(
             symbol=symbol,
             entry_price=price,
             quantity=quantity,
-            entry_time=datetime.now(),
-            highest_price=price,
-            stop_price=stop,
+            entry_time=entry_time or datetime.now(),
+            highest_price=max(price, highest_price or price),
+            stop_price=max(0.0, stop_price if stop_price is not None else default_stop),
         )
-        logger.info("Registered entry: %s @ $%.2f, stop @ $%.2f", symbol, price, stop)
+        logger.info(
+            "Registered entry: %s @ $%.2f, stop @ $%.2f",
+            symbol,
+            price,
+            self.open_trades[symbol].stop_price,
+        )
 
     def register_exit(self, symbol: str) -> None:
         if symbol in self.open_trades:

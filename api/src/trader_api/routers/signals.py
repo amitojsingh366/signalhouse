@@ -14,6 +14,7 @@ from trader_api.deps import (
     get_commodity,
     get_config,
     get_market_data,
+    get_notifier,
     get_sentiment,
     make_portfolio,
     make_strategy,
@@ -290,28 +291,27 @@ async def get_action_plan(db: AsyncSession = Depends(get_db)):
 
     # Send push notification for auto-unsnoozed symbols
     if auto_unsnoozed:
-        from trader_api.services.notifier import Notifier
-
-        notifier = Notifier()
-        for sym, cur_pnl, snz_pnl in auto_unsnoozed:
-            title = f"Auto-Unsnoozed: {sym}"
-            body_text = (
-                f"Loss worsened from {snz_pnl:+.1f}% to {cur_pnl:+.1f}% "
-                f"since snooze. Review action plan."
-            )
-            result2 = await db.execute(
-                select(DeviceRegistration).where(
-                    DeviceRegistration.push_token.is_not(None)
+        notifier = get_notifier()
+        if notifier is not None and notifier.is_configured:
+            for sym, cur_pnl, snz_pnl in auto_unsnoozed:
+                title = f"Auto-Unsnoozed: {sym}"
+                body_text = (
+                    f"Loss worsened from {snz_pnl:+.1f}% to {cur_pnl:+.1f}% "
+                    f"since snooze. Review action plan."
                 )
-            )
-            for dev in result2.scalars().all():
-                if dev.push_token:
-                    await notifier.send_alert_push(
-                        dev.push_token,
-                        title=title,
-                        body=body_text,
-                        data={"type": "auto_unsnooze", "symbol": sym},
+                result2 = await db.execute(
+                    select(DeviceRegistration).where(
+                        DeviceRegistration.push_token.is_not(None)
                     )
+                )
+                for dev in result2.scalars().all():
+                    if dev.push_token:
+                        await notifier.send_alert_push(
+                            dev.push_token,
+                            title=title,
+                            body=body_text,
+                            data={"type": "auto_unsnooze", "symbol": sym},
+                        )
 
     all_actions = filtered_actions + snoozed_actions
 

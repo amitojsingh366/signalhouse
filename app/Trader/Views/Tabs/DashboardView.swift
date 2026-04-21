@@ -63,9 +63,12 @@ struct DashboardView: View {
                         HStack {
                             MobileSectionLabel("Action Plan · \(primaryActions.count)")
                             Spacer()
-                            NavigationLink("View all", destination: SignalsView())
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(Theme.brand)
+                            Button("View all") {
+                                NotificationCenter.default.post(name: .openActionsTab, object: nil)
+                            }
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Theme.brand)
+                            .buttonStyle(.plain)
                         }
 
                         MobileCard {

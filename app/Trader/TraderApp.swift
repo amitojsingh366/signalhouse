@@ -163,6 +163,9 @@ struct MainTabView: View {
                 .tag(AppTab.more)
         }
         .tint(Theme.brand)
+        .onReceive(NotificationCenter.default.publisher(for: .openActionsTab)) { _ in
+            selectedTab = .actions
+        }
         .onChange(of: pushManager.deepLink) { _, link in
             guard let link else { return }
             switch link {

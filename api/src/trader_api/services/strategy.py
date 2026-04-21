@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from trader_api.services.datetime_utils import parse_entry_datetime
 from trader_api.services.market_data import MarketData
 from trader_api.services.portfolio import Portfolio
 from trader_api.services.risk import RiskManager
@@ -631,23 +632,14 @@ class Strategy:
         for sig in watchlist_sells:
             sig.reasons.append("Not held — sell signal for watchlist")
 
-        if halted or not regime_allows_buys:
-            block_reason = (
-                f"Risk halt active — {self.risk.halt_reason}"
-                if halted
-                else (regime_reason or "Regime filter blocked new buys")
-            )
-            result = {
-                "buys": [],
-                "sells": sells[:n],
-                "watchlist_sells": watchlist_sells[:n],
-                "funding": [],
-                "sector_exposure": exposure,
-                "buy_block_reason": block_reason,
-            }
-            self._cached_recommendations = result
-            self._set_shared_recommendations(result)
-            return result
+        # Always surface buy signals; actionability (cash, slots, halt, regime)
+        # is determined downstream in get_action_plan so users with no holdings
+        # or a stalled portfolio can still see the market's best opportunities.
+        buy_block_reason: str | None = None
+        if halted:
+            buy_block_reason = f"Risk halt active — {self.risk.halt_reason}"
+        elif not regime_allows_buys:
+            buy_block_reason = regime_reason or "Regime filter blocked new buys"
 
         # Track sector-capped buys but don't penalize yet — swaps within
         # the same sector shouldn't be penalized since they replace exposure
@@ -672,7 +664,16 @@ class Strategy:
         swap_exempted: set[str] = set()
         meta = await self.portfolio._get_meta()
         cash = meta.cash
-        if top_buys and held_symbols and cash < 50.0:
+        # Funding swaps only make sense when the user can actually act on them:
+        # they need existing holdings to swap from, low cash to warrant it, and
+        # no halt / regime block preventing the new buy leg.
+        if (
+            top_buys
+            and held_symbols
+            and cash < 50.0
+            and not halted
+            and regime_allows_buys
+        ):
             ranked_to_sell = await self._rank_holdings_to_sell(prices)
             if ranked_to_sell:
                 for buy_sig in top_buys:
@@ -729,13 +730,15 @@ class Strategy:
         top_buys.sort(key=lambda r: r.strength, reverse=True)
         top_buys = top_buys[:n]
 
-        result = {
+        result: dict[str, Any] = {
             "buys": top_buys,
             "sells": top_sells,
             "watchlist_sells": watchlist_sells[:n],
             "funding": funding,
             "sector_exposure": exposure,
         }
+        if buy_block_reason:
+            result["buy_block_reason"] = buy_block_reason
         self._cached_recommendations = result
         self._set_shared_recommendations(result)
         return result
@@ -1082,20 +1085,6 @@ class Strategy:
                     pass
         return None
 
-    @staticmethod
-    def _parse_entry_datetime(raw: Any) -> datetime | None:
-        if isinstance(raw, datetime):
-            return raw
-        if not isinstance(raw, str) or not raw:
-            return None
-        candidate = raw.strip()
-        if candidate.endswith("Z"):
-            candidate = f"{candidate[:-1]}+00:00"
-        try:
-            return datetime.fromisoformat(candidate)
-        except ValueError:
-            return None
-
     def _holding_timing(
         self,
         symbol: str,
@@ -1105,7 +1094,7 @@ class Strategy:
         entry_dt = (
             open_trade.entry_time
             if open_trade is not None
-            else self._parse_entry_datetime(holding.get("entry_date"))
+            else parse_entry_datetime(holding.get("entry_date"))
         )
         if entry_dt is None:
             return None, None

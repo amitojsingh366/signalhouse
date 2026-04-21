@@ -28,45 +28,6 @@ enum AppTab: Int, CaseIterable {
     }
 }
 
-struct MobileTabBar: View {
-    @Binding var selectedTab: AppTab
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(AppTab.allCases, id: \.rawValue) { tab in
-                Button {
-                    selectedTab = tab
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 14, weight: .semibold))
-                        Text(tab.title)
-                            .font(.system(size: 10, weight: .medium))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .foregroundStyle(selectedTab == tab ? Theme.brand : Theme.textDimmed)
-                    .background(
-                        Capsule()
-                            .fill(selectedTab == tab ? Theme.brand.opacity(0.14) : .clear)
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(8)
-        .background(.ultraThinMaterial)
-        .background(Theme.surface1.opacity(0.88))
-        .clipShape(Capsule())
-        .overlay(
-            Capsule()
-                .stroke(Theme.lineStrong, lineWidth: 1)
-        )
-        .padding(.horizontal, 20)
-        .padding(.bottom, 10)
-    }
-}
-
 struct MobileKickerTitle: View {
     let kicker: String
     let title: String

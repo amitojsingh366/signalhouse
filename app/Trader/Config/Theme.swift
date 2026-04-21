@@ -28,14 +28,6 @@ enum Theme {
     static let textMuted = Color(hex: "#9898a8")
     static let textDimmed = Color(hex: "#5a5a6a")
 
-    static let screenGradient = LinearGradient(
-        colors: [
-            Color(hex: "#07070a"),
-            Color(hex: "#07070a"),
-        ],
-        startPoint: .top,
-        endPoint: .bottom
-    )
 }
 
 // MARK: - Glass Card Modifier

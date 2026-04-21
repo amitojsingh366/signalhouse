@@ -16,7 +16,10 @@ struct SettingsView: View {
     @State private var tradingSettings = TradingSettings(
         hybridTakeProfitEnabled: false,
         hybridTakeProfitMinBuyStrength: 0.5,
-        oversoldFastlaneEnabled: true
+        oversoldFastlaneEnabled: true,
+        takeProfitPct: 0.08,
+        stopLossPct: 0.05,
+        maxPositions: 12
     )
     @State private var updatingHybridMode = false
     @State private var updatingOversoldMode = false
@@ -88,15 +91,15 @@ struct SettingsView: View {
                         .disabled(updatingHybridMode || updatingOversoldMode)
                         Divider().overlay(Theme.line)
                         MobileDefRow(label: "Take-profit target") {
-                            MobileValueLabel(text: "+\(Int(tradingSettings.hybridTakeProfitMinBuyStrength * 100))%")
+                            MobileValueLabel(text: takeProfitTargetLabel)
                         }
                         Divider().overlay(Theme.line)
                         MobileDefRow(label: "Stop-loss floor") {
-                            MobileValueLabel(text: "−8.0%")
+                            MobileValueLabel(text: stopLossFloorLabel)
                         }
                         Divider().overlay(Theme.line)
                         MobileDefRow(label: "Max positions") {
-                            MobileValueLabel(text: "5")
+                            MobileValueLabel(text: "\(tradingSettings.maxPositions)")
                         }
                     }
 
@@ -167,6 +170,14 @@ struct SettingsView: View {
     private var tokenPrefix: String {
         guard let token = pushManager.deviceToken else { return "Not registered" }
         return String(token.prefix(12)) + "..."
+    }
+
+    private var takeProfitTargetLabel: String {
+        String(format: "+%.1f%%", tradingSettings.takeProfitPct * 100)
+    }
+
+    private var stopLossFloorLabel: String {
+        String(format: "-%.1f%%", tradingSettings.stopLossPct * 100)
     }
 
     private func registerPasskey() async {

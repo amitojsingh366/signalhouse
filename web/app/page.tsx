@@ -11,7 +11,6 @@ import {
   Check,
   Download,
   TrendingDown,
-  Upload,
   Wallet,
   Zap,
 } from "lucide-react";
@@ -35,6 +34,7 @@ import { EquityChart } from "@/components/ui/equity-chart";
 import { ChartSkeleton, SignalsSkeleton } from "@/components/ui/loading";
 import { TrendProxy } from "@/components/ui/trend-proxy";
 import { buildTradeIntentHref } from "@/lib/trade-intent";
+import { downloadCsv } from "@/lib/csv";
 
 const RANGES = ["1D", "7D", "1M", "3M", "1Y", "ALL"] as const;
 
@@ -266,7 +266,9 @@ export default function DashboardPage() {
   );
 
   const urgentSell = useMemo(
-    () => plan?.actions.find((action) => action.type === "SELL" && action.urgency === "urgent") ?? null,
+    () =>
+      plan?.actions.find((action) => action.type === "SELL" && action.urgency === "urgent" && !action.snoozed) ??
+      null,
     [plan]
   );
 
@@ -334,6 +336,100 @@ export default function DashboardPage() {
     }
   }, [qc, urgentSell?.symbol]);
 
+  const exportCsv = useCallback(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const rows: Array<string | number | boolean | null | undefined>[] = [];
+
+    rows.push([
+      "summary",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      portfolio?.total_value ?? "",
+      portfolio?.cash ?? "",
+      portfolio?.total_pnl ?? "",
+      portfolio?.total_pnl_pct ?? "",
+      status?.last_scan_at ?? "",
+      status?.symbols_tracked ?? "",
+    ]);
+
+    for (const action of plan?.actions ?? []) {
+      rows.push([
+        "signal",
+        action.type,
+        action.urgency,
+        action.symbol ?? "",
+        action.sell_symbol ?? "",
+        action.buy_symbol ?? "",
+        action.snoozed ?? false,
+        action.actionable ?? "",
+        action.score ?? "",
+        action.strength ?? "",
+        action.price ?? action.sell_price ?? action.buy_price ?? "",
+        action.shares ?? action.sell_shares ?? action.buy_shares ?? "",
+        action.pnl_pct ?? action.sell_pnl_pct ?? "",
+        action.pnl ?? "",
+        action.reason,
+        action.detail,
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ]);
+    }
+
+    downloadCsv(
+      `dashboard-${today}.csv`,
+      [
+        "row_type",
+        "action_type",
+        "urgency",
+        "symbol",
+        "sell_symbol",
+        "buy_symbol",
+        "snoozed",
+        "actionable",
+        "score",
+        "strength",
+        "price",
+        "shares",
+        "pnl_pct",
+        "pnl",
+        "reason",
+        "detail",
+        "portfolio_value",
+        "cash",
+        "total_pnl",
+        "total_pnl_pct",
+        "last_scan_at",
+        "symbols_tracked",
+      ],
+      rows
+    );
+  }, [
+    plan?.actions,
+    portfolio?.cash,
+    portfolio?.total_pnl,
+    portfolio?.total_pnl_pct,
+    portfolio?.total_value,
+    status?.last_scan_at,
+    status?.symbols_tracked,
+  ]);
+
   return (
     <div className="space-y-6">
       <div className="ph">
@@ -356,9 +452,12 @@ export default function DashboardPage() {
               </button>
             ))}
           </div>
-          <button className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.06]">
+          <button
+            onClick={exportCsv}
+            className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.06]"
+          >
             <Download className="h-4 w-4" />
-            Export
+            Export CSV
           </button>
           <button
             onClick={() => void handleRunScanNow()}
@@ -501,7 +600,7 @@ export default function DashboardPage() {
 
         <Link href="/upload" className="qa">
           <span className="icn">
-            <Upload />
+            <Download />
           </span>
           <div className="t">
             <div className="a">Upload screenshot</div>

@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Shield,
+  ChevronDown,
+  ChevronUp,
   Key,
   Plus,
   Trash2,
@@ -39,6 +41,12 @@ interface CredentialInfo {
   created_at: string | null;
 }
 
+const ADVANCED_MODE_STORAGE_KEY = "trader_settings_advanced_mode";
+const BASIC_TRADING_TOGGLE_KEYS = new Set([
+  "strategy.oversold_fastlane.enabled",
+  "risk.hybrid_take_profit_enabled",
+]);
+
 export default function SettingsPage() {
   const [registered, setRegistered] = useState(false);
   const [credentials, setCredentials] = useState<CredentialInfo[]>([]);
@@ -50,6 +58,7 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [hasToken, setHasToken] = useState(false);
+  const [advancedMode, setAdvancedMode] = useState(false);
   const [tab, setTab] = useState<"Trading" | "Auth" | "Notifications" | "Connections" | "Data" | "Appearance">("Trading");
   const refreshTimerRef = useRef<number | null>(null);
   const qc = useQueryClient();
@@ -91,6 +100,12 @@ export default function SettingsPage() {
   useEffect(() => {
     loadStatus();
   }, [loadStatus]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const persisted = window.localStorage.getItem(ADVANCED_MODE_STORAGE_KEY);
+    setAdvancedMode(persisted === "1");
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -167,6 +182,25 @@ export default function SettingsPage() {
       return next;
     });
   }, []);
+
+  const toggleAdvancedMode = useCallback(() => {
+    setAdvancedMode((previous) => {
+      const next = !previous;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(ADVANCED_MODE_STORAGE_KEY, next ? "1" : "0");
+      }
+      return next;
+    });
+  }, []);
+
+  const visibleTradingGroups = groups
+    .map((group) => ({
+      ...group,
+      items: advancedMode
+        ? group.items
+        : group.items.filter((item) => BASIC_TRADING_TOGGLE_KEYS.has(item.key)),
+    }))
+    .filter((group) => group.items.length > 0);
 
   async function saveSetting(key: string, value: number | boolean) {
     const previous = groups;
@@ -396,18 +430,27 @@ export default function SettingsPage() {
 
           {tab === "Trading" && (
             <div className="card p-6">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="rounded-lg bg-brand-500/20 p-3">
-                  <TrendingUp className="h-5 w-5 text-brand-400" />
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-brand-500/20 p-3">
+                    <TrendingUp className="h-5 w-5 text-brand-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold">Trading</h2>
+                    <p className="text-sm text-slate-400">
+                      Strategy, risk, and notification parameters from{" "}
+                      <code className="rounded bg-white/5 px-1 py-0.5 text-xs">settings.yaml</code>.
+                      Changes apply immediately and persist across restarts.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-lg font-semibold">Trading</h2>
-                  <p className="text-sm text-slate-400">
-                    Strategy, risk, and notification parameters from{" "}
-                    <code className="rounded bg-white/5 px-1 py-0.5 text-xs">settings.yaml</code>.
-                    Changes apply immediately and persist across restarts.
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={toggleAdvancedMode}
+                  className="pt-1 text-sm font-medium text-brand-300 transition-colors hover:text-brand-200"
+                >
+                  {advancedMode ? "disable advanced mode" : "advanced mode"}
+                </button>
               </div>
 
               {tradingLoading ? (
@@ -418,7 +461,12 @@ export default function SettingsPage() {
                 </div>
               ) : (
                 <div className="mt-6 space-y-8">
-                  {groups.map((group) => (
+                  {!advancedMode && (
+                    <p className="text-xs text-slate-500">
+                      Showing core toggles only. Enable advanced mode to edit numeric strategy parameters.
+                    </p>
+                  )}
+                  {visibleTradingGroups.map((group) => (
                     <section key={group.id} className="space-y-4">
                       <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
                         {group.label}
@@ -881,41 +929,107 @@ function NumberControl({
     setDraft(value == null ? "" : String(value));
   }, [value]);
 
-  const commit = () => {
-    if (draft.trim() === "") {
-      setDraft(value == null ? "" : String(value));
-      return;
-    }
-    const parsed = type === "int" ? parseInt(draft, 10) : parseFloat(draft);
-    if (!Number.isFinite(parsed) || parsed === value) {
-      setDraft(value == null ? "" : String(value));
-      return;
-    }
-    onCommit(parsed);
-  };
+  const effectiveStep = step ?? (type === "int" ? 1 : 0.01);
 
-  const effectiveStep =
-    step ?? (type === "int" ? 1 : 0.01);
+  const clampValue = useCallback(
+    (input: number): number => {
+      let next = input;
+      if (min != null) next = Math.max(min, next);
+      if (max != null) next = Math.min(max, next);
+      if (type === "int") next = Math.round(next);
+      return next;
+    },
+    [max, min, type]
+  );
+
+  const parseDraft = useCallback((): number | null => {
+    if (draft.trim() === "") return null;
+    const parsed = type === "int" ? parseInt(draft, 10) : parseFloat(draft);
+    if (!Number.isFinite(parsed)) return null;
+    return parsed;
+  }, [draft, type]);
+
+  const commit = useCallback(
+    (nextValue?: number) => {
+      const parsed = nextValue ?? parseDraft();
+      if (parsed == null) {
+        setDraft(value == null ? "" : String(value));
+        return;
+      }
+
+      const normalized = clampValue(parsed);
+      setDraft(String(normalized));
+      if (value == null || normalized !== value) {
+        onCommit(normalized);
+      }
+    },
+    [clampValue, onCommit, parseDraft, value]
+  );
+
+  const stepBy = useCallback(
+    (direction: 1 | -1) => {
+      const parsed = parseDraft();
+      const base = parsed ?? value ?? 0;
+      const next = clampValue(base + direction * effectiveStep);
+      commit(next);
+    },
+    [clampValue, commit, effectiveStep, parseDraft, value]
+  );
 
   return (
-    <input
-      type="number"
-      className="w-28 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-right text-sm text-white outline-none transition-colors focus:border-brand-500/60 focus:bg-white/[0.07] disabled:opacity-60"
-      value={draft}
-      disabled={disabled}
-      min={min ?? undefined}
-      max={max ?? undefined}
-      step={effectiveStep}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          (e.target as HTMLInputElement).blur();
-        } else if (e.key === "Escape") {
-          setDraft(value == null ? "" : String(value));
-          (e.target as HTMLInputElement).blur();
-        }
-      }}
-    />
+    <div className={cn("inline-flex overflow-hidden rounded-lg border border-white/10 bg-[#11141d]", disabled && "opacity-60")}>
+      <input
+        type="number"
+        className="w-24 bg-transparent px-3 py-2 text-right text-sm text-white outline-none transition-colors focus:bg-white/[0.03]"
+        value={draft}
+        disabled={disabled}
+        min={min ?? undefined}
+        max={max ?? undefined}
+        step={effectiveStep}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => commit()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            commit();
+            (e.target as HTMLInputElement).blur();
+            return;
+          }
+          if (e.key === "Escape") {
+            setDraft(value == null ? "" : String(value));
+            (e.target as HTMLInputElement).blur();
+            return;
+          }
+          if (e.key === "ArrowUp") {
+            e.preventDefault();
+            stepBy(1);
+            return;
+          }
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            stepBy(-1);
+          }
+        }}
+      />
+      <div className="flex w-6 flex-col border-l border-white/10 bg-black/20">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => stepBy(1)}
+          className="flex h-1/2 items-center justify-center text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-200 disabled:cursor-not-allowed"
+          aria-label="Increase value"
+        >
+          <ChevronUp className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => stepBy(-1)}
+          className="flex h-1/2 items-center justify-center border-t border-white/10 text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-200 disabled:cursor-not-allowed"
+          aria-label="Decrease value"
+        >
+          <ChevronDown className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
   );
 }

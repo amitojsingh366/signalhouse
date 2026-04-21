@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Briefcase,
   Check,
+  Download,
   DollarSign,
   Layers,
   MoreHorizontal,
@@ -12,7 +13,6 @@ import {
   RefreshCw,
   Trash2,
   TrendingUp,
-  Upload,
   Wallet,
   X,
 } from "lucide-react";
@@ -33,6 +33,7 @@ import { ScoreBreakdown, ScoreTag } from "@/components/ui/score-breakdown";
 import { CardSkeleton, HoldingsTableSkeleton } from "@/components/ui/loading";
 import { TrendProxy } from "@/components/ui/trend-proxy";
 import { buildTradeIntentHref } from "@/lib/trade-intent";
+import { downloadCsv } from "@/lib/csv";
 
 type HoldingsFilter = "all" | "winners" | "losers";
 
@@ -249,6 +250,43 @@ export default function PortfolioPage() {
     qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
   }
 
+  function exportCsv() {
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = holdings.map((holding) => [
+      holding.symbol,
+      holding.quantity,
+      holding.avg_cost,
+      holding.current_price,
+      holding.market_value,
+      holding.pnl,
+      holding.pnl_pct,
+      holding.signal,
+      holding.strength,
+      holding.action,
+      holding.action_detail,
+      holding.reasons.join(" | "),
+    ]);
+
+    downloadCsv(
+      `portfolio-${today}.csv`,
+      [
+        "symbol",
+        "quantity",
+        "avg_cost",
+        "current_price",
+        "market_value",
+        "pnl",
+        "pnl_pct",
+        "signal",
+        "strength",
+        "action",
+        "action_detail",
+        "reasons",
+      ],
+      rows
+    );
+  }
+
   async function handleSaveHolding(symbol: string, quantity: number, avg_cost: number) {
     await updateHolding.mutateAsync({ symbol, quantity, avg_cost });
     setSelected(null);
@@ -304,10 +342,17 @@ export default function PortfolioPage() {
 
         <div className="actions">
           <button
+            onClick={exportCsv}
+            className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.08]"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </button>
+          <button
             onClick={() => router.push("/upload")}
             className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.08]"
           >
-            <Upload className="h-4 w-4" />
+            <Download className="h-4 w-4" />
             Upload screenshot
           </button>
           <button

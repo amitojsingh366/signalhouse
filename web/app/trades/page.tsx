@@ -13,7 +13,6 @@ import {
   Plus,
   RefreshCw,
   TrendingUp,
-  Upload,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -23,15 +22,9 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { usePrivacy } from "@/lib/privacy";
 import { TradesTableSkeleton } from "@/components/ui/loading";
 import { useToast } from "@/components/ui/toast";
+import { downloadCsv } from "@/lib/csv";
 
 type TradeFilter = "all" | "buys" | "sells" | "manual" | "screenshot" | "discord";
-
-function csvEscape(value: string): string {
-  if (value.includes(",") || value.includes("\"") || value.includes("\n")) {
-    return `"${value.replaceAll("\"", "\"\"")}"`;
-  }
-  return value;
-}
 
 function formatTradeDateTime(timestamp: string | null): string {
   if (!timestamp) return "--";
@@ -323,33 +316,24 @@ function TradesContent() {
   }
 
   function exportCsv() {
-    const header = ["timestamp", "action", "symbol", "quantity", "price", "fee", "total", "pnl"];
-    const lines = [
-      header.join(","),
-      ...sorted.map((trade) => {
-        const fee = impliedFee(trade).toFixed(2);
-        return [
-          formatTradeDateTime(trade.timestamp),
-          trade.action,
-          trade.symbol,
-          trade.quantity.toFixed(4),
-          trade.price.toFixed(4),
-          fee,
-          trade.total.toFixed(4),
-          trade.pnl == null ? "" : trade.pnl.toFixed(4),
-        ]
-          .map((value) => csvEscape(value))
-          .join(",");
-      }),
-    ];
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = sorted.map((trade) => [
+      formatTradeDateTime(trade.timestamp),
+      trade.action,
+      trade.symbol,
+      trade.quantity.toFixed(4),
+      trade.price.toFixed(4),
+      impliedFee(trade).toFixed(4),
+      trade.total.toFixed(4),
+      trade.pnl == null ? "" : trade.pnl.toFixed(4),
+      trade.pnl_pct == null ? "" : trade.pnl_pct.toFixed(4),
+    ]);
 
-    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `trades-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(
+      `trades-${today}.csv`,
+      ["timestamp", "action", "symbol", "quantity", "price", "fee", "total", "pnl", "pnl_pct"],
+      rows
+    );
   }
 
   return (
@@ -380,7 +364,7 @@ function TradesContent() {
             onClick={() => router.push("/upload")}
             className="flex items-center gap-2 rounded-lg border border-brand-500/20 bg-brand-500/15 px-3 py-2 text-sm text-brand-200 transition-colors hover:bg-brand-500/25"
           >
-            <Upload className="h-4 w-4" />
+            <Download className="h-4 w-4" />
             Upload screenshot
           </button>
           <button

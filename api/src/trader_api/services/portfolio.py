@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trader_api.models import DailySnapshot, Holding, PortfolioMeta, Trade
+from trader_api.services.datetime_utils import parse_entry_datetime
 from trader_api.services.risk import RiskManager
 
 logger = logging.getLogger(__name__)
@@ -493,7 +494,7 @@ class Portfolio:
                 trade.entry_price = h["avg_cost"]
                 trade.quantity = h["quantity"]
                 continue
-            entry_time = self._parse_entry_datetime(h.get("entry_date"))
+            entry_time = parse_entry_datetime(h.get("entry_date"))
             risk.register_entry(
                 symbol,
                 h["avg_cost"],
@@ -514,20 +515,6 @@ class Portfolio:
             risk.peak_portfolio_value = initial_capital
 
         logger.info("Synced %d holdings to risk manager", len(holdings))
-
-    @staticmethod
-    def _parse_entry_datetime(raw: Any) -> datetime | None:
-        if isinstance(raw, datetime):
-            return raw
-        if not isinstance(raw, str) or not raw:
-            return None
-        candidate = raw.strip()
-        if candidate.endswith("Z"):
-            candidate = f"{candidate[:-1]}+00:00"
-        try:
-            return datetime.fromisoformat(candidate)
-        except ValueError:
-            return None
 
     async def get_recent_trades(self, limit: int = 20) -> list[dict[str, Any]]:
         result = await self.db.execute(

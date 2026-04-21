@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from trader_api.services.datetime_utils import parse_entry_datetime
 from trader_api.services.market_data import MarketData
 from trader_api.services.portfolio import Portfolio
 from trader_api.services.risk import RiskManager
@@ -1084,20 +1085,6 @@ class Strategy:
                     pass
         return None
 
-    @staticmethod
-    def _parse_entry_datetime(raw: Any) -> datetime | None:
-        if isinstance(raw, datetime):
-            return raw
-        if not isinstance(raw, str) or not raw:
-            return None
-        candidate = raw.strip()
-        if candidate.endswith("Z"):
-            candidate = f"{candidate[:-1]}+00:00"
-        try:
-            return datetime.fromisoformat(candidate)
-        except ValueError:
-            return None
-
     def _holding_timing(
         self,
         symbol: str,
@@ -1107,7 +1094,7 @@ class Strategy:
         entry_dt = (
             open_trade.entry_time
             if open_trade is not None
-            else self._parse_entry_datetime(holding.get("entry_date"))
+            else parse_entry_datetime(holding.get("entry_date"))
         )
         if entry_dt is None:
             return None, None

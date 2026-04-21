@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -172,5 +172,9 @@ class RiskManager:
         trade = self.open_trades.get(symbol)
         if trade is None:
             return False
-        days_held = (datetime.now() - trade.entry_time).days
+        entry_time = trade.entry_time
+        if entry_time.tzinfo is None or entry_time.tzinfo.utcoffset(entry_time) is None:
+            days_held = (datetime.now() - entry_time).days
+        else:
+            days_held = (datetime.now(UTC) - entry_time.astimezone(UTC)).days
         return days_held >= self.config["strategy"]["max_hold_days"]

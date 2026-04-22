@@ -117,6 +117,9 @@ struct PortfolioView: View {
             .navigationBarTitleDisplayMode(.large)
             .refreshable { await loadData() }
             .task { await loadData() }
+            .onReceive(NotificationCenter.default.publisher(for: .portfolioDidChange)) { _ in
+                Task { await loadData() }
+            }
             .alert("Edit Cash Balance", isPresented: $showCashEdit) {
                 TextField("Cash amount", text: $cashEditText)
                     .keyboardType(.decimalPad)
@@ -254,12 +257,95 @@ private struct SectorExposureCard: View {
 }
 
 struct HoldingDetailView: View {
+    @EnvironmentObject private var config: AppConfig
+    @Environment(\.dismiss) private var dismiss
+
     let holding: HoldingAdvice
+    @State private var showEditPosition = false
+    @State private var showDeleteConfirmation = false
+    @State private var editQuantityText = ""
+    @State private var editAvgCostText = ""
+    @State private var isSaving = false
+
+    private var client: APIClient {
+        APIClient(baseURL: config.apiBaseURL ?? "")
+    }
 
     var body: some View {
         InstrumentDetailView(
             snapshot: InstrumentSignalSnapshot(holding: holding),
             position: holding
         )
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Edit position", systemImage: "pencil") {
+                        editQuantityText = String(format: "%.4f", holding.quantity)
+                        editAvgCostText = String(format: "%.2f", holding.avgCost)
+                        showEditPosition = true
+                    }
+                    Button("Delete holding", systemImage: "trash", role: .destructive) {
+                        showDeleteConfirmation = true
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(AppFont.sans(18, weight: .semibold))
+                }
+            }
+        }
+        .alert("Edit Position", isPresented: $showEditPosition) {
+            TextField("Quantity", text: $editQuantityText)
+                .keyboardType(.decimalPad)
+            TextField("Avg cost", text: $editAvgCostText)
+                .keyboardType(.decimalPad)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") {
+                Task { await savePositionEdits() }
+            }
+            .disabled(isSaving)
+        } message: {
+            Text("Update quantity and average cost for \(holding.symbol).")
+        }
+        .alert("Delete Holding?", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                Task { await deleteHolding() }
+            }
+            .disabled(isSaving)
+        } message: {
+            Text("Remove \(holding.symbol) from your portfolio.")
+        }
+    }
+
+    private func savePositionEdits() async {
+        isSaving = true
+        defer { isSaving = false }
+
+        let trimmedQuantity = editQuantityText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAvgCost = editAvgCostText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let quantity = Double(trimmedQuantity)
+        let avgCost = Double(trimmedAvgCost)
+        guard quantity != nil || avgCost != nil else { return }
+
+        do {
+            try await client.updateHolding(
+                symbol: holding.symbol,
+                quantity: quantity,
+                avgCost: avgCost
+            )
+            NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
+            dismiss()
+        } catch {}
+    }
+
+    private func deleteHolding() async {
+        isSaving = true
+        defer { isSaving = false }
+
+        do {
+            try await client.deleteHolding(symbol: holding.symbol)
+            NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
+            dismiss()
+        } catch {}
     }
 }

@@ -17,8 +17,9 @@ struct DashboardView: View {
 
     private var primaryActions: [ActionItem] {
         guard let actions = actionPlan?.actions else { return [] }
-        let sells = actions.filter { $0.type == "SELL" && $0.snoozed != true }
-        return Array((sells.isEmpty ? actions : sells).prefix(2))
+        let activeActions = actions.filter { $0.snoozed != true }
+        let sells = activeActions.filter { $0.type == "SELL" }
+        return Array((sells.isEmpty ? activeActions : sells).prefix(2))
     }
 
     var body: some View {
@@ -55,7 +56,7 @@ struct DashboardView: View {
                             DashboardKPI(
                                 title: "Holdings",
                                 value: "\(portfolio?.holdings.count ?? 0)",
-                                detail: "of \(actionPlan?.maxPositions ?? 5) max",
+                                detail: actionPlan.map { "of \($0.maxPositions) max" } ?? "of — max",
                                 detailColor: Theme.textDimmed
                             )
                         }

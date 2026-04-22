@@ -12,6 +12,9 @@ struct SignalsView: View {
     @State private var checkedSignal: SignalOut?
     @State private var showSnoozed = false
     @State private var snoozeTarget: String?
+    @State private var now = Date()
+
+    private let marketClock = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
@@ -42,10 +45,10 @@ struct SignalsView: View {
             MobileScreen {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("LIVE · TSX OPEN")
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        Text(marketStatusLabel)
+                            .font(AppFont.mono(10, weight: .medium))
                             .tracking(1.4)
-                            .foregroundStyle(Theme.brand)
+                            .foregroundStyle(marketStatusColor)
 
                         MobileSearchField(placeholder: "Search symbol (e.g. SHOP.TO)", text: $searchText)
                             .onSubmit {
@@ -165,6 +168,7 @@ struct SignalsView: View {
                     Task { await checkSymbol(symbol) }
                 }
             }
+            .onReceive(marketClock) { now = $0 }
             .sheet(isPresented: Binding(
                 get: { snoozeTarget != nil },
                 set: { if !$0 { snoozeTarget = nil } }
@@ -181,6 +185,53 @@ struct SignalsView: View {
                 }
             }
         }
+    }
+
+    private var marketStatusLabel: String {
+        switch marketSession(for: now) {
+        case .open:
+            return "LIVE · TSX OPEN"
+        case .closed:
+            return "LIVE · TSX CLOSED"
+        }
+    }
+
+    private var marketStatusColor: Color {
+        switch marketSession(for: now) {
+        case .open:
+            return Theme.positive
+        case .closed:
+            return Theme.warning
+        }
+    }
+
+    private enum MarketSession {
+        case open
+        case closed
+    }
+
+    private func marketSession(for date: Date) -> MarketSession {
+        let calendar = marketCalendar
+        let dayStart = calendar.startOfDay(for: date)
+        let weekday = calendar.component(.weekday, from: dayStart)
+        if weekday == 1 || weekday == 7 {
+            return .closed
+        }
+
+        guard
+            let open = calendar.date(bySettingHour: 9, minute: 30, second: 0, of: dayStart),
+            let close = calendar.date(bySettingHour: 16, minute: 0, second: 0, of: dayStart)
+        else {
+            return .closed
+        }
+
+        return (date >= open && date < close) ? .open : .closed
+    }
+
+    private var marketCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York") ?? .current
+        return calendar
     }
 
     private func loadData() async {

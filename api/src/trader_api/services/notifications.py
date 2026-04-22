@@ -236,10 +236,21 @@ class NotificationDispatcher:
                 )
             )
             devices = result.scalars().all()
+            # Snapshot fields before any digest rollback so we never touch
+            # potentially-expired ORM objects during dispatch loops.
+            device_targets = [
+                {
+                    "device_token": device.device_token,
+                    "push_token": device.push_token,
+                    "calls_muted": device.calls_muted_on(today),
+                    "notifications_muted": device.notifications_muted_on(today),
+                }
+                for device in devices
+            ]
         except Exception:
             logger.exception("Failed to load devices for push dispatch")
             return
-        if not devices:
+        if not device_targets:
             return
 
         for sig_info in strong:
@@ -254,10 +265,11 @@ class NotificationDispatcher:
                 continue
 
             sent_any = False
-            for device in devices:
-                calls_muted = device.calls_muted_on(today)
-                notifications_muted = device.notifications_muted_on(today)
-                if calls_muted and (notifications_muted or not device.push_token):
+            for target in device_targets:
+                calls_muted = bool(target["calls_muted"])
+                notifications_muted = bool(target["notifications_muted"])
+                push_token = target["push_token"]
+                if calls_muted and (notifications_muted or not push_token):
                     continue
 
                 try:
@@ -267,8 +279,8 @@ class NotificationDispatcher:
                         signal=sig_info["signal"],
                         strength=sig_info["strength"],
                         score=sig_info["score"],
-                        device_token=device.device_token,
-                        push_token=device.push_token,
+                        device_token=str(target["device_token"]),
+                        push_token=str(push_token) if push_token else None,
                         send_call=not calls_muted,
                         send_alert=not notifications_muted,
                     )
@@ -277,7 +289,7 @@ class NotificationDispatcher:
                     logger.exception(
                         "Push dispatch failed for %s to %s",
                         sig_info["symbol"],
-                        device.device_token[:8],
+                        str(target["device_token"])[:8],
                     )
 
             if sent_any:

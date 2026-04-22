@@ -26,6 +26,7 @@ import { usePrivacy } from "@/lib/privacy";
 import { Skeleton, SignalCardsSkeleton } from "@/components/ui/loading";
 import { PriceChart } from "@/components/ui/price-chart";
 import { buildTradeIntentHref } from "@/lib/trade-intent";
+import { downloadCsv } from "@/lib/csv";
 
 const SNOOZE_DURATIONS = [
   { label: "1h", hours: 1 },
@@ -160,6 +161,17 @@ function reasonWithoutScore(reason: string): { label: string; value: number | nu
 function numberField(source: Record<string, number | null> | null | undefined, key: string): number | null {
   const value = source?.[key];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function numberFieldAny(
+  source: Record<string, number | null> | null | undefined,
+  keys: string[]
+): number | null {
+  for (const key of keys) {
+    const value = source?.[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return null;
 }
 
 function formatCompact(value: number): string {
@@ -396,6 +408,53 @@ function SignalsContent() {
     [qc]
   );
 
+  const exportCsv = useCallback(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = (plan?.actions ?? []).map((action) => [
+      action.type,
+      action.urgency,
+      action.symbol ?? "",
+      action.sell_symbol ?? "",
+      action.buy_symbol ?? "",
+      action.actionable ?? "",
+      action.snoozed ?? false,
+      action.score ?? "",
+      action.strength ?? "",
+      action.price ?? action.sell_price ?? action.buy_price ?? "",
+      action.shares ?? action.sell_shares ?? action.buy_shares ?? "",
+      action.pnl_pct ?? action.sell_pnl_pct ?? "",
+      action.pnl ?? "",
+      action.sector ?? "",
+      action.reason,
+      action.detail,
+      (action.reasons ?? []).join(" | "),
+    ]);
+
+    downloadCsv(
+      `signals-${today}.csv`,
+      [
+        "action_type",
+        "urgency",
+        "symbol",
+        "sell_symbol",
+        "buy_symbol",
+        "actionable",
+        "snoozed",
+        "score",
+        "strength",
+        "price",
+        "shares",
+        "pnl_pct",
+        "pnl",
+        "sector",
+        "reason",
+        "detail",
+        "reasons",
+      ],
+      rows
+    );
+  }, [plan?.actions]);
+
   const allActions = plan?.actions ?? [];
   const activeSells = allActions.filter((a) => a.type === "SELL" && !a.snoozed);
   const activeSwaps = allActions.filter((a) => a.type === "SWAP" && !a.snoozed);
@@ -443,15 +502,34 @@ function SignalsContent() {
     const planStopLoss = numberField(tradePlan, "stop_loss");
     const planTakeProfit1 = numberField(tradePlan, "take_profit_1");
     const planTakeProfit2 = numberField(tradePlan, "take_profit_2");
-    const planRiskReward = numberField(tradePlan, "risk_reward_ratio");
+    const planRiskReward = numberFieldAny(tradePlan, ["risk_reward_ratio", "riskRewardRatio"]);
+    const planRiskRewardTp1 = numberFieldAny(tradePlan, ["risk_reward_tp1", "riskRewardTp1"]);
+    const planRiskRewardTp2 = numberFieldAny(tradePlan, ["risk_reward_tp2", "riskRewardTp2"]);
     const planAtr = numberField(tradePlan, "atr");
 
-    const marketCap = numberField(fundamentals, "market_cap");
-    const peRatio = numberField(fundamentals, "pe_ratio");
-    const dividendYield = numberField(fundamentals, "dividend_yield");
-    const week52Low = numberField(fundamentals, "week_52_low");
-    const week52High = numberField(fundamentals, "week_52_high");
-    const avgVolume = numberField(fundamentals, "avg_volume");
+    const marketCap = numberFieldAny(fundamentals, ["market_cap", "marketCap"]);
+    const peRatio = numberFieldAny(fundamentals, ["pe_ratio", "trailingPE", "forwardPE"]);
+    const dividendYield = numberFieldAny(fundamentals, ["dividend_yield", "dividendYield"]);
+    const week52Low = numberFieldAny(fundamentals, ["week_52_low", "year_low", "fiftyTwoWeekLow"]);
+    const week52High = numberFieldAny(fundamentals, ["week_52_high", "year_high", "fiftyTwoWeekHigh"]);
+    const avgVolume = numberFieldAny(fundamentals, ["avg_volume", "averageVolume", "threeMonthAverageVolume"]);
+    const referenceEntry =
+      (planEntryLow != null && planEntryHigh != null)
+        ? (planEntryLow + planEntryHigh) / 2
+        : (
+          (typeof checked?.price === "number" ? checked.price : null)
+          ?? (typeof selectedAction?.price === "number" ? selectedAction.price : null)
+          ?? (typeof selectedAction?.buy_price === "number" ? selectedAction.buy_price : null)
+        );
+    const fallbackRiskReward =
+      referenceEntry != null
+      && planStopLoss != null
+      && planTakeProfit1 != null
+      && referenceEntry > planStopLoss
+      && planTakeProfit1 > referenceEntry
+        ? (planTakeProfit1 - referenceEntry) / (referenceEntry - planStopLoss)
+        : null;
+    const displayedRiskReward = planRiskReward ?? fallbackRiskReward;
     const recordBuyHref = buildTradeIntentHref({
       open: true,
       action: "buy",
@@ -622,7 +700,10 @@ function SignalsContent() {
                     <div className="kv">
                       <span className="k">Risk / reward</span>
                       <span className="v">
-                        {planRiskReward != null ? `1 : ${planRiskReward.toFixed(2)}` : "-"}
+                        {displayedRiskReward != null ? `1 : ${displayedRiskReward.toFixed(2)}` : "-"}
+                        {planRiskRewardTp1 != null && planRiskRewardTp2 != null
+                          ? ` (TP1 ${planRiskRewardTp1.toFixed(2)} · TP2 ${planRiskRewardTp2.toFixed(2)})`
+                          : ""}
                       </span>
                     </div>
                     <div className="kv">
@@ -706,7 +787,10 @@ function SignalsContent() {
             <Filter className="h-4 w-4" />
             Filters
           </button>
-          <button className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10">
+          <button
+            onClick={exportCsv}
+            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10"
+          >
             <Download className="h-4 w-4" />
             Export CSV
           </button>

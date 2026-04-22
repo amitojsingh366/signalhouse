@@ -13,14 +13,15 @@ import {
   Search,
 } from "lucide-react";
 import { useStatus } from "@/lib/hooks";
+import { getExtendedSessionLabel } from "@/lib/market-session";
 import { usePrivacy } from "@/lib/privacy";
 import { cn } from "@/lib/utils";
 
-function pageLabel(pathname: string): string {
+function pageLabel(pathname: string, extendedSessionLabel: string): string {
   if (pathname === "/") return "Dashboard";
   if (pathname.startsWith("/signals")) return "Signals";
   if (pathname.startsWith("/portfolio")) return "Portfolio";
-  if (pathname.startsWith("/premarket")) return "Pre-market";
+  if (pathname.startsWith("/premarket")) return extendedSessionLabel;
   if (pathname.startsWith("/trades")) return "Trades";
   if (pathname.startsWith("/upload")) return "Upload";
   if (pathname.startsWith("/status")) return "Status";
@@ -44,11 +45,19 @@ export function TopBar() {
   const { data: status, isFetching } = useStatus();
   const { hidden, toggle: togglePrivacy } = usePrivacy();
   const [timeEt, setTimeEt] = useState(() => formatEasternNow());
+  const [extendedSessionLabel, setExtendedSessionLabel] = useState(() => getExtendedSessionLabel());
 
-  const page = useMemo(() => pageLabel(pathname), [pathname]);
+  const page = useMemo(() => pageLabel(pathname, extendedSessionLabel), [extendedSessionLabel, pathname]);
+  const closedMarketLabel = useMemo(
+    () => getExtendedSessionLabel(new Date(), "TSX Closed"),
+    [timeEt]
+  );
 
   useEffect(() => {
-    const id = window.setInterval(() => setTimeEt(formatEasternNow()), 60_000);
+    const id = window.setInterval(() => {
+      setTimeEt(formatEasternNow());
+      setExtendedSessionLabel(getExtendedSessionLabel());
+    }, 60_000);
     return () => window.clearInterval(id);
   }, []);
 
@@ -78,7 +87,7 @@ export function TopBar() {
 
       <div className={cn("mkt", status && !status.market_open && "closed")}>
         <span className="dot" />
-        <span>{status?.market_open ? "TSX OPEN" : "TSX CLOSED"}</span>
+        <span>{status?.market_open ? "TSX OPEN" : closedMarketLabel.toUpperCase()}</span>
         <span style={{ color: "var(--surface-600)" }}>·</span>
         <span>{timeEt} ET</span>
       </div>

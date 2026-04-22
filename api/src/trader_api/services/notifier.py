@@ -341,15 +341,24 @@ class APNsNotifier:
                 )
             )
             devices = result.scalars().all()
-
+            # Snapshot fields before any rollback so later loop iterations never
+            # touch possibly-expired ORM objects.
+            targets: list[tuple[str, bool]] = []
             for device in devices:
-                if device.notifications_muted_on(today):
+                push_token = device.push_token
+                if not push_token:
+                    continue
+                muted = device.notifications_muted_on(today)
+                targets.append((push_token, muted))
+
+            for push_token, muted in targets:
+                if muted:
                     continue
 
                 notification_id: int | None = None
                 try:
                     log_entry = NotificationLog(
-                        device_token=device.push_token,
+                        device_token=push_token,
                         notification_type=notification_type,
                         symbol="",
                         signal="",
@@ -371,7 +380,7 @@ class APNsNotifier:
                     )
 
                 delivered = await self.send_alert_push(
-                    device.push_token,
+                    push_token,
                     title=title,
                     body=body,
                     category=category,

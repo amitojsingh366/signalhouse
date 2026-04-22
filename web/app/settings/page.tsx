@@ -447,7 +447,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={toggleAdvancedMode}
-                  className="pt-1 text-sm font-medium text-brand-300 transition-colors hover:text-brand-200"
+                  className="pt-1 text-xs font-medium text-brand-300 transition-colors hover:text-brand-200"
                 >
                   {advancedMode ? "disable advanced mode" : "advanced mode"}
                 </button>

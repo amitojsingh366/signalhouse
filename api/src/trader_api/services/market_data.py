@@ -326,21 +326,52 @@ class MarketData:
 
         week_52_low = self._coerce_float(
             fast_info.get("year_low")
+            or fast_info.get("yearLow")
             or fast_info.get("fifty_two_week_low")
+            or fast_info.get("fiftyTwoWeekLow")
             or info.get("fiftyTwoWeekLow")
         )
         week_52_high = self._coerce_float(
             fast_info.get("year_high")
+            or fast_info.get("yearHigh")
             or fast_info.get("fifty_two_week_high")
+            or fast_info.get("fiftyTwoWeekHigh")
             or info.get("fiftyTwoWeekHigh")
         )
 
         avg_volume = self._coerce_float(
             fast_info.get("three_month_average_volume")
+            or fast_info.get("threeMonthAverageVolume")
             or fast_info.get("ten_day_average_volume")
+            or fast_info.get("tenDayAverageVolume")
             or info.get("averageVolume")
+            or info.get("threeMonthAverageVolume")
             or info.get("averageDailyVolume10Day")
         )
+
+        # yfinance metadata can be sparse for TSX/CDR symbols. Backfill from 1Y candles.
+        if week_52_low is None or week_52_high is None or avg_volume is None:
+            history = t.history(period="1y")
+            if history is not None and not history.empty:
+                cols = {c.lower(): c for c in history.columns}
+                low_col = cols.get("low")
+                high_col = cols.get("high")
+                vol_col = cols.get("volume")
+
+                if week_52_low is None and low_col:
+                    low_series = history[low_col].dropna()
+                    if not low_series.empty:
+                        week_52_low = self._coerce_float(low_series.min())
+
+                if week_52_high is None and high_col:
+                    high_series = history[high_col].dropna()
+                    if not high_series.empty:
+                        week_52_high = self._coerce_float(high_series.max())
+
+                if avg_volume is None and vol_col:
+                    vol_series = history[vol_col].dropna()
+                    if not vol_series.empty:
+                        avg_volume = self._coerce_float(vol_series.tail(63).mean())
 
         return {
             "market_cap": market_cap,

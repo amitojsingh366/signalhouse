@@ -85,9 +85,24 @@ async def check_signal(symbol: str, db: AsyncSession = Depends(get_db)):
         take_profit_2 = price + tp2_distance
 
         risk_per_share = max(0.0, price - stop_loss)
-        reward_per_share = max(0.0, take_profit_1 - price)
+        reward_tp1 = max(0.0, take_profit_1 - price)
+        reward_tp2 = max(0.0, take_profit_2 - price)
+        # Use directional conviction so bearish signals do not inflate buy-side reward.
+        conviction = max(0.0, min(1.0, float(result.score) / 9.0))
+        # Conviction-aware expected reward between TP1 (conservative) and TP2 (stretch).
+        reward_per_share = reward_tp1 + ((reward_tp2 - reward_tp1) * conviction)
         risk_reward_ratio = (
             reward_per_share / risk_per_share
+            if risk_per_share > 0
+            else None
+        )
+        risk_reward_tp1 = (
+            reward_tp1 / risk_per_share
+            if risk_per_share > 0
+            else None
+        )
+        risk_reward_tp2 = (
+            reward_tp2 / risk_per_share
             if risk_per_share > 0
             else None
         )
@@ -100,6 +115,12 @@ async def check_signal(symbol: str, db: AsyncSession = Depends(get_db)):
             "take_profit_2": round(take_profit_2, 4),
             "risk_reward_ratio": round(risk_reward_ratio, 2)
             if risk_reward_ratio is not None
+            else None,
+            "risk_reward_tp1": round(risk_reward_tp1, 2)
+            if risk_reward_tp1 is not None
+            else None,
+            "risk_reward_tp2": round(risk_reward_tp2, 2)
+            if risk_reward_tp2 is not None
             else None,
             "atr": round(atr_value, 4) if atr_value is not None else None,
         }

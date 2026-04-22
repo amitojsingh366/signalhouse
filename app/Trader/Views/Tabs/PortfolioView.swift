@@ -240,7 +240,7 @@ private struct SectorExposureCard: View {
                         }
                         .frame(height: 8)
 
-                        Text(Formatting.percent(sector.1 * 100))
+                        Text(Formatting.percent(sector.1 * 100).replacingOccurrences(of: "+", with: ""))
                             .font(AppFont.mono(12, weight: .medium))
                             .foregroundStyle(Theme.brand)
                     }

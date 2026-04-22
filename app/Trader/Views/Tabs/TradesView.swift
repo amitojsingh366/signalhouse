@@ -92,6 +92,19 @@ struct TradesView: View {
                                     submitLabel: .done
                                 )
 
+                                if focusedField != nil {
+                                    HStack {
+                                        Spacer()
+                                        Button("Cancel") {
+                                            focusedField = nil
+                                        }
+                                        .font(AppFont.sans(14, weight: .medium))
+                                        .foregroundStyle(Theme.brand)
+                                        .buttonStyle(.plain)
+                                    }
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
+                                }
+
                                 Button {
                                     Task { await submitTrade() }
                                 } label: {
@@ -126,6 +139,7 @@ struct TradesView: View {
                                 }
                             }
                             .padding(14)
+                            .animation(.easeInOut(duration: 0.16), value: focusedField != nil)
                         }
 
                         HStack {
@@ -200,18 +214,37 @@ struct TradesView: View {
         uppercase: Bool = false,
         submitLabel: SubmitLabel = .done
     ) -> some View {
-        TextField(placeholder, text: text)
-            .focused($focusedField, equals: field)
-            .keyboardType(keyboard)
-            .submitLabel(submitLabel)
-            .textInputAutocapitalization(uppercase ? .characters : .never)
-            .autocorrectionDisabled()
-            .font(AppFont.sans(16))
-            .foregroundStyle(Theme.textPrimary)
-            .textFieldStyle(.roundedBorder)
-            .onSubmit {
-                advanceFocus(from: field)
+        HStack(spacing: 10) {
+            TextField(placeholder, text: text)
+                .focused($focusedField, equals: field)
+                .keyboardType(keyboard)
+                .submitLabel(submitLabel)
+                .textInputAutocapitalization(uppercase ? .characters : .never)
+                .autocorrectionDisabled()
+                .font(AppFont.sans(15))
+                .foregroundStyle(Theme.textPrimary)
+                .onSubmit {
+                    advanceFocus(from: field)
+                }
+
+            if !text.wrappedValue.isEmpty {
+                Button {
+                    text.wrappedValue = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Theme.textDimmed)
+                }
+                .buttonStyle(.plain)
             }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Theme.surface1)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Theme.line, lineWidth: 1)
+        )
     }
 
     private func advanceFocus(from field: TradeField) {

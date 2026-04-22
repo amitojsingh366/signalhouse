@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Bell, Clock, Download, RefreshCw, Thermometer, TrendingUp, ArrowRight } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePremarketMovers, queryKeys } from "@/lib/hooks";
+import type { PremarketMover } from "@/lib/api";
 import { cn, formatCurrency, formatPercent } from "@/lib/utils";
 import { downloadCsv } from "@/lib/csv";
 
@@ -33,11 +34,17 @@ function volumeProxy(changePct: number): string {
   return `${x.toFixed(1)}x`;
 }
 
-function catalystProxy(usSymbol: string, changePct: number): string {
-  if (changePct >= 0.02) return `${usSymbol} showing strong pre-market momentum`;
-  if (changePct > 0) return `${usSymbol} trading modestly higher before open`;
-  if (changePct <= -0.02) return `${usSymbol} under notable overnight pressure`;
-  return `${usSymbol} mixed pre-market signal heading into open`;
+function sessionLabel(session?: PremarketMover["session"]): string {
+  if (session === "after_hours") return "after-hours";
+  return "pre-market";
+}
+
+function catalystProxy(usSymbol: string, changePct: number, session?: PremarketMover["session"]): string {
+  const label = sessionLabel(session);
+  if (changePct >= 0.02) return `${usSymbol} showing strong ${label} momentum`;
+  if (changePct > 0) return `${usSymbol} trading modestly higher in ${label}`;
+  if (changePct <= -0.02) return `${usSymbol} under notable ${label} pressure`;
+  return `${usSymbol} mixed ${label} signal`;
 }
 
 function formatPremarketChange(changeFraction: number): string {
@@ -193,13 +200,15 @@ export default function PreMarketPage() {
       <div className="card">
         <div className="head">
           <h3>Your holdings overnight</h3>
-          <span className="sub">ranked by absolute pre-market move</span>
+          <span className="sub">ranked by absolute extended-hours move</span>
         </div>
 
         {isLoading ? (
           <div className="p-8 text-center text-sm text-slate-500">Loading pre-market movers...</div>
         ) : movers.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-500">No pre-market data available right now.</div>
+          <div className="p-8 text-center text-sm text-slate-500">
+            No extended-hours data available right now.
+          </div>
         ) : (
           <div className="tbl-wrap">
             <table className="tbl">
@@ -221,7 +230,7 @@ export default function PreMarketPage() {
                         {formatPremarketChange(row.change_pct)}
                       </td>
                       <td className="r mono">{volumeProxy(row.change_pct)}</td>
-                      <td className="text-slate-300">{catalystProxy(row.us_symbol, row.change_pct)}</td>
+                      <td className="text-slate-300">{catalystProxy(row.us_symbol, row.change_pct, row.session)}</td>
                       <td>
                         <Link
                           href={`/signals?check=${encodeURIComponent(row.cdr_symbol)}`}
@@ -244,7 +253,7 @@ export default function PreMarketPage() {
         <div className="card">
           <div className="head">
             <h3>Gap candidates</h3>
-            <span className="sub">largest pre-market dislocations</span>
+            <span className="sub">largest extended-hours dislocations</span>
           </div>
           <div>
             {movers.slice(0, 4).map((row) => {
@@ -264,7 +273,9 @@ export default function PreMarketPage() {
                       <span className="t">{row.cdr_symbol}</span>
                       <span className="sector">{row.us_symbol}</span>
                     </div>
-                    <div className="reason">{formatCurrency(row.premarket_price)} pre-market proxy</div>
+                    <div className="reason">
+                      {formatCurrency(row.session_price ?? row.premarket_price)} {sessionLabel(row.session)} proxy
+                    </div>
                   </div>
                   <span className="go">
                     <ArrowRight />
@@ -320,7 +331,7 @@ export default function PreMarketPage() {
       </div>
 
       <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-xs text-slate-500">
-        Movers feed currently provides symbol, US pair, pre-market price, and change %. Futures, Fear &amp; Greed, and news catalysts are shown as unavailable placeholders.
+        Movers feed currently provides symbol, US pair, extended-hours price (pre-market or after-hours), and change %. Futures, Fear &amp; Greed, and news catalysts are shown as unavailable placeholders.
       </div>
 
       {biggest && (

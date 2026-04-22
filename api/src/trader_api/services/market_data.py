@@ -163,7 +163,7 @@ class MarketData:
         if cdr_symbols is None:
             cdr_symbols = [s for s in self.symbols if s.endswith(".NE")]
 
-        movers: list[dict[str, Any]] = []
+        available_quotes: list[dict[str, Any]] = []
 
         async def check_one(symbol: str) -> dict[str, Any] | None:
             us_ticker = self.cdr_to_us.get(symbol)
@@ -171,20 +171,49 @@ class MarketData:
                 return None
             try:
                 info = await asyncio.to_thread(lambda: yf.Ticker(us_ticker).info)
-                pre_price = info.get("preMarketPrice")
                 prev_close = info.get("regularMarketPreviousClose") or info.get(
                     "previousClose"
                 )
-                if pre_price and prev_close and prev_close > 0:
-                    change_pct = (pre_price - prev_close) / prev_close
-                    if abs(change_pct) >= threshold:
-                        return {
-                            "cdr_symbol": symbol,
-                            "us_symbol": us_ticker,
-                            "premarket_price": pre_price,
-                            "prev_close": prev_close,
-                            "change_pct": change_pct,
-                        }
+                if not prev_close or prev_close <= 0:
+                    return None
+
+                pre_price = info.get("preMarketPrice")
+                post_price = info.get("postMarketPrice")
+
+                candidates: list[dict[str, Any]] = []
+                if pre_price:
+                    pre_change = (pre_price - prev_close) / prev_close
+                    candidates.append({
+                        "session": "premarket",
+                        "session_price": pre_price,
+                        "change_pct": pre_change,
+                    })
+                if post_price:
+                    post_change = (post_price - prev_close) / prev_close
+                    candidates.append({
+                        "session": "after_hours",
+                        "session_price": post_price,
+                        "change_pct": post_change,
+                    })
+
+                if not candidates:
+                    return None
+
+                # Prefer live pre-market quote; otherwise use after-hours fallback.
+                selected = next(
+                    (entry for entry in candidates if entry["session"] == "premarket"),
+                    max(candidates, key=lambda entry: abs(entry["change_pct"])),
+                )
+                return {
+                    "cdr_symbol": symbol,
+                    "us_symbol": us_ticker,
+                    # Kept for web backwards compatibility.
+                    "premarket_price": selected["session_price"],
+                    "session_price": selected["session_price"],
+                    "session": selected["session"],
+                    "prev_close": prev_close,
+                    "change_pct": selected["change_pct"],
+                }
             except Exception:
                 logger.debug("Failed to get premarket data for %s", us_ticker)
             return None
@@ -194,10 +223,13 @@ class MarketData:
         )
         for r in results:
             if isinstance(r, dict):
-                movers.append(r)
+                available_quotes.append(r)
 
-        movers.sort(key=lambda x: abs(x["change_pct"]), reverse=True)
-        return movers
+        available_quotes.sort(key=lambda x: abs(x["change_pct"]), reverse=True)
+        movers = [row for row in available_quotes if abs(row["change_pct"]) >= threshold]
+
+        # If nothing clears the mover threshold, still return available extended-hours data.
+        return movers if movers else available_quotes
 
     async def resolve_symbol(self, raw_ticker: str) -> str | None:
         candidates = [f"{raw_ticker}.TO", f"{raw_ticker}.NE", raw_ticker]

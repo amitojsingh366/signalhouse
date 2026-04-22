@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Bell, Clock, RefreshCw, Thermometer, TrendingUp, ArrowRight } from "lucide-react";
+import { Bell, Clock, Download, RefreshCw, Thermometer, TrendingUp, ArrowRight } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePremarketMovers, queryKeys } from "@/lib/hooks";
 import { cn, formatCurrency, formatPercent } from "@/lib/utils";
+import { downloadCsv } from "@/lib/csv";
 
 function getEtNow() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Toronto" }));
@@ -66,6 +67,35 @@ export default function PreMarketPage() {
     [data]
   );
 
+  const exportCsv = useCallback(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = movers.map((row) => [
+      row.cdr_symbol,
+      row.us_symbol,
+      row.premarket_price,
+      row.change_pct,
+      row.change_pct * 100,
+      volumeProxy(row.change_pct),
+      catalystProxy(row.us_symbol, row.change_pct),
+      new Date().toISOString(),
+    ]);
+
+    downloadCsv(
+      `premarket-${today}.csv`,
+      [
+        "cdr_symbol",
+        "us_symbol",
+        "premarket_price",
+        "change_fraction",
+        "change_pct",
+        "volume_proxy",
+        "catalyst_proxy",
+        "exported_at",
+      ],
+      rows
+    );
+  }, [movers]);
+
   const positive = movers.filter((m) => m.change_pct >= 0).length;
   const negative = movers.filter((m) => m.change_pct < 0).length;
   const biggest = movers[0];
@@ -97,6 +127,13 @@ export default function PreMarketPage() {
         </div>
 
         <div className="actions">
+          <button
+            onClick={exportCsv}
+            className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.08]"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </button>
           <button
             onClick={() => setAlertsEnabled((prev) => !prev)}
             className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition-colors hover:border-white/[0.16] hover:bg-white/[0.08]"

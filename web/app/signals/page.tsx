@@ -26,6 +26,7 @@ import { usePrivacy } from "@/lib/privacy";
 import { Skeleton, SignalCardsSkeleton } from "@/components/ui/loading";
 import { PriceChart } from "@/components/ui/price-chart";
 import { buildTradeIntentHref } from "@/lib/trade-intent";
+import { downloadCsv } from "@/lib/csv";
 
 const SNOOZE_DURATIONS = [
   { label: "1h", hours: 1 },
@@ -396,6 +397,53 @@ function SignalsContent() {
     [qc]
   );
 
+  const exportCsv = useCallback(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = (plan?.actions ?? []).map((action) => [
+      action.type,
+      action.urgency,
+      action.symbol ?? "",
+      action.sell_symbol ?? "",
+      action.buy_symbol ?? "",
+      action.actionable ?? "",
+      action.snoozed ?? false,
+      action.score ?? "",
+      action.strength ?? "",
+      action.price ?? action.sell_price ?? action.buy_price ?? "",
+      action.shares ?? action.sell_shares ?? action.buy_shares ?? "",
+      action.pnl_pct ?? action.sell_pnl_pct ?? "",
+      action.pnl ?? "",
+      action.sector ?? "",
+      action.reason,
+      action.detail,
+      (action.reasons ?? []).join(" | "),
+    ]);
+
+    downloadCsv(
+      `signals-${today}.csv`,
+      [
+        "action_type",
+        "urgency",
+        "symbol",
+        "sell_symbol",
+        "buy_symbol",
+        "actionable",
+        "snoozed",
+        "score",
+        "strength",
+        "price",
+        "shares",
+        "pnl_pct",
+        "pnl",
+        "sector",
+        "reason",
+        "detail",
+        "reasons",
+      ],
+      rows
+    );
+  }, [plan?.actions]);
+
   const allActions = plan?.actions ?? [];
   const activeSells = allActions.filter((a) => a.type === "SELL" && !a.snoozed);
   const activeSwaps = allActions.filter((a) => a.type === "SWAP" && !a.snoozed);
@@ -706,7 +754,10 @@ function SignalsContent() {
             <Filter className="h-4 w-4" />
             Filters
           </button>
-          <button className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10">
+          <button
+            onClick={exportCsv}
+            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/10"
+          >
             <Download className="h-4 w-4" />
             Export CSV
           </button>

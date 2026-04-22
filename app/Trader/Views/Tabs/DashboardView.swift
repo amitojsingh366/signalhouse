@@ -15,11 +15,19 @@ struct DashboardView: View {
         APIClient(baseURL: config.apiBaseURL ?? "")
     }
 
-    private var primaryActions: [ActionItem] {
+    private var prioritizedActions: [ActionItem] {
         guard let actions = actionPlan?.actions else { return [] }
         let activeActions = actions.filter { $0.snoozed != true }
         let sells = activeActions.filter { $0.type == "SELL" }
-        return Array((sells.isEmpty ? activeActions : sells).prefix(2))
+        return sells.isEmpty ? activeActions : sells
+    }
+
+    private var primaryActions: [ActionItem] {
+        Array(prioritizedActions.prefix(2))
+    }
+
+    private var primaryActionCount: Int {
+        prioritizedActions.count
     }
 
     var body: some View {
@@ -62,7 +70,7 @@ struct DashboardView: View {
                         }
 
                         HStack {
-                            MobileSectionLabel("Action Plan · \(primaryActions.count)")
+                            MobileSectionLabel("Action Plan · \(primaryActionCount)")
                             Spacer()
                             Button("View all") {
                                 NotificationCenter.default.post(name: .openActionsTab, object: nil)

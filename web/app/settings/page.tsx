@@ -447,7 +447,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={toggleAdvancedMode}
-                  className="pt-1 text-sm font-medium text-brand-300 transition-colors hover:text-brand-200"
+                  className="pt-1 text-xs font-medium text-brand-300 transition-colors hover:text-brand-200"
                 >
                   {advancedMode ? "disable advanced mode" : "advanced mode"}
                 </button>
@@ -998,10 +998,10 @@ function NumberControl({
   );
 
   return (
-    <div className={cn("inline-flex overflow-hidden rounded-lg border border-white/10 bg-[#11141d]", disabled && "opacity-60")}>
+    <div className={cn("inline-flex overflow-hidden rounded-lg border border-white/10 bg-white/5", disabled && "opacity-60")}>
       <input
         type="number"
-        className="w-24 bg-transparent px-3 py-2 text-right text-sm text-white outline-none transition-colors focus:bg-white/[0.03]"
+        className="w-24 [appearance:textfield] bg-transparent px-3 py-2 text-right text-sm text-white outline-none transition-colors focus:bg-white/[0.07] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         value={draft}
         disabled={disabled}
         min={min ?? undefined}
@@ -1041,7 +1041,7 @@ function NumberControl({
           }
         }}
       />
-      <div className="flex w-6 flex-col border-l border-white/10 bg-black/20">
+      <div className="flex w-6 flex-col border-l border-white/10 bg-white/[0.03]">
         <button
           type="button"
           disabled={disabled}

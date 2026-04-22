@@ -1029,11 +1029,13 @@ function NumberControl({
           }
           if (e.key === "ArrowUp") {
             e.preventDefault();
+            if (e.repeat) return;
             stepBy(1);
             return;
           }
           if (e.key === "ArrowDown") {
             e.preventDefault();
+            if (e.repeat) return;
             stepBy(-1);
           }
         }}

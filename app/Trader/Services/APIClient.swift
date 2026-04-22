@@ -223,6 +223,7 @@ final class APIClient: ObservableObject {
     private func invalidatePortfolioQueries() async {
         await Self.cache.invalidate(prefix: "\(baseURL)/api/portfolio")
         await Self.cache.invalidate("\(baseURL)/api/signals/actions")
+        await Self.cache.invalidate("\(baseURL)/api/market/ticker-strip")
         await Self.cache.invalidate(prefix: "\(baseURL)/api/status")
     }
 
@@ -231,6 +232,7 @@ final class APIClient: ObservableObject {
         await Self.cache.invalidate(prefix: "\(baseURL)/api/signals/check/")
         await Self.cache.invalidate(prefix: "\(baseURL)/api/signals/premarket")
         await Self.cache.invalidate(prefix: "\(baseURL)/api/signals/insights")
+        await Self.cache.invalidate("\(baseURL)/api/market/ticker-strip")
     }
 
     private func invalidateSettingsQueries() async {
@@ -370,6 +372,12 @@ final class APIClient: ObservableObject {
 
     func getStatus() async throws -> StatusOut {
         try await fetchCached("/api/status", policy: .staleWhileRevalidate(staleTime: 20))
+    }
+
+    // MARK: - Market
+
+    func getTickerStrip() async throws -> [TickerStripItem] {
+        try await fetchCached("/api/market/ticker-strip", policy: .staleWhileRevalidate(staleTime: 20))
     }
 
     // MARK: - Settings

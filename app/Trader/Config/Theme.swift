@@ -1,25 +1,81 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
-/// Design system colors and modifiers matching the web dashboard.
+/// Signalhouse mobile design tokens ported from the handoff bundle.
 enum Theme {
     // Brand
-    static let brand = Color(hex: "#8b5cf6")
-    static let brandLight = Color(hex: "#a78bfa")
+    static let brand = Color(hex: "#a78bfa")
+    static let brandStrong = Color(hex: "#8b5cf6")
+    static let brandDim = Color(hex: "#6b4edc")
+    static let brandLight = Color(hex: "#c4b5fd")
 
     // Semantic
-    static let positive = Color(hex: "#34d399")  // emerald-400
-    static let negative = Color(hex: "#f87171")  // red-400
-    static let warning = Color(hex: "#fbbf24")   // amber-400
+    static let positive = Color(hex: "#34d399")
+    static let negative = Color(hex: "#f87171")
+    static let warning = Color(hex: "#fbbf24")
 
     // Surfaces
-    static let background = Color(hex: "#09090b")
-    static let cardBg = Color.white.opacity(0.03)
-    static let cardBorder = Color.white.opacity(0.06)
+    static let background = Color(hex: "#07070a")
+    static let surface0 = Color(hex: "#0b0b10")
+    static let surface1 = Color(hex: "#12121a")
+    static let surface2 = Color(hex: "#1a1a24")
+    static let line = Color.white.opacity(0.06)
+    static let lineStrong = Color.white.opacity(0.09)
+    static let cardBg = surface1
+    static let cardBorder = line
 
     // Text
-    static let textPrimary = Color(hex: "#fafafa")
-    static let textMuted = Color(hex: "#94a3b8")   // slate-400
-    static let textDimmed = Color(hex: "#64748b")   // slate-500
+    static let textPrimary = Color(hex: "#f3f3f6")
+    static let textMuted = Color(hex: "#9898a8")
+    static let textDimmed = Color(hex: "#5a5a6a")
+
+}
+
+enum AppFont {
+    static func sans(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        if let montserratName = montserratName(for: weight), hasFont(named: montserratName) {
+            return .custom(montserratName, size: size)
+        }
+        if hasFont(named: "Montserrat") {
+            return .custom("Montserrat", size: size)
+        }
+        return .system(size: size, weight: weight)
+    }
+
+    static func mono(_ size: CGFloat, weight: Font.Weight = .medium) -> Font {
+        .system(size: size, weight: weight, design: .monospaced)
+    }
+
+    private static func montserratName(for weight: Font.Weight) -> String? {
+        switch weight {
+        case .black:
+            return "Montserrat-Black"
+        case .heavy:
+            return "Montserrat-ExtraBold"
+        case .bold:
+            return "Montserrat-Bold"
+        case .semibold:
+            return "Montserrat-SemiBold"
+        case .medium:
+            return "Montserrat-Medium"
+        case .light:
+            return "Montserrat-Light"
+        case .thin:
+            return "Montserrat-Thin"
+        default:
+            return "Montserrat-Regular"
+        }
+    }
+
+    private static func hasFont(named name: String) -> Bool {
+        #if canImport(UIKit)
+        return UIFont(name: name, size: 14) != nil
+        #else
+        return true
+        #endif
+    }
 }
 
 // MARK: - Glass Card Modifier
@@ -27,11 +83,11 @@ enum Theme {
 struct GlassCard: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(Color.white.opacity(0.03))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .background(Theme.cardBg)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Theme.cardBorder, lineWidth: 1)
             )
     }
 }

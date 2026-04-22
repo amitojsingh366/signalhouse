@@ -1,7 +1,7 @@
 import PhotosUI
 import SwiftUI
 
-/// Upload page matching web's upload/page.tsx — pick photo, parse, confirm.
+/// Upload screenshot page (from More).
 struct UploadView: View {
     @EnvironmentObject private var config: AppConfig
 
@@ -17,93 +17,119 @@ struct UploadView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                // Photo picker
-                Section {
-                    PhotosPicker(
-                        selection: $selectedItem,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    ) {
-                        HStack {
-                            Image(systemName: "photo.on.rectangle")
-                                .foregroundStyle(Theme.brand)
-                            Text("Select Screenshot")
-                        }
-                    }
-                    .onChange(of: selectedItem) { _, newItem in
-                        Task { await processImage(newItem) }
-                    }
+        MobileScreen {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("OCR")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .tracking(1.4)
+                        .foregroundStyle(Theme.brand)
 
-                    if isParsing {
-                        HStack {
-                            ProgressView()
-                            Text("Parsing with Claude Vision...")
-                                .font(.caption)
-                                .foregroundStyle(Theme.textMuted)
-                        }
-                    }
+                    MobileSectionLabel("Import")
+                    MobileCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            PhotosPicker(
+                                selection: $selectedItem,
+                                matching: .images,
+                                photoLibrary: .shared()
+                            ) {
+                                Label("Select screenshot", systemImage: "photo.on.rectangle")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(Color.black)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .background(Theme.brand)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                            .onChange(of: selectedItem) { _, newItem in
+                                Task { await processImage(newItem) }
+                            }
 
-                    if let error {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(Theme.negative)
-                    }
-                    if let success {
-                        Text(success)
-                            .font(.caption)
-                            .foregroundStyle(Theme.positive)
-                    }
-                } header: {
-                    Text("Upload Brokerage Screenshot")
-                } footer: {
-                    Text("Take a screenshot of your holdings in your brokerage app, then select it here. Claude Vision will parse the positions automatically.")
-                }
-
-                // Parsed holdings
-                if let holdings = parsedHoldings {
-                    Section("Parsed Holdings (\(holdings.count))") {
-                        ForEach(Array(holdings.enumerated()), id: \.element.symbol) { index, holding in
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text(holding.symbol)
-                                        .fontWeight(.medium)
-                                    Text("Qty: \(Formatting.number(holding.quantity, decimals: 4))")
-                                        .font(.caption)
-                                        .foregroundStyle(Theme.textDimmed)
+                            if isParsing {
+                                HStack(spacing: 8) {
+                                    ProgressView()
+                                    Text("Parsing with Claude Vision...")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Theme.textMuted)
                                 }
-                                Spacer()
-                                Text(Formatting.currency(holding.marketValueCad))
-                                    .foregroundStyle(Theme.textMuted)
+                            }
+
+                            if let error {
+                                Text(error)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(Theme.negative)
+                            }
+                            if let success {
+                                Text(success)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(Theme.positive)
                             }
                         }
+                        .padding(14)
                     }
 
-                    Section {
-                        Button {
-                            Task { await confirmUpload() }
-                        } label: {
-                            HStack {
-                                if isConfirming { ProgressView().tint(.white) }
-                                Text("Confirm & Sync Portfolio")
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Theme.brand)
-                        .disabled(isConfirming)
+                    if let holdings = parsedHoldings {
+                        MobileSectionLabel("Parsed holdings · \(holdings.count)")
+                        MobileCard {
+                            ForEach(Array(holdings.enumerated()), id: \.element.id) { index, holding in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(holding.symbol)
+                                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                                            .foregroundStyle(Theme.textPrimary)
+                                        Text("Qty: \(Formatting.number(holding.quantity, decimals: 4))")
+                                            .font(.system(size: 11, design: .monospaced))
+                                            .foregroundStyle(Theme.textDimmed)
+                                    }
+                                    Spacer()
+                                    Text(Formatting.currency(holding.marketValueCad))
+                                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                        .foregroundStyle(Theme.textMuted)
+                                }
+                                .padding(16)
 
-                        Button("Cancel", role: .destructive) {
-                            parsedHoldings = nil
-                            selectedItem = nil
+                                if index < holdings.count - 1 {
+                                    Divider().overlay(Theme.line)
+                                }
+                            }
+                        }
+
+                        MobileCard {
+                            VStack(spacing: 10) {
+                                Button {
+                                    Task { await confirmUpload() }
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        if isConfirming { ProgressView().tint(Color.black) }
+                                        Text("Confirm & sync portfolio")
+                                            .font(.system(size: 14, weight: .semibold))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .background(Theme.brand)
+                                    .foregroundStyle(Color.black)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(isConfirming)
+
+                                Button("Cancel", role: .destructive) {
+                                    parsedHoldings = nil
+                                    selectedItem = nil
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .padding(14)
                         }
                     }
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 40)
             }
-            .listStyle(.insetGrouped)
-            .navigationTitle("Upload")
         }
+        .navigationTitle("Upload screenshot")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func processImage(_ item: PhotosPickerItem?) async {
@@ -134,6 +160,7 @@ struct UploadView: View {
             success = "Portfolio synced with \(holdings.count) holdings"
             parsedHoldings = nil
             selectedItem = nil
+            NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
         } catch {
             self.error = error.localizedDescription
         }

@@ -1,7 +1,7 @@
 import Combine
 import SwiftUI
 
-/// Action Plan page — prioritized, position-sized trade instructions.
+/// Signalhouse action plan tab (named "Actions" in the handoff).
 struct SignalsView: View {
     @EnvironmentObject private var config: AppConfig
     @EnvironmentObject private var pushManager: PushManager
@@ -10,258 +10,153 @@ struct SignalsView: View {
     @State private var isLoading = true
     @State private var searchText = ""
     @State private var checkedSignal: SignalOut?
-    @State private var isChecking = false
-    @State private var allSymbols: [SymbolInfo] = []
     @State private var showSnoozed = false
-    @State private var snoozeTarget: String?  // symbol to snooze (triggers sheet)
+    @State private var snoozeTarget: String?
+    @State private var now = Date()
+
+    private let marketClock = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
     }
 
-    private var searchSuggestions: [SymbolInfo] {
-        let query = searchText.trimmingCharacters(in: .whitespaces)
-        guard query.count >= 1 else { return [] }
-        let upper = query.uppercased()
-        return allSymbols.filter {
-            $0.symbol.uppercased().contains(upper) || $0.name.uppercased().contains(upper)
-        }.prefix(8).map { $0 }
-    }
-
     private var activeSells: [ActionItem] {
         actionPlan?.actions.filter { $0.type == "SELL" && $0.snoozed != true } ?? []
     }
+
     private var activeSwaps: [ActionItem] {
         actionPlan?.actions.filter { $0.type == "SWAP" && $0.snoozed != true } ?? []
     }
-    private var actionableBuys: [ActionItem] {
+
+    private var activeBuys: [ActionItem] {
         actionPlan?.actions.filter { $0.type == "BUY" && $0.actionable != false } ?? []
     }
+
     private var signalOnlyBuys: [ActionItem] {
         actionPlan?.actions.filter { $0.type == "BUY" && $0.actionable == false } ?? []
     }
+
     private var snoozedActions: [ActionItem] {
         actionPlan?.actions.filter { $0.snoozed == true } ?? []
     }
 
     var body: some View {
         NavigationStack {
-            List {
-                // Portfolio summary
-                if let plan = actionPlan {
-                    Section {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Portfolio")
-                                    .font(.caption)
-                                    .foregroundStyle(Theme.textDimmed)
-                                Text(Formatting.currency(plan.portfolioValue))
-                                    .font(.headline)
+            MobileScreen {
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text(marketStatusLabel)
+                            .font(AppFont.mono(10, weight: .medium))
+                            .tracking(1.4)
+                            .foregroundStyle(marketStatusColor)
+
+                        MobileSearchField(placeholder: "Search symbol (e.g. SHOP.TO)", text: $searchText)
+                            .onSubmit {
+                                Task { await checkSymbol(nil) }
                             }
-                            Spacer()
-                            VStack(alignment: .center, spacing: 2) {
-                                Text("Cash")
-                                    .font(.caption)
-                                    .foregroundStyle(Theme.textDimmed)
-                                Text(Formatting.currency(plan.cash))
-                                    .font(.headline)
-                            }
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("Positions")
-                                    .font(.caption)
-                                    .foregroundStyle(Theme.textDimmed)
-                                Text("\(plan.numPositions)/\(plan.maxPositions)")
-                                    .font(.headline)
+
+                        if let plan = actionPlan {
+                            LazyVGrid(columns: [.init(.flexible()), .init(.flexible()), .init(.flexible())], spacing: 8) {
+                                ActionSummaryCard(title: "Portfolio", value: Formatting.currency(plan.portfolioValue))
+                                ActionSummaryCard(title: "Cash", value: Formatting.currency(plan.cash))
+                                ActionSummaryCard(title: "Positions", value: "\(plan.numPositions) / \(plan.maxPositions)")
                             }
                         }
-                        .padding(.vertical, 4)
-                    }
-                }
 
-                // Search result
-                if let checkedSignal {
-                    Section("Search Result") {
-                        NavigationLink {
-                            SignalDetailView(signal: checkedSignal)
-                        } label: {
-                            SignalCardContent(signal: checkedSignal)
-                        }
-                    }
-                }
-
-                // Sells
-                if !activeSells.isEmpty {
-                    Section {
-                        ForEach(activeSells) { action in
-                            NavigationLink {
-                                ActionDetailView(action: action)
-                            } label: {
-                                SellActionRow(action: action)
-                            }
-                            .swipeActions(edge: .trailing) {
-                                Button {
-                                    snoozeTarget = action.symbol ?? action.sellSymbol ?? ""
-                                } label: {
-                                    Label("Snooze", systemImage: "bell.slash")
-                                }
-                                .tint(.gray)
-                            }
-                        }
-                    } header: {
-                        Label("Sells", systemImage: "arrow.down.circle.fill")
-                            .foregroundStyle(Theme.negative)
-                    } footer: {
-                        Text("Execute these first — stops, profit-taking, and exit signals. Swipe left to snooze.")
-                    }
-                }
-
-                // Swaps
-                if !activeSwaps.isEmpty {
-                    Section {
-                        ForEach(activeSwaps) { action in
-                            NavigationLink {
-                                ActionDetailView(action: action)
-                            } label: {
-                                SwapActionRow(action: action)
-                            }
-                            .swipeActions(edge: .trailing) {
-                                Button {
-                                    Task { await snooze(action.sellSymbol ?? "") }
-                                } label: {
-                                    Label("Snooze", systemImage: "bell.slash")
-                                }
-                                .tint(.gray)
-                            }
-                        }
-                    } header: {
-                        Label("Swaps", systemImage: "arrow.left.arrow.right.circle.fill")
-                            .foregroundStyle(Theme.brand)
-                    } footer: {
-                        Text("Replace weaker holdings with stronger opportunities")
-                    }
-                }
-
-                // Actionable Buys
-                if !actionableBuys.isEmpty {
-                    Section {
-                        ForEach(actionableBuys) { action in
-                            NavigationLink {
-                                ActionDetailView(action: action)
-                            } label: {
-                                BuyActionRow(action: action)
-                            }
-                        }
-                    } header: {
-                        Label("Buys", systemImage: "arrow.up.circle.fill")
-                            .foregroundStyle(Theme.positive)
-                    } footer: {
-                        Text("You have the cash and slots to execute these")
-                    }
-                }
-
-                // Signal-only Buys (not enough cash)
-                if !signalOnlyBuys.isEmpty {
-                    Section {
-                        ForEach(signalOnlyBuys) { action in
-                            NavigationLink {
-                                ActionDetailView(action: action)
-                            } label: {
-                                SignalOnlyBuyRow(action: action)
-                            }
-                        }
-                    } header: {
-                        Label("Signals", systemImage: "dollarsign.circle.fill")
-                            .foregroundStyle(Theme.warning)
-                    } footer: {
-                        Text("Strong buy signals, but not enough cash — free up funds or add cash to unlock")
-                    }
-                }
-
-                // Snoozed actions
-                if !snoozedActions.isEmpty {
-                    Section {
-                        DisclosureGroup(isExpanded: $showSnoozed) {
-                            ForEach(snoozedActions) { action in
+                        if let checkedSignal {
+                            MobileSectionLabel("Search Result")
+                            MobileCard {
                                 NavigationLink {
-                                    ActionDetailView(action: action)
+                                    SignalDetailView(signal: checkedSignal)
                                 } label: {
-                                    SnoozedActionRow(action: action)
+                                    SignalCardContent(signal: checkedSignal)
                                 }
-                                .swipeActions(edge: .trailing) {
-                                    Button {
-                                        let sym = action.symbol ?? action.sellSymbol ?? ""
-                                        Task { await unsnooze(sym) }
-                                    } label: {
-                                        Label("Unsnooze", systemImage: "bell")
-                                    }
-                                    .tint(Theme.brand)
+                                .buttonStyle(.plain)
+                                .padding(16)
+                            }
+                        }
+
+                        if !activeSells.isEmpty {
+                            MobileSectionLabel("Sells · \(activeSells.count)")
+                            ActionGroupCard(actions: activeSells, style: .sell) { action in
+                                snoozeTarget = action.symbol ?? action.sellSymbol
+                            }
+                            Text("Execute these first — stops, profit-taking, and exit signals.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Theme.textDimmed)
+                        }
+
+                        if !activeSwaps.isEmpty {
+                            MobileSectionLabel("Swaps · \(activeSwaps.count)")
+                            ActionGroupCard(actions: activeSwaps, style: .swap) { action in
+                                snoozeTarget = action.sellSymbol
+                            }
+                        }
+
+                        if !activeBuys.isEmpty {
+                            MobileSectionLabel("Buys · \(activeBuys.count)")
+                            ActionGroupCard(actions: activeBuys, style: .buy, onSnooze: nil)
+                        }
+
+                        if !signalOnlyBuys.isEmpty {
+                            MobileSectionLabel("Signal-only Buys · \(signalOnlyBuys.count)")
+                            ActionGroupCard(actions: signalOnlyBuys, style: .signalOnly, onSnooze: nil)
+                        }
+
+                        if !snoozedActions.isEmpty {
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    showSnoozed.toggle()
+                                }
+                            } label: {
+                                MobileSectionLabel("\(snoozedActions.count) snoozed signal\(snoozedActions.count == 1 ? "" : "s")") {
+                                    Image(systemName: showSnoozed ? "chevron.up" : "chevron.down")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(Theme.textDimmed)
                                 }
                             }
-                        } label: {
-                            Label("\(snoozedActions.count) snoozed signal\(snoozedActions.count > 1 ? "s" : "")",
-                                  systemImage: "bell.slash")
-                                .foregroundStyle(Theme.textDimmed)
-                        }
-                    }
-                }
+                            .buttonStyle(.plain)
 
-                // No actions
-                if !isLoading && actionPlan != nil && activeSells.isEmpty && activeSwaps.isEmpty && actionableBuys.isEmpty && signalOnlyBuys.isEmpty && snoozedActions.isEmpty {
-                    Section {
-                        ContentUnavailableView {
-                            Label("No Trades Needed", systemImage: "checkmark.circle")
-                        } description: {
-                            Text("Portfolio is on track. Check back later.")
+                            if showSnoozed {
+                                ActionGroupCard(actions: snoozedActions, style: .snoozed) { action in
+                                    let symbol = action.symbol ?? action.sellSymbol ?? ""
+                                    Task { await unsnooze(symbol) }
+                                }
+                            }
                         }
-                    }
-                }
 
-                // Loading
-                if isLoading && actionPlan == nil {
-                    Section {
-                        ForEach(0..<4, id: \.self) { _ in
-                            SignalCardSkeleton()
+                        if !isLoading && actionPlan != nil && activeSells.isEmpty && activeSwaps.isEmpty && activeBuys.isEmpty && signalOnlyBuys.isEmpty && snoozedActions.isEmpty {
+                            MobileCard {
+                                Text("No trades needed right now")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(Theme.textMuted)
+                                    .padding(16)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+
+                        if isLoading && actionPlan == nil {
+                            MobileCard {
+                                VStack(spacing: 0) {
+                                    ForEach(0..<3, id: \.self) { idx in
+                                        DashboardSignalSkeleton()
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 8)
+                                        if idx < 2 {
+                                            Divider().overlay(Theme.line)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+                    .padding(.bottom, 140)
                 }
             }
-            .listStyle(.insetGrouped)
-            .navigationTitle("Action Plan")
-            .searchable(text: $searchText, prompt: "Search symbol (e.g. SHOP.TO)")
-            .searchSuggestions {
-                ForEach(searchSuggestions) { symbol in
-                    Button {
-                        searchText = symbol.symbol
-                        Task { await checkSymbol(symbol.symbol) }
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(symbol.symbol)
-                                .fontWeight(.medium)
-                            Text("\(symbol.name) \u{2022} \(symbol.sector)")
-                                .font(.caption)
-                                .foregroundStyle(Theme.textDimmed)
-                        }
-                    }
-                    .searchCompletion(symbol.symbol)
-                }
-            }
-            .onSubmit(of: .search) {
-                Task { await checkSymbol(nil) }
-            }
-            .sheet(isPresented: Binding(
-                get: { snoozeTarget != nil },
-                set: { if !$0 { snoozeTarget = nil } }
-            )) {
-                if let symbol = snoozeTarget {
-                    SnoozeSheet(symbol: symbol) { hours, indefinite, phantomTrailingStop in
-                        snoozeTarget = nil
-                        Task { await snooze(symbol, hours: hours, indefinite: indefinite, phantomTrailingStop: phantomTrailingStop) }
-                    }
-                    .presentationDetents([.medium])
-                    .presentationDragIndicator(.visible)
-                }
-            }
+            .navigationTitle("Action plan")
+            .navigationBarTitleDisplayMode(.large)
             .refreshable { await loadData() }
             .task { await loadData() }
             .onReceive(NotificationCenter.default.publisher(for: .portfolioDidChange)) { _ in
@@ -273,30 +168,83 @@ struct SignalsView: View {
                     Task { await checkSymbol(symbol) }
                 }
             }
+            .onReceive(marketClock) { now = $0 }
+            .sheet(isPresented: Binding(
+                get: { snoozeTarget != nil },
+                set: { if !$0 { snoozeTarget = nil } }
+            )) {
+                if let symbol = snoozeTarget {
+                    SnoozeSheet(symbol: symbol) { hours, indefinite, phantomTrailingStop in
+                        snoozeTarget = nil
+                        Task {
+                            await snooze(symbol, hours: hours, indefinite: indefinite, phantomTrailingStop: phantomTrailingStop)
+                        }
+                    }
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+                }
+            }
         }
     }
 
-    private func snooze(_ symbol: String, hours: Double = 4, indefinite: Bool = false, phantomTrailingStop: Bool = true) async {
-        guard !symbol.isEmpty else { return }
-        do {
-            _ = try await client.snoozeSignal(symbol: symbol, hours: hours, indefinite: indefinite, phantomTrailingStop: phantomTrailingStop)
-            await loadData()
-        } catch { /* ignore */ }
+    private var marketStatusLabel: String {
+        switch marketSession(for: now) {
+        case .open:
+            return "LIVE · TSX OPEN"
+        case .closed:
+            return "LIVE · TSX CLOSED"
+        }
     }
 
-    private func unsnooze(_ symbol: String) async {
-        guard !symbol.isEmpty else { return }
+    private var marketStatusColor: Color {
+        switch marketSession(for: now) {
+        case .open:
+            return Theme.positive
+        case .closed:
+            return Theme.warning
+        }
+    }
+
+    private enum MarketSession {
+        case open
+        case closed
+    }
+
+    private func marketSession(for date: Date) -> MarketSession {
+        let calendar = marketCalendar
+        let dayStart = calendar.startOfDay(for: date)
+        let weekday = calendar.component(.weekday, from: dayStart)
+        if weekday == 1 || weekday == 7 {
+            return .closed
+        }
+
+        guard
+            let open = calendar.date(bySettingHour: 9, minute: 30, second: 0, of: dayStart),
+            let close = calendar.date(bySettingHour: 16, minute: 0, second: 0, of: dayStart)
+        else {
+            return .closed
+        }
+
+        return (date >= open && date < close) ? .open : .closed
+    }
+
+    private var marketCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York") ?? .current
+        return calendar
+    }
+
+    private func loadData() async {
+        isLoading = true
+        defer { isLoading = false }
         do {
-            try await client.unsnoozeSignal(symbol: symbol)
-            await loadData()
-        } catch { /* ignore */ }
+            actionPlan = try await client.getActionPlan()
+        } catch {}
     }
 
     private func checkSymbol(_ symbolOverride: String?) async {
         let symbol = (symbolOverride ?? searchText).trimmingCharacters(in: .whitespaces).uppercased()
         guard !symbol.isEmpty else { return }
-        isChecking = true
-        defer { isChecking = false }
         do {
             checkedSignal = try await client.checkSignal(symbol: symbol)
         } catch {
@@ -304,303 +252,157 @@ struct SignalsView: View {
         }
     }
 
-    private func loadData() async {
-        isLoading = true
-        defer { isLoading = false }
-
-        async let planTask = client.getActionPlan()
-        async let symsTask = client.getSymbols()
-
+    private func snooze(
+        _ symbol: String,
+        hours: Double = 4,
+        indefinite: Bool = false,
+        phantomTrailingStop: Bool = true
+    ) async {
+        guard !symbol.isEmpty else { return }
         do {
-            actionPlan = try await planTask
-        } catch { /* pull-to-refresh retries */ }
+            _ = try await client.snoozeSignal(
+                symbol: symbol,
+                hours: hours,
+                indefinite: indefinite,
+                phantomTrailingStop: phantomTrailingStop
+            )
+            await loadData()
+        } catch {}
+    }
 
+    private func unsnooze(_ symbol: String) async {
+        guard !symbol.isEmpty else { return }
         do {
-            allSymbols = try await symsTask
-        } catch { /* symbols are optional */ }
+            try await client.unsnoozeSignal(symbol: symbol)
+            await loadData()
+        } catch {}
     }
 }
 
-// MARK: - Sell Action Row
-
-private struct SellActionRow: View {
-    let action: ActionItem
+private struct ActionSummaryCard: View {
+    let title: String
+    let value: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: action.urgency == "urgent"
-                      ? "exclamationmark.triangle.fill"
-                      : "arrow.down.circle")
-                    .foregroundStyle(action.urgency == "urgent" ? Theme.negative
-                                     : action.urgency == "low" ? Theme.textDimmed
-                                     : Theme.warning)
-                Text(action.symbol ?? "")
-                    .font(.headline)
+        MobileCard {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title.uppercased())
+                    .font(AppFont.mono(11, weight: .medium))
+                    .tracking(1.2)
+                    .foregroundStyle(Theme.textDimmed)
+                Text(value)
+                    .font(AppFont.mono(18, weight: .bold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .padding(13)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+private enum ActionRowStyle {
+    case sell
+    case swap
+    case buy
+    case signalOnly
+    case snoozed
+}
+
+private struct ActionGroupCard: View {
+    let actions: [ActionItem]
+    let style: ActionRowStyle
+    let onSnooze: ((ActionItem) -> Void)?
+
+    var body: some View {
+        MobileCard {
+            ForEach(Array(actions.enumerated()), id: \.element.id) { index, action in
+                NavigationLink {
+                    ActionDetailView(action: action)
+                } label: {
+                    ActionRow(action: action, style: style, onSnooze: onSnooze)
+                }
+                .buttonStyle(.plain)
+
+                if index < actions.count - 1 {
+                    Divider().overlay(Theme.line)
+                }
+            }
+        }
+    }
+}
+
+private struct ActionRow: View {
+    let action: ActionItem
+    let style: ActionRowStyle
+    let onSnooze: ((ActionItem) -> Void)?
+
+    private var snoozeButtonTitle: String {
+        style == .snoozed ? "Unsnooze" : "Snooze"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 8) {
+                Text(symbolTitle)
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Theme.textPrimary)
+                if style == .sell && action.urgency == "urgent" {
+                    MobileSignalPill(text: "Urgent", style: .urgent)
+                } else if style == .signalOnly {
+                    MobileSignalPill(text: "Signal only", style: .hold)
+                } else if style == .snoozed {
+                    MobileSignalPill(text: "Snoozed", style: .neutral)
+                }
                 Spacer()
-                Text(action.urgency == "urgent" ? "URGENT" : action.reason)
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(
-                        (action.urgency == "urgent" ? Theme.negative : Theme.warning).opacity(0.2)
-                    )
-                    .clipShape(Capsule())
-                    .foregroundStyle(action.urgency == "urgent" ? Theme.negative : Theme.warning)
+                if let pnl = action.pnlPct {
+                    Text(Formatting.percent(pnl))
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Formatting.pnlColor(pnl))
+                }
             }
 
             Text(action.detail)
-                .font(.subheadline)
-                .fontWeight(.medium)
+                .font(.system(size: 12))
+                .foregroundStyle(style == .signalOnly ? Theme.warning : Theme.textMuted)
 
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 if let shares = action.shares {
-                    Text("\(Formatting.number(shares, decimals: 4)) sh")
+                    Text("\(Formatting.number(shares, decimals: 2)) sh")
+                } else if let shares = action.sellShares {
+                    Text("\(Formatting.number(shares, decimals: 2)) sh")
                 }
                 if let price = action.price {
                     Text("@ \(Formatting.currency(price))")
+                } else if let price = action.sellPrice {
+                    Text("@ \(Formatting.currency(price))")
                 }
-                if let amount = action.dollarAmount {
+                if let amount = action.dollarAmount ?? action.sellAmount {
                     Text(Formatting.currency(amount))
                 }
-                if let pnl = action.pnlPct {
-                    Text(Formatting.percent(pnl))
-                        .foregroundStyle(Formatting.pnlColor(pnl))
-                        .fontWeight(.medium)
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(Theme.textDimmed)
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-// MARK: - Swap Action Row
-
-private struct SwapActionRow: View {
-    let action: ActionItem
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "arrow.left.arrow.right")
-                    .foregroundStyle(Theme.brand)
-                Text("\(action.sellSymbol ?? "") → \(action.buySymbol ?? "")")
-                    .font(.headline)
                 Spacer()
-                Text("SWAP")
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Theme.brand.opacity(0.2))
-                    .clipShape(Capsule())
-                    .foregroundStyle(Theme.brand)
-            }
-
-            Text(action.detail)
-                .font(.subheadline)
-                .fontWeight(.medium)
-
-            HStack(spacing: 16) {
-                // Sell side
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Sell \(action.sellSymbol ?? "")")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(Theme.negative)
-                    if let shares = action.sellShares, let price = action.sellPrice {
-                        Text("\(Formatting.number(shares, decimals: 4)) sh @ \(Formatting.currency(price))")
-                            .font(.caption2)
-                            .foregroundStyle(Theme.textDimmed)
+                if let onSnooze {
+                    Button(snoozeButtonTitle) {
+                        onSnooze(action)
                     }
-                }
-
-                Spacer()
-
-                // Buy side
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("Buy \(action.buySymbol ?? "")")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(Theme.positive)
-                    if let shares = action.buyShares, let price = action.buyPrice {
-                        Text("\(Int(shares)) sh @ ~\(Formatting.currency(price))")
-                            .font(.caption2)
-                            .foregroundStyle(Theme.textDimmed)
-                    }
-                }
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-// MARK: - Buy Action Row
-
-private struct BuyActionRow: View {
-    let action: ActionItem
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: "arrow.up.circle")
-                    .foregroundStyle(Theme.positive)
-                Text(action.symbol ?? "")
-                    .font(.headline)
-                Spacer()
-                if let strength = action.strength {
-                    SignalBadgeView(signal: "BUY", strength: strength)
-                }
-            }
-
-            Text(action.detail)
-                .font(.subheadline)
-                .fontWeight(.medium)
-
-            HStack(spacing: 12) {
-                if let shares = action.shares {
-                    Text("\(Int(shares)) shares")
-                }
-                if let price = action.price {
-                    Text("@ ~\(Formatting.currency(price))")
-                }
-                if let amount = action.dollarAmount {
-                    Text(Formatting.currency(amount))
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(Theme.textDimmed)
-
-            HStack(spacing: 12) {
-                if let pct = action.pctOfPortfolio {
-                    Text("\(String(format: "%.1f", pct))% of portfolio")
-                }
-                if let sector = action.sector {
-                    Text(sector)
-                }
-            }
-            .font(.caption2)
-            .foregroundStyle(Theme.textDimmed)
-
-            if action.technicalScore != nil || action.sentimentScore != nil || action.commodityScore != nil {
-                ScoreMixCard(
-                    technical: action.technicalScore ?? 0,
-                    sentiment: action.sentimentScore ?? 0,
-                    commodity: action.commodityScore ?? 0,
-                    total: action.score
-                )
-            }
-
-            // Score reasons
-            if let reasons = action.reasons {
-                let filtered = reasons.filter { !$0.hasPrefix("Price:") && !$0.hasPrefix("ATR:") }.prefix(3)
-                ForEach(Array(filtered.enumerated()), id: \.offset) { _, reason in
-                    ScoreReasonRow(text: reason)
-                }
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-// MARK: - Signal-Only Buy Row (not enough cash)
-
-private struct SignalOnlyBuyRow: View {
-    let action: ActionItem
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: "arrow.up.circle")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
                     .foregroundStyle(Theme.textDimmed)
-                Text(action.symbol ?? "")
-                    .font(.headline)
-                Spacer()
-                Text("SIGNAL ONLY")
-                    .font(.caption2)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Theme.warning.opacity(0.2))
-                    .clipShape(Capsule())
-                    .foregroundStyle(Theme.warning)
-                if let strength = action.strength {
-                    SignalBadgeView(signal: "BUY", strength: strength)
                 }
             }
-
-            Text(action.detail)
-                .font(.subheadline)
-                .foregroundStyle(Theme.warning)
-
-            HStack(spacing: 12) {
-                if let price = action.price {
-                    Text("~\(Formatting.currency(price))")
-                }
-                if let sector = action.sector {
-                    Text(sector)
-                }
-            }
-            .font(.caption)
+            .font(.system(size: 10, weight: .medium, design: .monospaced))
             .foregroundStyle(Theme.textDimmed)
-
-            if action.technicalScore != nil || action.sentimentScore != nil || action.commodityScore != nil {
-                ScoreMixCard(
-                    technical: action.technicalScore ?? 0,
-                    sentiment: action.sentimentScore ?? 0,
-                    commodity: action.commodityScore ?? 0,
-                    total: action.score
-                )
-            }
-
-            // Score reasons
-            if let reasons = action.reasons {
-                let filtered = reasons.filter { !$0.hasPrefix("Price:") && !$0.hasPrefix("ATR:") }.prefix(3)
-                ForEach(Array(filtered.enumerated()), id: \.offset) { _, reason in
-                    ScoreReasonRow(text: reason)
-                }
-            }
         }
-        .padding(.vertical, 4)
-        .opacity(0.75)
+        .padding(16)
+    }
+
+    private var symbolTitle: String {
+        if action.type == "SWAP" {
+            return "\(action.sellSymbol ?? "") → \(action.buySymbol ?? "")"
+        }
+        return action.symbol ?? ""
     }
 }
-
-// MARK: - Snoozed Action Row
-
-private struct SnoozedActionRow: View {
-    let action: ActionItem
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Image(systemName: "bell.slash")
-                    .foregroundStyle(Theme.textDimmed)
-                Text(action.symbol ?? action.sellSymbol ?? "")
-                    .font(.headline)
-                    .foregroundStyle(Theme.textMuted)
-                Spacer()
-                Text(action.type)
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Color.gray.opacity(0.2))
-                    .clipShape(Capsule())
-                    .foregroundStyle(Theme.textDimmed)
-            }
-            Text(action.detail)
-                .font(.caption)
-                .foregroundStyle(Theme.textDimmed)
-            Text("Swipe left to unsnooze")
-                .font(.caption2)
-                .foregroundStyle(Theme.textDimmed.opacity(0.6))
-        }
-        .padding(.vertical, 4)
-        .opacity(0.6)
-    }
-}
-
-// MARK: - Signal Card Content (for search results)
 
 private struct SignalCardContent: View {
     let signal: SignalOut
@@ -609,25 +411,23 @@ private struct SignalCardContent: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(signal.symbol)
-                    .font(.headline)
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Theme.textPrimary)
                 Spacer()
-                if signal.score != 0 {
-                    Text("\(signal.score > 0 ? "+" : "")\(String(format: "%.1f", signal.score))/9")
-                        .font(.caption)
-                        .fontDesign(.monospaced)
-                        .foregroundStyle(Theme.textDimmed)
-                }
+                Text("\(signal.score > 0 ? "+" : "")\(String(format: "%.2f", signal.score)) / 9")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Formatting.pnlColor(signal.score))
                 SignalBadgeView(signal: signal.signal, strength: signal.strength)
             }
 
             if let price = signal.price {
                 Text("Price: \(Formatting.currency(price))")
-                    .font(.caption)
-                    .foregroundStyle(Theme.textMuted)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Theme.textDimmed)
             }
             if let sector = signal.sector {
                 Text(sector)
-                    .font(.caption2)
+                    .font(.system(size: 11))
                     .foregroundStyle(Theme.textDimmed)
             }
             ScoreMixCard(
@@ -636,16 +436,9 @@ private struct SignalCardContent: View {
                 commodity: signal.commodityScore,
                 total: signal.score
             )
-
-            ForEach(signal.reasons, id: \.self) { reason in
-                ScoreReasonRow(text: reason)
-            }
         }
-        .padding(.vertical, 4)
     }
 }
-
-// MARK: - Snooze Sheet
 
 private struct SnoozeDuration: Identifiable {
     let id: String
@@ -675,16 +468,16 @@ private struct SnoozeSheet: View {
         NavigationStack {
             List {
                 Section {
-                    ForEach(SnoozeDuration.options) { dur in
+                    ForEach(SnoozeDuration.options) { duration in
                         Button {
-                            selectedDuration = dur.id
+                            selectedDuration = duration.id
                             indefinite = false
                         } label: {
                             HStack {
-                                Text(dur.label)
+                                Text(duration.label)
                                     .foregroundStyle(Color.primary)
                                 Spacer()
-                                if !indefinite && selectedDuration == dur.id {
+                                if !indefinite && selectedDuration == duration.id {
                                     Image(systemName: "checkmark")
                                         .foregroundStyle(Theme.brand)
                                 }
@@ -719,8 +512,6 @@ private struct SnoozeSheet: View {
                         }
                     }
                     .tint(Theme.brand)
-                } header: {
-                    Text("Safety")
                 }
             }
             .navigationTitle("Snooze \(symbol)")

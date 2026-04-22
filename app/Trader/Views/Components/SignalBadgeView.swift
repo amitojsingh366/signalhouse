@@ -8,20 +8,20 @@ struct SignalBadgeView: View {
     var body: some View {
         HStack(spacing: 4) {
             Text(signal.uppercased())
-                .font(.caption2)
+                .font(AppFont.mono(11, weight: .semibold))
                 .fontWeight(.semibold)
             if let strength {
                 Text("\(Int(strength * 100))%")
-                    .font(.caption2)
+                    .font(AppFont.mono(11, weight: .semibold))
                     .opacity(0.75)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
         .background(badgeBackground)
         .foregroundStyle(badgeForeground)
-        .clipShape(Capsule())
-        .overlay(Capsule().stroke(badgeBorder, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(badgeBorder, lineWidth: 1))
     }
 
     private var badgeBackground: Color {

@@ -1,16 +1,15 @@
 import SwiftUI
 
-/// Portfolio page matching web's portfolio/page.tsx — holdings list with P&L and advice.
+/// Signalhouse portfolio tab and holding drill-in.
 struct PortfolioView: View {
     @EnvironmentObject private var config: AppConfig
 
     @State private var portfolio: PortfolioSummary?
+    @State private var actionPlan: ActionPlanOut?
     @State private var isLoading = true
-    @State private var selectedHolding: HoldingAdvice?
     @State private var searchText = ""
     @State private var showCashEdit = false
     @State private var cashEditText = ""
-    @State private var isSavingCash = false
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
@@ -18,82 +17,107 @@ struct PortfolioView: View {
 
     private var filteredHoldings: [HoldingAdvice] {
         guard let holdings = portfolio?.holdings else { return [] }
-        if searchText.isEmpty { return holdings }
-        return holdings.filter { $0.symbol.localizedCaseInsensitiveContains(searchText) }
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return holdings }
+        return holdings.filter { $0.symbol.localizedCaseInsensitiveContains(query) }
     }
 
     var body: some View {
         NavigationStack {
-            List {
-                // Summary section
-                if let portfolio {
-                    Section {
-                        HStack {
-                            Text("Total Value")
-                            Spacer()
-                            Text(Formatting.currency(portfolio.totalValue))
-                                .fontWeight(.semibold)
-                        }
-                        Button {
-                            cashEditText = String(format: "%.2f", portfolio.cash)
-                            showCashEdit = true
-                        } label: {
-                            HStack {
-                                Text("Cash")
-                                Spacer()
-                                Text(Formatting.currency(portfolio.cash))
-                                Image(systemName: "pencil")
-                                    .font(.caption2)
-                                    .foregroundStyle(Theme.textDimmed)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        HStack {
-                            Text("Total P&L")
-                            Spacer()
-                            Text(Formatting.currency(portfolio.totalPnl))
-                                .foregroundStyle(Formatting.pnlColor(portfolio.totalPnl))
-                            Text(Formatting.percent(portfolio.totalPnlPct))
-                                .font(.caption)
-                                .foregroundStyle(Formatting.pnlColor(portfolio.totalPnlPct))
-                        }
-                    } header: {
-                        Text("Summary")
-                    }
-                }
+            MobileScreen {
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("\(portfolio?.holdings.count ?? 0) positions")
+                            .font(AppFont.mono(10, weight: .medium))
+                            .tracking(1.4)
+                            .foregroundStyle(Theme.brand)
 
-                // Holdings
-                Section {
-                    if isLoading && portfolio == nil {
-                        ForEach(0..<4, id: \.self) { _ in
-                            HoldingRowSkeleton()
-                        }
-                    } else if filteredHoldings.isEmpty {
-                        Text("No holdings")
-                            .foregroundStyle(Theme.textDimmed)
-                    } else {
-                        ForEach(filteredHoldings) { holding in
+                        MobileSearchField(placeholder: "Filter holdings", text: $searchText)
+
+                        MobileSectionLabel("Summary")
+
+                        MobileCard {
                             Button {
-                                selectedHolding = holding
+                                if let cash = portfolio?.cash {
+                                    cashEditText = String(format: "%.2f", cash)
+                                    showCashEdit = true
+                                }
                             } label: {
-                                HoldingRow(holding: holding)
+                                VStack(spacing: 0) {
+                                    MobileDefRow(label: "Total value") {
+                                        MobileValueLabel(text: Formatting.currency(portfolio?.totalValue ?? 0), color: Theme.textPrimary)
+                                    }
+                                    Divider().overlay(Theme.line)
+                                    MobileDefRow(label: "Cash") {
+                                        HStack(spacing: 6) {
+                                            MobileValueLabel(text: Formatting.currency(portfolio?.cash ?? 0), color: Theme.textPrimary)
+                                            Image(systemName: "pencil")
+                                                .font(AppFont.sans(10, weight: .semibold))
+                                                .foregroundStyle(Theme.textDimmed)
+                                        }
+                                    }
+                                    Divider().overlay(Theme.line)
+                                    MobileDefRow(label: "Total P&L") {
+                                        MobileValueLabel(
+                                            text: "\(Formatting.currency(portfolio?.totalPnl ?? 0)) · \(Formatting.percent(portfolio?.totalPnlPct ?? 0))",
+                                            color: Formatting.pnlColor(portfolio?.totalPnlPct ?? 0)
+                                        )
+                                    }
+                                }
                             }
                             .buttonStyle(.plain)
                         }
+
+                        MobileSectionLabel("Holdings · \(filteredHoldings.count)")
+
+                        MobileCard {
+                            if isLoading && portfolio == nil {
+                                ForEach(0..<2, id: \.self) { idx in
+                                    HoldingRowSkeleton()
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
+                                    if idx == 0 {
+                                        Divider().overlay(Theme.line)
+                                    }
+                                }
+                            } else if filteredHoldings.isEmpty {
+                                Text("No holdings")
+                                    .font(AppFont.sans(13))
+                                    .foregroundStyle(Theme.textMuted)
+                                    .padding(16)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            } else {
+                                ForEach(Array(filteredHoldings.enumerated()), id: \.element.id) { index, holding in
+                                    NavigationLink {
+                                        HoldingDetailView(holding: holding)
+                                    } label: {
+                                        HoldingRow(holding: holding)
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    if index < filteredHoldings.count - 1 {
+                                        Divider().overlay(Theme.line)
+                                    }
+                                }
+                            }
+                        }
+
+                        if let actionPlan {
+                            MobileSectionLabel("Sector Exposure")
+                            SectorExposureCard(exposure: actionPlan.sectorExposure)
+                        }
                     }
-                } header: {
-                    Text("Holdings (\(portfolio?.holdings.count ?? 0))")
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+                    .padding(.bottom, 140)
                 }
             }
-            .listStyle(.insetGrouped)
             .navigationTitle("Portfolio")
-            .searchable(text: $searchText, prompt: "Filter holdings")
+            .navigationBarTitleDisplayMode(.large)
             .refreshable { await loadData() }
             .task { await loadData() }
-            .sheet(item: $selectedHolding) { holding in
-                HoldingDetailSheet(holding: holding, client: client) {
-                    await loadData()
-                }
+            .onReceive(NotificationCenter.default.publisher(for: .portfolioDidChange)) { _ in
+                Task { await loadData() }
             }
             .alert("Edit Cash Balance", isPresented: $showCashEdit) {
                 TextField("Cash amount", text: $cashEditText)
@@ -110,167 +134,217 @@ struct PortfolioView: View {
 
     private func saveCash() async {
         guard let value = Double(cashEditText) else { return }
-        isSavingCash = true
-        defer { isSavingCash = false }
         do {
             try await client.updateCash(value)
             NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
             await loadData()
-        } catch { /* silent */ }
+        } catch {}
     }
 
     private func loadData() async {
         isLoading = true
         defer { isLoading = false }
-        do {
-            portfolio = try await client.getHoldings()
-        } catch {
-            // Silent — pull-to-refresh will retry
-        }
+        async let holdingsTask = client.getHoldings()
+        async let actionPlanTask = client.getActionPlan()
+        do { portfolio = try await holdingsTask } catch {}
+        do { actionPlan = try await actionPlanTask } catch {}
     }
 }
-
-// MARK: - Holding Row
 
 private struct HoldingRow: View {
     let holding: HoldingAdvice
 
+    private var signalStyle: MobileSignalStyle {
+        switch holding.signal.uppercased() {
+        case "BUY": return .buy
+        case "SELL": return .sell
+        case "HOLD": return .hold
+        default: return .neutral
+        }
+    }
+
     var body: some View {
-        VStack(spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(holding.symbol)
-                        .fontWeight(.medium)
-                    Text("\(Formatting.number(holding.quantity, decimals: 4)) shares")
-                        .font(.caption)
-                        .foregroundStyle(Theme.textDimmed)
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(Formatting.currency(holding.marketValue))
-                        .fontWeight(.medium)
-                    Text(Formatting.percent(holding.pnlPct))
-                        .font(.caption)
-                        .foregroundStyle(Formatting.pnlColor(holding.pnlPct))
-                }
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(holding.symbol)
+                    .font(AppFont.mono(14, weight: .semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text("\(Formatting.number(holding.quantity, decimals: 4)) sh · avg \(Formatting.currency(holding.avgCost)) · now \(Formatting.currency(holding.currentPrice))")
+                    .font(AppFont.mono(12, weight: .regular))
+                    .foregroundStyle(Theme.textDimmed)
+                    .lineLimit(1)
+                MobileSignalPill(text: "\(holding.signal) · \(Int((holding.strength * 100).rounded()))%", style: signalStyle)
             }
-            HStack {
-                Text("Avg: \(Formatting.currency(holding.avgCost))")
-                    .font(.caption2)
-                    .foregroundStyle(Theme.textDimmed)
-                Text("Now: \(Formatting.currency(holding.currentPrice))")
-                    .font(.caption2)
-                    .foregroundStyle(Theme.textDimmed)
-                Spacer()
-                SignalBadgeView(signal: holding.signal, strength: holding.strength)
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 5) {
+                Text(Formatting.currency(holding.marketValue))
+                    .font(AppFont.mono(14, weight: .semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text(Formatting.percent(holding.pnlPct))
+                    .font(AppFont.mono(12, weight: .semibold))
+                    .foregroundStyle(Formatting.pnlColor(holding.pnlPct))
             }
         }
-        .padding(.vertical, 4)
+        .padding(16)
     }
 }
 
-// MARK: - Holding Detail Sheet
+private struct SectorExposureCard: View {
+    let exposure: [String: AnyCodable]
 
-private struct HoldingDetailSheet: View {
-    let holding: HoldingAdvice
-    let client: APIClient
-    let onDismiss: () async -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var editQuantity: String = ""
-    @State private var editAvgCost: String = ""
-    @State private var isSaving = false
+    private var sectors: [(String, Double)] {
+        exposure.compactMap { key, value in
+            if let dict = value.value as? [String: Any], let pct = dict["pct"] as? Double {
+                return (key, pct)
+            }
+            if let pct = value.value as? Double {
+                return (key, pct)
+            }
+            return nil
+        }
+        .sorted { $0.1 > $1.1 }
+    }
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section("Position") {
-                    LabeledContent("Symbol", value: holding.symbol)
-                    LabeledContent("Quantity", value: Formatting.number(holding.quantity, decimals: 4))
-                    LabeledContent("Avg Cost", value: Formatting.currency(holding.avgCost))
-                    LabeledContent("Current Price", value: Formatting.currency(holding.currentPrice))
-                    LabeledContent("Market Value", value: Formatting.currency(holding.marketValue))
-                    HStack {
-                        Text("P&L")
-                        Spacer()
-                        Text(Formatting.currency(holding.pnl))
-                            .foregroundStyle(Formatting.pnlColor(holding.pnl))
-                        Text(Formatting.percent(holding.pnlPct))
-                            .font(.caption)
-                            .foregroundStyle(Formatting.pnlColor(holding.pnlPct))
-                    }
-                }
+        MobileCard {
+            if sectors.isEmpty {
+                Text("No sector data")
+                    .font(AppFont.sans(12))
+                    .foregroundStyle(Theme.textMuted)
+                    .padding(16)
+            } else {
+                ForEach(Array(sectors.prefix(4).enumerated()), id: \.offset) { index, sector in
+                    HStack(spacing: 10) {
+                        Text(sector.0.capitalized)
+                            .font(AppFont.sans(12, weight: .medium))
+                            .foregroundStyle(Theme.textPrimary)
+                            .frame(width: 90, alignment: .leading)
 
-                Section("Signal") {
-                    HStack {
-                        Text("Signal")
-                        Spacer()
-                        SignalBadgeView(signal: holding.signal, strength: holding.strength)
-                    }
-                    LabeledContent("Action", value: holding.action)
-                    Text(holding.actionDetail)
-                        .font(.caption)
-                        .foregroundStyle(Theme.textMuted)
-                }
+                        GeometryReader { geo in
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Theme.surface2)
+                                .overlay(alignment: .leading) {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [Theme.brand, Theme.brandStrong],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                        .frame(width: max(geo.size.width * min(max(sector.1, 0), 1), 2))
+                                }
+                        }
+                        .frame(height: 8)
 
-                Section("Score Breakdown") {
-                    ScoreMixCard(
-                        technical: holding.technicalScore,
-                        sentiment: holding.sentimentScore,
-                        commodity: holding.commodityScore,
-                        total: holding.technicalScore + holding.sentimentScore + holding.commodityScore
-                    )
-                    ForEach(holding.reasons, id: \.self) { reason in
-                        ScoreReasonRow(text: reason)
+                        Text(Formatting.percent(sector.1 * 100).replacingOccurrences(of: "+", with: ""))
+                            .font(AppFont.mono(12, weight: .medium))
+                            .foregroundStyle(Theme.brand)
                     }
-                }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
 
-                Section("Edit") {
-                    TextField("New quantity", text: $editQuantity)
-                        .keyboardType(.decimalPad)
-                    TextField("New avg cost", text: $editAvgCost)
-                        .keyboardType(.decimalPad)
-
-                    Button("Save Changes") {
-                        Task { await saveEdits() }
+                    if index < min(sectors.count, 4) - 1 {
+                        Divider().overlay(Theme.line)
                     }
-                    .disabled(isSaving || (editQuantity.isEmpty && editAvgCost.isEmpty))
-
-                    Button("Delete Holding", role: .destructive) {
-                        Task { await deleteHolding() }
-                    }
-                }
-            }
-            .listStyle(.insetGrouped)
-            .navigationTitle(holding.symbol)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
                 }
             }
         }
     }
+}
 
-    private func saveEdits() async {
+struct HoldingDetailView: View {
+    @EnvironmentObject private var config: AppConfig
+    @Environment(\.dismiss) private var dismiss
+
+    let holding: HoldingAdvice
+    @State private var showEditPosition = false
+    @State private var showDeleteConfirmation = false
+    @State private var editQuantityText = ""
+    @State private var editAvgCostText = ""
+    @State private var isSaving = false
+
+    private var client: APIClient {
+        APIClient(baseURL: config.apiBaseURL ?? "")
+    }
+
+    var body: some View {
+        InstrumentDetailView(
+            snapshot: InstrumentSignalSnapshot(holding: holding),
+            position: holding
+        )
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Edit position", systemImage: "pencil") {
+                        editQuantityText = String(format: "%.4f", holding.quantity)
+                        editAvgCostText = String(format: "%.2f", holding.avgCost)
+                        showEditPosition = true
+                    }
+                    Button("Delete holding", systemImage: "trash", role: .destructive) {
+                        showDeleteConfirmation = true
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(AppFont.sans(18, weight: .semibold))
+                }
+            }
+        }
+        .alert("Edit Position", isPresented: $showEditPosition) {
+            TextField("Quantity", text: $editQuantityText)
+                .keyboardType(.decimalPad)
+            TextField("Avg cost", text: $editAvgCostText)
+                .keyboardType(.decimalPad)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") {
+                Task { await savePositionEdits() }
+            }
+            .disabled(isSaving)
+        } message: {
+            Text("Update quantity and average cost for \(holding.symbol).")
+        }
+        .alert("Delete Holding?", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                Task { await deleteHolding() }
+            }
+            .disabled(isSaving)
+        } message: {
+            Text("Remove \(holding.symbol) from your portfolio.")
+        }
+    }
+
+    private func savePositionEdits() async {
         isSaving = true
         defer { isSaving = false }
-        let qty = Double(editQuantity)
-        let cost = Double(editAvgCost)
+
+        let trimmedQuantity = editQuantityText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAvgCost = editAvgCostText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let quantity = Double(trimmedQuantity)
+        let avgCost = Double(trimmedAvgCost)
+        guard quantity != nil || avgCost != nil else { return }
+
         do {
-            try await client.updateHolding(symbol: holding.symbol, quantity: qty, avgCost: cost)
+            try await client.updateHolding(
+                symbol: holding.symbol,
+                quantity: quantity,
+                avgCost: avgCost
+            )
             NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
-            await onDismiss()
             dismiss()
-        } catch { /* toast would be nice */ }
+        } catch {}
     }
 
     private func deleteHolding() async {
+        isSaving = true
+        defer { isSaving = false }
+
         do {
             try await client.deleteHolding(symbol: holding.symbol)
             NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
-            await onDismiss()
             dismiss()
-        } catch { /* toast */ }
+        } catch {}
     }
 }

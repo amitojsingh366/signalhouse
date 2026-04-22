@@ -178,9 +178,21 @@ struct StatusOut: Codable {
     let holdingsCount: Int
     let marketOpen: Bool
     let uptimeSeconds: Double?
+    let lastScanAt: String?
     let scanIntervalMinutes: Int
+    let maxPositions: Int
     let riskHalted: Bool
     let riskHaltReason: String
+}
+
+struct TickerStripItem: Codable, Identifiable {
+    var id: String { symbol }
+    let symbol: String
+    let label: String
+    let displayPrice: String
+    let changePct: Double?
+    let changeLabel: String?
+    let asOf: String
 }
 
 // MARK: - Trading Settings

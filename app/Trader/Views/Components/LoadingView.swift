@@ -49,39 +49,6 @@ extension View {
     }
 }
 
-// MARK: - Stat Card Skeleton (matches StatCardView)
-
-/// Skeleton for stat cards — icon row + large value + optional change line.
-struct StatCardSkeleton: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Title row with icon (matches HStack { Text(title) Spacer() Image })
-            HStack {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(skelFill)
-                    .frame(width: 80, height: 12) // caption-sized title
-                Spacer()
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(skelFill)
-                    .frame(width: 14, height: 14) // icon
-            }
-
-            // Large value (matches .title2 font)
-            RoundedRectangle(cornerRadius: 4)
-                .fill(skelFill)
-                .frame(width: 100, height: 22)
-
-            // Change label (matches caption percent + label)
-            RoundedRectangle(cornerRadius: 4)
-                .fill(skelFill)
-                .frame(width: 70, height: 10)
-        }
-        .padding()
-        .glassCard()
-        .shimmer()
-    }
-}
-
 // MARK: - Holding Row Skeleton (matches HoldingRow)
 
 /// Skeleton for portfolio holding rows — symbol/shares left, value/pnl right, bottom row with prices + badge.
@@ -256,7 +223,7 @@ struct StatusRowSkeleton: View {
 
 // MARK: - Dashboard Signal Skeleton (matches dashboard signal cards)
 
-/// Skeleton for dashboard signal preview cards — icon/symbol left, badge right.
+/// Skeleton for dashboard signal preview rows — icon/symbol left, badge right.
 struct DashboardSignalSkeleton: View {
     var body: some View {
         HStack {
@@ -277,7 +244,7 @@ struct DashboardSignalSkeleton: View {
                 .frame(width: 60, height: 22) // signal badge
         }
         .padding(12)
-        .glassCard()
+        .shimmer()
     }
 }
 

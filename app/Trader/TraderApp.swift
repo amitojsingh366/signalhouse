@@ -33,6 +33,7 @@ struct TraderApp: App {
             .environmentObject(pushManager)
             .environmentObject(authManager)
             .preferredColorScheme(.dark)
+            .font(AppFont.sans(15))
             .tint(Theme.brand)
         }
     }
@@ -125,72 +126,60 @@ struct AuthGateView: View {
 
 /// Main tab navigation matching the web sidebar.
 struct MainTabView: View {
-    @EnvironmentObject private var config: AppConfig
     @EnvironmentObject private var pushManager: PushManager
 
-    @State private var selectedTab = 0
+    @State private var selectedTab: AppTab = .dashboard
+    @State private var morePath = NavigationPath()
 
     var body: some View {
         TabView(selection: $selectedTab) {
             DashboardView()
                 .tabItem {
-                    Label("Dashboard", systemImage: "house")
+                    Label(AppTab.dashboard.title, systemImage: AppTab.dashboard.icon)
                 }
-                .tag(0)
+                .tag(AppTab.dashboard)
 
             PortfolioView()
                 .tabItem {
-                    Label("Portfolio", systemImage: "briefcase")
+                    Label(AppTab.portfolio.title, systemImage: AppTab.portfolio.icon)
                 }
-                .tag(1)
+                .tag(AppTab.portfolio)
 
             SignalsView()
                 .tabItem {
-                    Label("Actions", systemImage: "bolt")
+                    Label(AppTab.actions.title, systemImage: AppTab.actions.icon)
                 }
-                .tag(2)
+                .tag(AppTab.actions)
 
             TradesView()
                 .tabItem {
-                    Label("Trades", systemImage: "arrow.left.arrow.right")
+                    Label(AppTab.trades.title, systemImage: AppTab.trades.icon)
                 }
-                .tag(3)
+                .tag(AppTab.trades)
 
-            UploadView()
+            MoreView(path: $morePath)
                 .tabItem {
-                    Label("Upload", systemImage: "square.and.arrow.up")
+                    Label(AppTab.more.title, systemImage: AppTab.more.icon)
                 }
-                .tag(4)
-
-            PreMarketView()
-                .tabItem {
-                    Label("Pre-Market", systemImage: "sunrise")
-                }
-                .tag(5)
-
-            StatusView()
-                .tabItem {
-                    Label("Status", systemImage: "waveform.path.ecg")
-                }
-                .tag(6)
-
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape")
-                }
-                .tag(7)
+                .tag(AppTab.more)
+        }
+        .tint(Theme.brand)
+        .onReceive(NotificationCenter.default.publisher(for: .openActionsTab)) { _ in
+            selectedTab = .actions
         }
         .onChange(of: pushManager.deepLink) { _, link in
             guard let link else { return }
             switch link {
             case .dashboard:
-                selectedTab = 0
+                selectedTab = .dashboard
             case .signals:
-                selectedTab = 2
+                selectedTab = .actions
             case .signalCheck:
-                selectedTab = 2
+                selectedTab = .actions
             case .premarket:
-                selectedTab = 5
+                selectedTab = .more
+                morePath = NavigationPath()
+                morePath.append(MoreRoute.premarket)
             }
             // Deep link is consumed by SignalsView, clear after a short delay
             if case .signalCheck = link {

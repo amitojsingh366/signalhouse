@@ -1,254 +1,308 @@
 import SwiftUI
 
-/// Dashboard matching web's page.tsx — stat cards, action plan preview, equity chart, sector exposure.
+/// Signalhouse mobile dashboard (tab 1).
 struct DashboardView: View {
     @EnvironmentObject private var config: AppConfig
 
     @State private var portfolio: PortfolioSummary?
     @State private var pnl: PnlSummary?
-    @State private var snapshots: [SnapshotOut]?
+    @State private var snapshots: [SnapshotOut] = []
     @State private var actionPlan: ActionPlanOut?
+    @State private var tickerQuotes: [TickerQuote] = []
     @State private var isLoading = true
-    @State private var error: String?
 
     private var client: APIClient {
         APIClient(baseURL: config.apiBaseURL ?? "")
     }
 
+    private var prioritizedActions: [ActionItem] {
+        guard let actions = actionPlan?.actions else { return [] }
+        let activeActions = actions.filter { $0.snoozed != true }
+        let sells = activeActions.filter { $0.type == "SELL" }
+        return sells.isEmpty ? activeActions : sells
+    }
+
+    private var primaryActions: [ActionItem] {
+        Array(prioritizedActions.prefix(2))
+    }
+
+    private var primaryActionCount: Int {
+        prioritizedActions.count
+    }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    // Stat cards
-                    if isLoading && portfolio == nil {
-                        LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
-                            StatCardSkeleton()
-                            StatCardSkeleton()
-                            StatCardSkeleton()
-                            StatCardSkeleton()
-                        }
-                    } else {
-                        LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
-                            StatCardView(
-                                title: "Portfolio Value",
+            MobileScreen {
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("TFSA · \(Date.now.formatted(date: .omitted, time: .shortened))")
+                            .font(AppFont.mono(10, weight: .medium))
+                            .tracking(1.4)
+                            .foregroundStyle(Theme.brand)
+
+                        TickerStrip(quotes: tickerQuotes)
+
+                        LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 10) {
+                            DashboardKPI(
+                                title: "Portfolio",
                                 value: Formatting.currency(portfolio?.totalValue ?? 0),
-                                change: pnl?.totalPnlPct,
-                                changeLabel: "total",
-                                icon: "dollarsign"
+                                detail: "\(Formatting.percent(pnl?.totalPnlPct ?? 0)) total",
+                                detailColor: Formatting.pnlColor(pnl?.totalPnlPct ?? 0)
                             )
-                            StatCardView(
+                            DashboardKPI(
                                 title: "Daily P&L",
                                 value: Formatting.currency(pnl?.dailyPnl ?? 0),
-                                change: pnl?.dailyPnlPct,
-                                changeLabel: "today",
-                                icon: "arrow.up.right"
+                                detail: "\(Formatting.percent(pnl?.dailyPnlPct ?? 0)) today",
+                                detailColor: Formatting.pnlColor(pnl?.dailyPnlPct ?? 0)
                             )
-                            StatCardView(
-                                title: "Cash Available",
+                            DashboardKPI(
+                                title: "Cash",
                                 value: Formatting.currency(portfolio?.cash ?? 0),
-                                icon: "wallet.pass"
+                                detail: "\(allocationText)",
+                                detailColor: Theme.textDimmed
                             )
-                            StatCardView(
+                            DashboardKPI(
                                 title: "Holdings",
                                 value: "\(portfolio?.holdings.count ?? 0)",
-                                icon: "briefcase"
+                                detail: actionPlan.map { "of \($0.maxPositions) max" } ?? "of — max",
+                                detailColor: Theme.textDimmed
                             )
                         }
-                    }
 
-                    // Action plan preview skeleton
-                    if isLoading && actionPlan == nil {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.white.opacity(0.06))
-                                    .frame(width: 100, height: 14)
-                                Spacer()
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.white.opacity(0.06))
-                                    .frame(width: 50, height: 12)
+                        HStack {
+                            MobileSectionLabel("Action Plan · \(primaryActionCount)")
+                            Spacer()
+                            Button("View all") {
+                                NotificationCenter.default.post(name: .openActionsTab, object: nil)
                             }
-                            .shimmer()
-                            ForEach(0..<3, id: \.self) { _ in
-                                DashboardSignalSkeleton()
-                            }
+                            .font(AppFont.sans(12, weight: .medium))
+                            .foregroundStyle(Theme.brand)
+                            .buttonStyle(.plain)
                         }
-                        .shimmer()
-                    }
 
-                    // Action plan preview (max 3 on dashboard)
-                    if let plan = actionPlan, !plan.actions.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("Action Plan")
-                                    .font(.subheadline)
+                        MobileCard {
+                            if isLoading && actionPlan == nil {
+                                ForEach(0..<2, id: \.self) { idx in
+                                    DashboardSignalSkeleton()
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 8)
+                                    if idx == 0 {
+                                        Divider().overlay(Theme.line)
+                                    }
+                                }
+                            } else if primaryActions.isEmpty {
+                                Text("No immediate actions")
+                                    .font(AppFont.sans(13))
                                     .foregroundStyle(Theme.textMuted)
-                                Spacer()
-                                NavigationLink("View all", destination: SignalsView())
-                                    .font(.caption)
-                            }
-
-                            ForEach(plan.actions.prefix(3)) { action in
-                                DashboardActionCard(action: action)
-                            }
-                        }
-                    } else if !isLoading && actionPlan != nil {
-                        VStack(spacing: 8) {
-                            Image(systemName: "checkmark.circle")
-                                .font(.title)
-                                .foregroundStyle(Theme.textDimmed)
-                            Text("No trades needed")
-                                .font(.subheadline)
-                                .foregroundStyle(Theme.textDimmed)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 24)
-                        .glassCard()
-                    }
-
-                    // Equity chart
-                    if isLoading && snapshots == nil {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.white.opacity(0.06))
-                                    .frame(width: 90, height: 14)
-                                Spacer()
-                                HStack(spacing: 4) {
-                                    ForEach(0..<4, id: \.self) { _ in
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .fill(Color.white.opacity(0.06))
-                                            .frame(width: 32, height: 24)
+                                    .padding(16)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            } else {
+                                ForEach(Array(primaryActions.enumerated()), id: \.element.id) { index, action in
+                                    if let detailSignal = signal(from: action) {
+                                        NavigationLink {
+                                            SignalDetailView(signal: detailSignal)
+                                        } label: {
+                                            DashboardActionRow(action: action)
+                                        }
+                                        .buttonStyle(.plain)
+                                    } else {
+                                        DashboardActionRow(action: action)
+                                    }
+                                    if index < primaryActions.count - 1 {
+                                        Divider().overlay(Theme.line)
                                     }
                                 }
                             }
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.white.opacity(0.04))
-                                .frame(height: 220)
                         }
-                        .padding()
-                        .glassCard()
-                        .shimmer()
-                    } else if let snapshots, !snapshots.isEmpty {
-                        EquityChartView(snapshots: snapshots)
-                    }
 
-                    // Sector exposure
-                    if isLoading && actionPlan == nil {
-                        VStack(alignment: .leading, spacing: 12) {
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.white.opacity(0.06))
-                                .frame(width: 120, height: 14)
-                            ForEach([0.75, 0.55, 0.35, 0.2], id: \.self) { pct in
-                                HStack(spacing: 8) {
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .fill(Color.white.opacity(0.06))
-                                        .frame(width: 70, height: 14)
-                                    GeometryReader { geo in
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .fill(Color.white.opacity(0.06))
-                                            .frame(width: geo.size.width * pct, height: 20)
-                                    }
-                                    .frame(height: 20)
-                                }
-                            }
+                        MobileSectionLabel("Equity Curve")
+                            .padding(.top, 2)
+
+                        if isLoading && snapshots.isEmpty {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Theme.surface1)
+                                .frame(height: 240)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Theme.line, lineWidth: 1)
+                                )
+                                .shimmer()
+                        } else {
+                            EquityChartView(snapshots: snapshots)
                         }
-                        .padding()
-                        .glassCard()
-                        .shimmer()
-                    } else if let plan = actionPlan, !plan.sectorExposure.isEmpty {
-                        SectorChartView(exposure: plan.sectorExposure)
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+                    .padding(.bottom, 140)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding()
             }
             .navigationTitle("Dashboard")
+            .navigationBarTitleDisplayMode(.large)
             .refreshable { await loadData() }
             .task { await loadData() }
+            .onReceive(NotificationCenter.default.publisher(for: .portfolioDidChange)) { _ in
+                Task { await loadData() }
+            }
         }
+    }
+
+    private var allocationText: String {
+        guard let portfolio, portfolio.totalValue > 0 else { return "0% allocated" }
+        let allocated = ((portfolio.totalValue - portfolio.cash) / portfolio.totalValue) * 100
+        return "\(Int(allocated.rounded()))% allocated"
+    }
+
+    private func signal(from action: ActionItem) -> SignalOut? {
+        guard let symbol = action.symbol ?? action.sellSymbol ?? action.buySymbol, !symbol.isEmpty else {
+            return nil
+        }
+        let technical = action.technicalScore ?? 0
+        let sentiment = action.sentimentScore ?? 0
+        let commodity = action.commodityScore ?? 0
+        let total = action.score ?? (technical + sentiment + commodity)
+        let reasons = (action.reasons?.isEmpty == false ? action.reasons : [action.reason]) ?? [action.reason]
+
+        return SignalOut(
+            symbol: symbol,
+            signal: action.type,
+            strength: action.strength ?? 0,
+            score: total,
+            technicalScore: technical,
+            sentimentScore: sentiment,
+            commodityScore: commodity,
+            reasons: reasons,
+            price: action.price ?? action.sellPrice ?? action.buyPrice,
+            sector: action.sector
+        )
     }
 
     private func loadData() async {
         isLoading = true
         defer { isLoading = false }
 
-        async let p = client.getHoldings()
-        async let pnlData = client.getPnl()
-        async let snap = client.getSnapshots()
-        async let plan = client.getActionPlan()
+        async let portfolioTask = client.getHoldings()
+        async let pnlTask = client.getPnl()
+        async let snapshotsTask = client.getSnapshots()
+        async let planTask = client.getActionPlan()
+        async let tickerStripTask = client.getTickerStrip()
 
+        do { portfolio = try await portfolioTask } catch {}
+        do { pnl = try await pnlTask } catch {}
+        do { snapshots = try await snapshotsTask } catch {}
+        do { actionPlan = try await planTask } catch {}
         do {
-            portfolio = try await p
-            pnl = try await pnlData
-            snapshots = try await snap
-            actionPlan = try await plan
-            error = nil
+            let items = try await tickerStripTask
+            tickerQuotes = items.map(TickerQuote.init(item:))
         } catch {
-            self.error = error.localizedDescription
+            tickerQuotes = []
         }
     }
 }
 
-// MARK: - Dashboard Action Card
+private struct DashboardKPI: View {
+    let title: String
+    let value: String
+    let detail: String
+    let detailColor: Color
 
-private struct DashboardActionCard: View {
+    var body: some View {
+        MobileCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(title.uppercased())
+                    .font(AppFont.mono(10, weight: .medium))
+                    .tracking(1.2)
+                    .foregroundStyle(Theme.textDimmed)
+                Text(value)
+                    .font(AppFont.sans(32, weight: .bold))
+                    .tracking(-0.8)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                    .foregroundStyle(Theme.textPrimary)
+                Text(detail)
+                    .font(AppFont.mono(12, weight: .medium))
+                    .foregroundStyle(detailColor)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+private struct DashboardActionRow: View {
     let action: ActionItem
 
     var body: some View {
-        HStack {
-            Image(systemName: actionIcon)
-                .foregroundStyle(actionColor)
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(actionColor.opacity(0.12))
+                .frame(width: 32, height: 32)
+                .overlay(
+                    Image(systemName: actionIcon)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(actionColor)
+                )
 
-            VStack(alignment: .leading) {
-                Text(actionTitle)
-                    .fontWeight(.medium)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(actionLabel)
+                        .font(AppFont.mono(11, weight: .semibold))
+                        .tracking(1)
+                        .foregroundStyle(actionColor)
+                    Text(symbolText)
+                        .font(AppFont.mono(13, weight: .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                }
                 Text(action.reason)
-                    .font(.caption)
-                    .foregroundStyle(Theme.textDimmed)
+                    .font(AppFont.sans(12))
+                    .foregroundStyle(Theme.textMuted)
+                    .lineLimit(1)
             }
 
             Spacer()
 
-            if action.type == "SELL", let pnl = action.pnlPct {
+            if let pnl = action.pnlPct {
                 Text(Formatting.percent(pnl))
-                    .font(.caption)
+                    .font(AppFont.mono(12, weight: .semibold))
                     .foregroundStyle(Formatting.pnlColor(pnl))
-            } else if action.type == "BUY", let strength = action.strength {
-                Text("\(Int(strength * 100))%")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundStyle(Theme.positive)
             }
         }
-        .padding(12)
-        .glassCard()
+        .padding(16)
     }
 
-    private var actionIcon: String {
-        switch action.type {
-        case "SELL": return action.urgency == "urgent"
-            ? "exclamationmark.triangle.fill" : "arrow.down.circle"
-        case "SWAP": return "arrow.left.arrow.right"
-        case "BUY": return "arrow.up.circle"
-        default: return "circle"
+    private var symbolText: String {
+        if action.type == "SWAP" {
+            return "\(action.sellSymbol ?? "") → \(action.buySymbol ?? "")"
         }
+        return action.symbol ?? action.sellSymbol ?? ""
+    }
+
+    private var actionLabel: String {
+        if action.type == "BUY", action.actionable == false {
+            return "HOLD"
+        }
+        return action.type.uppercased()
     }
 
     private var actionColor: Color {
         switch action.type {
-        case "SELL": return action.urgency == "urgent" ? Theme.negative : Theme.warning
-        case "SWAP": return Theme.brand
-        case "BUY": return Theme.positive
-        default: return Theme.textMuted
+        case "SELL":
+            return Theme.negative
+        case "SWAP":
+            return Theme.brand
+        default:
+            return action.actionable == false ? Theme.warning : Theme.positive
         }
     }
 
-    private var actionTitle: String {
+    private var actionIcon: String {
         switch action.type {
-        case "SELL": return "SELL \(action.symbol ?? "")"
-        case "SWAP": return "\(action.sellSymbol ?? "") → \(action.buySymbol ?? "")"
-        case "BUY": return "BUY \(action.symbol ?? "")"
-        default: return action.type
+        case "SELL":
+            return "exclamationmark.triangle"
+        case "SWAP":
+            return "arrow.left.arrow.right"
+        default:
+            return action.actionable == false ? "pause.fill" : "arrow.up.right"
         }
     }
 }

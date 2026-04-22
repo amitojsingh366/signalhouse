@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// App settings and controls (notifications, auth, connection).
+/// Settings page (from More).
 struct SettingsView: View {
     @EnvironmentObject private var config: AppConfig
     @EnvironmentObject private var pushManager: PushManager
@@ -20,6 +20,7 @@ struct SettingsView: View {
     )
     @State private var updatingHybridMode = false
     @State private var updatingOversoldMode = false
+    @State private var updatingNotificationPrefs = false
     @State private var strategyRefreshTask: Task<Void, Never>?
 
     private var client: APIClient {
@@ -27,222 +28,170 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    if let authStatus {
-                        HStack {
-                            Text("Status")
-                            Spacer()
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(authStatus.registered ? Theme.positive : Theme.warning)
-                                    .frame(width: 8, height: 8)
-                                Text(authStatus.registered ? "Active" : "Disabled")
-                            }
-                        }
-
-                        ForEach(authStatus.credentials) { cred in
-                            HStack {
-                                Image(systemName: "key.fill")
-                                    .foregroundStyle(Theme.brand)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(cred.name)
-                                        .fontWeight(.medium)
-                                    if let date = cred.createdAt {
-                                        Text(date.prefix(10))
-                                            .font(.caption2)
-                                            .foregroundStyle(Theme.textDimmed)
-                                    }
-                                }
-                                Spacer()
-                            }
-                        }
-                    }
-
-                    Button {
-                        Task { await registerPasskey() }
-                    } label: {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                            Text(isRegistering ? "Registering..." : "Register Passkey")
-                        }
-                    }
-                    .disabled(isRegistering)
-                    .foregroundStyle(Theme.brand)
-
-                    if authManager.authRequired {
-                        Button {
-                            Task { await loginWithPasskey() }
-                        } label: {
-                            HStack {
-                                Image(systemName: "key.fill")
-                                Text("Re-authenticate")
-                            }
-                        }
+        MobileScreen {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("TFSA")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .tracking(1.4)
                         .foregroundStyle(Theme.brand)
+
+                    MobileSectionLabel("Authentication")
+                    MobileCard {
+                        MobileDefRow(label: "Status") {
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill((authStatus?.registered ?? false) ? Theme.positive : Theme.warning)
+                                    .frame(width: 6, height: 6)
+                                MobileValueLabel(text: (authStatus?.registered ?? false) ? "Active" : "Disabled", color: (authStatus?.registered ?? false) ? Theme.positive : Theme.warning)
+                            }
+                        }
+                        Divider().overlay(Theme.line)
+                        SettingsActionRow(
+                            title: isRegistering ? "Registering..." : "+ Register passkey",
+                            color: Theme.brand,
+                            isDisabled: isRegistering
+                        ) {
+                            Task { await registerPasskey() }
+                        }
+                        Divider().overlay(Theme.line)
+                        SettingsActionRow(
+                            title: "Re-authenticate",
+                            color: Theme.brand,
+                            isDisabled: isRegistering
+                        ) {
+                            Task { await loginWithPasskey() }
+                        }
                     }
 
                     if let authError {
                         Text(authError)
-                            .font(.caption)
+                            .font(.system(size: 11))
                             .foregroundStyle(Theme.negative)
                     }
-                } header: {
-                    Text("Authentication")
-                } footer: {
-                    Text("Passkeys protect your API with biometric authentication. Once registered, all requests require a valid token.")
-                }
 
-                Section {
-                    Toggle(
-                        "Hybrid Profit-Taking",
-                        isOn: Binding(
-                            get: {
-                                tradingSettings.hybridTakeProfitEnabled
-                            },
-                            set: { newValue in
-                                Task { await setHybridProfitTaking(newValue) }
-                            }
-                        )
-                    )
-                    .disabled(updatingHybridMode || updatingOversoldMode)
-
-                    Text(
-                        tradingSettings.hybridTakeProfitEnabled
-                            ? "When the take-profit target is reached, hold instead of auto-selling when signal remains a strong BUY (\(Int(tradingSettings.hybridTakeProfitMinBuyStrength * 100))%+). Existing stop and trailing protections still apply."
-                            : "When the take-profit target is reached, winners are sold immediately to lock in profit."
-                    )
-                    .font(.caption)
-                    .foregroundStyle(Theme.textMuted)
-
-                    Toggle(
-                        "Oversold Fast-Lane",
-                        isOn: Binding(
-                            get: {
-                                tradingSettings.oversoldFastlaneEnabled
-                            },
-                            set: { newValue in
-                                Task { await setOversoldFastlane(newValue) }
-                            }
-                        )
-                    )
-                    .disabled(updatingHybridMode || updatingOversoldMode)
-
-                    Text(
-                        tradingSettings.oversoldFastlaneEnabled
-                            ? "Allows earlier BUY recommendations for guarded oversold reversals below the standard scan threshold. Bearish-crossover and sentiment guards still apply."
-                            : "Only the standard BUY scan threshold is used. Oversold fast-lane entries are disabled."
-                    )
-                    .font(.caption)
-                    .foregroundStyle(Theme.textMuted)
-                } header: {
-                    Text("Trading")
-                } footer: {
-                    Text("Use Hybrid mode if you want to let winners run when momentum is still strong.")
-                }
-
-                Section {
-                    Toggle("Push Notifications", isOn: $notifEnabled)
-                        .onChange(of: notifEnabled) { _, newValue in
-                            Task { await toggleEnabled(newValue) }
-                        }
-
-                    Button(
-                        isNotificationsMutedToday
-                            ? "Unmute Notifications for Today"
-                            : "Mute Notifications for Today"
-                    ) {
-                        Task { await toggleNotificationsMuteToday() }
-                    }
-                    .foregroundStyle(isNotificationsMutedToday ? Theme.positive : Theme.warning)
-
-                    Button(
-                        isCallsMutedToday
-                            ? "Unmute Calls for Today"
-                            : "Mute Calls for Today"
-                    ) {
-                        Task { await toggleCallsMuteToday() }
-                    }
-                    .foregroundStyle(isCallsMutedToday ? Theme.positive : Theme.warning)
-
-                    if let token = pushManager.deviceToken {
-                        LabeledContent("Device Token") {
-                            Text(String(token.prefix(12)) + "...")
-                                .font(.caption)
-                                .foregroundStyle(Theme.textDimmed)
-                        }
-                    } else {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle")
-                                .foregroundStyle(Theme.warning)
-                            Text("VoIP push not registered")
-                                .font(.caption)
-                                .foregroundStyle(Theme.textMuted)
-                        }
-                    }
-                } header: {
-                    Text("Notifications")
-                } footer: {
-                    Text("When enabled, high-confidence signals will trigger a phone call via CallKit to get your attention, even in Do Not Disturb mode.")
-                }
-
-                if !notifHistory.isEmpty {
-                    Section("Recent Notifications") {
-                        ForEach(notifHistory) { notif in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(notif.callerName)
-                                        .fontWeight(.medium)
-                                    Text(notif.sentAt)
-                                        .font(.caption2)
-                                        .foregroundStyle(Theme.textDimmed)
+                    MobileSectionLabel("Trading")
+                    MobileCard {
+                        ToggleRow(
+                            title: "Hybrid profit-taking",
+                            description: hybridProfitTakingDescription,
+                            isOn: Binding(
+                                get: { tradingSettings.hybridTakeProfitEnabled },
+                                set: { newValue in
+                                    Task { await setHybridProfitTaking(newValue) }
                                 }
-                                Spacer()
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    SignalBadgeView(signal: notif.signal, strength: notif.strength)
-                                    HStack(spacing: 4) {
-                                        if notif.delivered {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .font(.caption2)
-                                                .foregroundStyle(Theme.positive)
-                                        }
-                                        if notif.acknowledged {
-                                            Image(systemName: "phone.fill")
-                                                .font(.caption2)
-                                                .foregroundStyle(Theme.positive)
-                                        }
-                                    }
+                            )
+                        )
+                        .disabled(updatingHybridMode || updatingOversoldMode)
+                        Divider().overlay(Theme.line)
+                        ToggleRow(
+                            title: "Oversold fast-lane",
+                            description: "Allow earlier BUY for guarded oversold reversals.",
+                            isOn: Binding(
+                                get: { tradingSettings.oversoldFastlaneEnabled },
+                                set: { newValue in
+                                    Task { await setOversoldFastlane(newValue) }
+                                }
+                            )
+                        )
+                        .disabled(updatingHybridMode || updatingOversoldMode)
+                    }
+
+                    MobileSectionLabel("Notifications")
+                    MobileCard {
+                        ToggleRow(
+                            title: "Push notifications",
+                            description: nil,
+                            isOn: Binding(
+                                get: { notifEnabled },
+                                set: { newValue in
+                                    Task { await setPushNotificationsEnabled(newValue) }
+                                }
+                            )
+                        )
+                        .disabled(updatingNotificationPrefs || pushManager.deviceToken == nil)
+                        Divider().overlay(Theme.line)
+                        ToggleRow(
+                            title: "Mute notifications for today",
+                            description: nil,
+                            isOn: Binding(
+                                get: { isNotificationsMutedToday },
+                                set: { newValue in
+                                    Task { await setNotificationsMutedToday(newValue) }
+                                }
+                            )
+                        )
+                        .disabled(updatingNotificationPrefs || pushManager.deviceToken == nil)
+                        Divider().overlay(Theme.line)
+                        ToggleRow(
+                            title: "Mute calls for today",
+                            description: nil,
+                            isOn: Binding(
+                                get: { isCallsMutedToday },
+                                set: { newValue in
+                                    Task { await setCallsMutedToday(newValue) }
+                                }
+                            )
+                        )
+                        .disabled(updatingNotificationPrefs || pushManager.deviceToken == nil)
+                        Divider().overlay(Theme.line)
+                        MobileDefRow(label: "Device token") {
+                            MobileValueLabel(text: tokenPrefix)
+                        }
+                    }
+
+                    MobileSectionLabel("Connection")
+                    MobileCard {
+                        MobileDefRow(label: "API server") {
+                            MobileValueLabel(text: config.apiBaseURL ?? "Not set")
+                        }
+                        Divider().overlay(Theme.line)
+                        SettingsActionRow(title: "Disconnect & reset", color: Theme.negative) {
+                            config.reset()
+                        }
+                    }
+
+                    if !notifHistory.isEmpty {
+                        MobileSectionLabel("Recent Notifications")
+                        MobileCard {
+                            ForEach(Array(notifHistory.prefix(5).enumerated()), id: \.element.id) { index, notification in
+                                NotificationHistoryRow(notification: notification)
+                                if index < min(notifHistory.count, 5) - 1 {
+                                    Divider().overlay(Theme.line)
                                 }
                             }
-                            .padding(.vertical, 2)
                         }
                     }
                 }
-
-                Section("Connection") {
-                    LabeledContent("API Server") {
-                        Text(config.apiBaseURL ?? "Not set")
-                            .font(.caption)
-                            .foregroundStyle(Theme.textDimmed)
-                    }
-                    Button("Disconnect & Reset", role: .destructive) {
-                        config.reset()
-                    }
-                }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 40)
             }
-            .listStyle(.insetGrouped)
-            .navigationTitle("Settings")
-            .refreshable { await loadAll() }
-            .task { await loadAll() }
-            .onDisappear {
-                strategyRefreshTask?.cancel()
-                strategyRefreshTask = nil
-            }
+        }
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .refreshable { await loadAll() }
+        .task { await loadAll() }
+        .onDisappear {
+            strategyRefreshTask?.cancel()
+            strategyRefreshTask = nil
         }
     }
 
+    private var tokenPrefix: String {
+        guard let token = pushManager.deviceToken else { return "Not registered" }
+        return String(token.prefix(12)) + "..."
+    }
+
+    private var hybridProfitTakingDescription: String {
+        if tradingSettings.hybridTakeProfitEnabled {
+            return "Hold winners past the take-profit threshold while BUY strength stays high."
+        }
+        return "Sell immediately when take-profit target is reached."
+    }
+
     private func registerPasskey() async {
+        guard !isRegistering else { return }
         isRegistering = true
         authError = nil
         defer { isRegistering = false }
@@ -276,23 +225,15 @@ struct SettingsView: View {
 
         guard let token = pushManager.deviceToken else {
             notifHistory = []
+            notifEnabled = false
+            isNotificationsMutedToday = false
+            isCallsMutedToday = false
             return
         }
 
         do {
             let prefs = try await client.getNotificationPrefs(token: token)
-            notifEnabled = prefs.enabled
-            let today = ISO8601DateFormatter().string(from: Date()).prefix(10)
-            isNotificationsMutedToday = isMutedToday(
-                specificDate: prefs.dailyDisabledNotificationsDate,
-                fallbackDate: prefs.dailyDisabledDate,
-                today: String(today)
-            )
-            isCallsMutedToday = isMutedToday(
-                specificDate: prefs.dailyDisabledCallsDate,
-                fallbackDate: prefs.dailyDisabledDate,
-                today: String(today)
-            )
+            applyNotificationPrefs(prefs)
         } catch {}
 
         do {
@@ -300,45 +241,81 @@ struct SettingsView: View {
         } catch {}
     }
 
-    private func toggleEnabled(_ enabled: Bool) async {
+    private func applyNotificationPrefs(_ prefs: NotificationPrefsOut) {
+        notifEnabled = prefs.enabled
+        let today = ISO8601DateFormatter().string(from: Date()).prefix(10)
+        isNotificationsMutedToday = isMutedToday(
+            specificDate: prefs.dailyDisabledNotificationsDate,
+            fallbackDate: prefs.dailyDisabledDate,
+            today: String(today)
+        )
+        isCallsMutedToday = isMutedToday(
+            specificDate: prefs.dailyDisabledCallsDate,
+            fallbackDate: prefs.dailyDisabledDate,
+            today: String(today)
+        )
+    }
+
+    private func setPushNotificationsEnabled(_ enabled: Bool) async {
         guard let token = pushManager.deviceToken else { return }
+        guard !updatingNotificationPrefs else { return }
+        let previous = notifEnabled
+        notifEnabled = enabled
+        updatingNotificationPrefs = true
+        defer { updatingNotificationPrefs = false }
+
         do {
-            _ = try await client.updateNotificationPrefs(
+            let prefs = try await client.updateNotificationPrefs(
                 token: token,
                 enabled: enabled,
                 dailyDisabled: nil
             )
+            applyNotificationPrefs(prefs)
         } catch {
-            notifEnabled = !enabled
+            notifEnabled = previous
         }
     }
 
-    private func toggleNotificationsMuteToday() async {
+    private func setNotificationsMutedToday(_ muted: Bool) async {
         guard let token = pushManager.deviceToken else { return }
-        let newMuted = !isNotificationsMutedToday
+        guard !updatingNotificationPrefs else { return }
+        let previous = isNotificationsMutedToday
+        isNotificationsMutedToday = muted
+        updatingNotificationPrefs = true
+        defer { updatingNotificationPrefs = false }
+
         do {
-            _ = try await client.updateNotificationPrefs(
+            let prefs = try await client.updateNotificationPrefs(
                 token: token,
                 enabled: nil,
                 dailyDisabled: nil,
-                dailyDisabledNotifications: newMuted
+                dailyDisabledNotifications: muted
             )
-            isNotificationsMutedToday = newMuted
-        } catch {}
+            applyNotificationPrefs(prefs)
+        } catch {
+            isNotificationsMutedToday = previous
+        }
     }
 
-    private func toggleCallsMuteToday() async {
+    private func setCallsMutedToday(_ muted: Bool) async {
         guard let token = pushManager.deviceToken else { return }
-        let newMuted = !isCallsMutedToday
+        guard !updatingNotificationPrefs else { return }
+        let previous = isCallsMutedToday
+        isCallsMutedToday = muted
+        updatingNotificationPrefs = true
+        defer { updatingNotificationPrefs = false }
+
         do {
-            _ = try await client.updateNotificationPrefs(
+            let prefs = try await client.updateNotificationPrefs(
                 token: token,
                 enabled: nil,
                 dailyDisabled: nil,
-                dailyDisabledCalls: newMuted
+                dailyDisabledCalls: muted
             )
-            isCallsMutedToday = newMuted
-        } catch {}
+            applyNotificationPrefs(prefs)
+        } catch {
+            isCallsMutedToday = previous
+        }
     }
 
     private func isMutedToday(specificDate: String?, fallbackDate: String?, today: String) -> Bool {
@@ -397,5 +374,125 @@ struct SettingsView: View {
                 NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
             }
         }
+    }
+}
+
+private struct ToggleRow: View {
+    let title: String
+    let description: String?
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Theme.textPrimary)
+                if let description {
+                    Text(description)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textMuted)
+                }
+            }
+            Spacer()
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .tint(Theme.brand)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+    }
+}
+
+private struct SettingsActionRow: View {
+    let title: String
+    let color: Color
+    var isDisabled: Bool = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(color)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.55 : 1.0)
+    }
+}
+
+private enum NotificationChannelKind {
+    case call
+    case text
+    case both
+}
+
+private struct NotificationHistoryRow: View {
+    let notification: NotificationLogOut
+
+    private var channelKind: NotificationChannelKind {
+        let kind = (notification.notificationType ?? "").lowercased()
+        if kind.contains("call") || kind.contains("voip") {
+            return .call
+        }
+        if kind.contains("text")
+            || kind.contains("notification")
+            || kind.contains("push")
+            || kind.contains("alert")
+            || kind.contains("premarket")
+            || kind.contains("briefing")
+            || kind.contains("close")
+            || kind.contains("recap") {
+            return .text
+        }
+        // Most trading signal logs are produced as call + alert together.
+        return .both
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(notification.symbol)
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Theme.textPrimary)
+                Text(notification.sentAt)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Theme.textDimmed)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 8) {
+                NotificationTypeBadge(kind: channelKind)
+                SignalBadgeView(signal: notification.signal, strength: notification.strength)
+            }
+        }
+        .padding(16)
+    }
+}
+
+private struct NotificationTypeBadge: View {
+    let kind: NotificationChannelKind
+
+    var body: some View {
+        HStack(spacing: 4) {
+            switch kind {
+            case .call:
+                Image(systemName: "phone.fill")
+            case .text:
+                Image(systemName: "message.fill")
+            case .both:
+                Image(systemName: "message.fill")
+                Image(systemName: "phone.fill")
+            }
+        }
+        .font(AppFont.sans(10, weight: .bold))
+        .foregroundStyle(Theme.brand)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(Theme.brand.opacity(0.14))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }

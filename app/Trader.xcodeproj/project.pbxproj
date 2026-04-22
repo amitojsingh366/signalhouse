@@ -24,6 +24,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A1D31F0B2E8C4AA100000001 /* PasskeyDomain.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Trader/Config/PasskeyDomain.xcconfig; sourceTree = "<group>"; };
 		CF59A8842F7B9FA3003A0699 /* Trader.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Trader.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CF59A8932F7B9FA4003A0699 /* TraderTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TraderTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CF59A89D2F7B9FA4003A0699 /* TraderUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TraderUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -88,6 +89,7 @@
 		CF59A87B2F7B9FA3003A0699 = {
 			isa = PBXGroup;
 			children = (
+				A1D31F0B2E8C4AA100000001 /* PasskeyDomain.xcconfig */,
 				CF59A8862F7B9FA3003A0699 /* Trader */,
 				CF59A8962F7B9FA4003A0699 /* TraderTests */,
 				CF59A8A02F7B9FA4003A0699 /* TraderUITests */,
@@ -400,6 +402,7 @@
 		};
 		CF59A8A82F7B9FA4003A0699 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A1D31F0B2E8C4AA100000001 /* PasskeyDomain.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -446,6 +449,7 @@
 		};
 		CF59A8A92F7B9FA4003A0699 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A1D31F0B2E8C4AA100000001 /* PasskeyDomain.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;

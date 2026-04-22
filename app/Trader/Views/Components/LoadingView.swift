@@ -223,7 +223,7 @@ struct StatusRowSkeleton: View {
 
 // MARK: - Dashboard Signal Skeleton (matches dashboard signal cards)
 
-/// Skeleton for dashboard signal preview cards — icon/symbol left, badge right.
+/// Skeleton for dashboard signal preview rows — icon/symbol left, badge right.
 struct DashboardSignalSkeleton: View {
     var body: some View {
         HStack {
@@ -244,7 +244,7 @@ struct DashboardSignalSkeleton: View {
                 .frame(width: 60, height: 22) // signal badge
         }
         .padding(12)
-        .glassCard()
+        .shimmer()
     }
 }
 

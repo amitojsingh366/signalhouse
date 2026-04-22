@@ -107,6 +107,12 @@ struct ActionDetailView: View {
                             Divider().overlay(Theme.line)
                         }
                         MobileDefRow(label: "Reason") { MobileValueLabel(text: action.reason) }
+                        Divider().overlay(Theme.line)
+                        Text(action.detail)
+                            .font(AppFont.sans(13))
+                            .foregroundStyle(Theme.textMuted)
+                            .padding(16)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     MobileSectionLabel("Score breakdown")

@@ -28,38 +28,6 @@ enum AppTab: Int, CaseIterable {
     }
 }
 
-struct MobileKickerTitle: View {
-    let kicker: String
-    let title: String
-    var subtitle: String? = nil
-    var kickerColor: Color = Theme.brand
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(kickerColor)
-                    .frame(width: 6, height: 6)
-                Text(kicker.uppercased())
-                    .font(AppFont.mono(10, weight: .medium))
-                    .tracking(1.4)
-                    .foregroundStyle(kickerColor)
-            }
-
-            Text(title)
-                .font(AppFont.sans(40, weight: .bold))
-                .tracking(-1)
-                .foregroundStyle(Theme.textPrimary)
-
-            if let subtitle {
-                Text(subtitle)
-                    .font(AppFont.sans(13))
-                    .foregroundStyle(Theme.textMuted)
-            }
-        }
-    }
-}
-
 struct MobileSectionLabel<Trailing: View>: View {
     let title: String
     @ViewBuilder var trailing: Trailing

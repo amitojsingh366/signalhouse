@@ -49,39 +49,6 @@ extension View {
     }
 }
 
-// MARK: - Stat Card Skeleton (matches StatCardView)
-
-/// Skeleton for stat cards — icon row + large value + optional change line.
-struct StatCardSkeleton: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Title row with icon (matches HStack { Text(title) Spacer() Image })
-            HStack {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(skelFill)
-                    .frame(width: 80, height: 12) // caption-sized title
-                Spacer()
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(skelFill)
-                    .frame(width: 14, height: 14) // icon
-            }
-
-            // Large value (matches .title2 font)
-            RoundedRectangle(cornerRadius: 4)
-                .fill(skelFill)
-                .frame(width: 100, height: 22)
-
-            // Change label (matches caption percent + label)
-            RoundedRectangle(cornerRadius: 4)
-                .fill(skelFill)
-                .frame(width: 70, height: 10)
-        }
-        .padding()
-        .glassCard()
-        .shimmer()
-    }
-}
-
 // MARK: - Holding Row Skeleton (matches HoldingRow)
 
 /// Skeleton for portfolio holding rows — symbol/shares left, value/pnl right, bottom row with prices + badge.

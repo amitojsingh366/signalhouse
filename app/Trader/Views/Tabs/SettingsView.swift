@@ -47,11 +47,19 @@ struct SettingsView: View {
                             }
                         }
                         Divider().overlay(Theme.line)
-                        SettingsActionRow(title: "+ Register passkey", color: Theme.brand) {
+                        SettingsActionRow(
+                            title: isRegistering ? "Registering..." : "+ Register passkey",
+                            color: Theme.brand,
+                            isDisabled: isRegistering
+                        ) {
                             Task { await registerPasskey() }
                         }
                         Divider().overlay(Theme.line)
-                        SettingsActionRow(title: "Re-authenticate", color: Theme.brand) {
+                        SettingsActionRow(
+                            title: "Re-authenticate",
+                            color: Theme.brand,
+                            isDisabled: isRegistering
+                        ) {
                             Task { await loginWithPasskey() }
                         }
                     }
@@ -183,6 +191,7 @@ struct SettingsView: View {
     }
 
     private func registerPasskey() async {
+        guard !isRegistering else { return }
         isRegistering = true
         authError = nil
         defer { isRegistering = false }
@@ -398,6 +407,7 @@ private struct ToggleRow: View {
 private struct SettingsActionRow: View {
     let title: String
     let color: Color
+    var isDisabled: Bool = false
     let action: () -> Void
 
     var body: some View {
@@ -410,6 +420,8 @@ private struct SettingsActionRow: View {
                 .padding(.vertical, 14)
         }
         .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.55 : 1.0)
     }
 }
 

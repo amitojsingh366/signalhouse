@@ -16,10 +16,7 @@ struct SettingsView: View {
     @State private var tradingSettings = TradingSettings(
         hybridTakeProfitEnabled: false,
         hybridTakeProfitMinBuyStrength: 0.5,
-        oversoldFastlaneEnabled: true,
-        takeProfitPct: 0.08,
-        stopLossPct: 0.05,
-        maxPositions: 12
+        oversoldFastlaneEnabled: true
     )
     @State private var updatingHybridMode = false
     @State private var updatingOversoldMode = false
@@ -69,7 +66,7 @@ struct SettingsView: View {
                     MobileCard {
                         ToggleRow(
                             title: "Hybrid profit-taking",
-                            description: "Sell immediately when take-profit target is reached.",
+                            description: hybridProfitTakingDescription,
                             isOn: Binding(
                                 get: { tradingSettings.hybridTakeProfitEnabled },
                                 set: { newValue in
@@ -176,6 +173,13 @@ struct SettingsView: View {
     private var tokenPrefix: String {
         guard let token = pushManager.deviceToken else { return "Not registered" }
         return String(token.prefix(12)) + "..."
+    }
+
+    private var hybridProfitTakingDescription: String {
+        if tradingSettings.hybridTakeProfitEnabled {
+            return "Hold winners past the take-profit threshold while BUY strength stays high."
+        }
+        return "Sell immediately when take-profit target is reached."
     }
 
     private func registerPasskey() async {

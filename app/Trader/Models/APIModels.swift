@@ -266,18 +266,12 @@ struct TradingSettings {
     var hybridTakeProfitEnabled: Bool
     var hybridTakeProfitMinBuyStrength: Double
     var oversoldFastlaneEnabled: Bool
-    var takeProfitPct: Double
-    var stopLossPct: Double
-    var maxPositions: Int
 
     static func from(_ config: SettingsConfigOut) -> TradingSettings {
         TradingSettings(
             hybridTakeProfitEnabled: config.value(for: "risk.hybrid_take_profit_enabled")?.boolValue ?? false,
             hybridTakeProfitMinBuyStrength: config.value(for: "risk.hybrid_take_profit_min_buy_strength")?.numberValue ?? 0.5,
-            oversoldFastlaneEnabled: config.value(for: "strategy.oversold_fastlane.enabled")?.boolValue ?? true,
-            takeProfitPct: config.value(for: "risk.take_profit_pct")?.numberValue ?? 0.08,
-            stopLossPct: config.value(for: "risk.stop_loss_pct")?.numberValue ?? 0.05,
-            maxPositions: Int((config.value(for: "risk.max_positions")?.numberValue ?? 12).rounded())
+            oversoldFastlaneEnabled: config.value(for: "strategy.oversold_fastlane.enabled")?.boolValue ?? true
         )
     }
 }

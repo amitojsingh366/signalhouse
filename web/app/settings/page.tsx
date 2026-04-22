@@ -924,6 +924,7 @@ function NumberControl({
   onCommit: (v: number) => void;
 }) {
   const [draft, setDraft] = useState<string>(value == null ? "" : String(value));
+  const skipNextBlurCommitRef = useRef(false);
 
   useEffect(() => {
     setDraft(value == null ? "" : String(value));
@@ -1007,7 +1008,13 @@ function NumberControl({
         max={max ?? undefined}
         step={effectiveStep}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => commit()}
+        onBlur={() => {
+          if (skipNextBlurCommitRef.current) {
+            skipNextBlurCommitRef.current = false;
+            return;
+          }
+          commit();
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             commit();
@@ -1036,6 +1043,7 @@ function NumberControl({
           disabled={disabled}
           onMouseDown={(e) => {
             // Keep focus on the input so stepper clicks don't fire an extra blur-commit first.
+            skipNextBlurCommitRef.current = true;
             e.preventDefault();
           }}
           onClick={() => stepBy(1)}
@@ -1049,6 +1057,7 @@ function NumberControl({
           disabled={disabled}
           onMouseDown={(e) => {
             // Keep focus on the input so stepper clicks don't fire an extra blur-commit first.
+            skipNextBlurCommitRef.current = true;
             e.preventDefault();
           }}
           onClick={() => stepBy(-1)}

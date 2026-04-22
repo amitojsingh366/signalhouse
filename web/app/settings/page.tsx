@@ -1018,6 +1018,7 @@ function NumberControl({
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             commit();
+            skipNextBlurCommitRef.current = true;
             (e.target as HTMLInputElement).blur();
             return;
           }
@@ -1046,7 +1047,10 @@ function NumberControl({
             skipNextBlurCommitRef.current = true;
             e.preventDefault();
           }}
-          onClick={() => stepBy(1)}
+          onClick={() => {
+            skipNextBlurCommitRef.current = false;
+            stepBy(1);
+          }}
           className="flex h-1/2 items-center justify-center text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-200 disabled:cursor-not-allowed"
           aria-label="Increase value"
         >
@@ -1060,7 +1064,10 @@ function NumberControl({
             skipNextBlurCommitRef.current = true;
             e.preventDefault();
           }}
-          onClick={() => stepBy(-1)}
+          onClick={() => {
+            skipNextBlurCommitRef.current = false;
+            stepBy(-1);
+          }}
           className="flex h-1/2 items-center justify-center border-t border-white/10 text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-200 disabled:cursor-not-allowed"
           aria-label="Decrease value"
         >

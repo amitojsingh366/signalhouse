@@ -163,6 +163,17 @@ function numberField(source: Record<string, number | null> | null | undefined, k
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function numberFieldAny(
+  source: Record<string, number | null> | null | undefined,
+  keys: string[]
+): number | null {
+  for (const key of keys) {
+    const value = source?.[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
 function formatCompact(value: number): string {
   return new Intl.NumberFormat("en-CA", {
     notation: "compact",
@@ -491,15 +502,34 @@ function SignalsContent() {
     const planStopLoss = numberField(tradePlan, "stop_loss");
     const planTakeProfit1 = numberField(tradePlan, "take_profit_1");
     const planTakeProfit2 = numberField(tradePlan, "take_profit_2");
-    const planRiskReward = numberField(tradePlan, "risk_reward_ratio");
+    const planRiskReward = numberFieldAny(tradePlan, ["risk_reward_ratio", "riskRewardRatio"]);
+    const planRiskRewardTp1 = numberFieldAny(tradePlan, ["risk_reward_tp1", "riskRewardTp1"]);
+    const planRiskRewardTp2 = numberFieldAny(tradePlan, ["risk_reward_tp2", "riskRewardTp2"]);
     const planAtr = numberField(tradePlan, "atr");
 
-    const marketCap = numberField(fundamentals, "market_cap");
-    const peRatio = numberField(fundamentals, "pe_ratio");
-    const dividendYield = numberField(fundamentals, "dividend_yield");
-    const week52Low = numberField(fundamentals, "week_52_low");
-    const week52High = numberField(fundamentals, "week_52_high");
-    const avgVolume = numberField(fundamentals, "avg_volume");
+    const marketCap = numberFieldAny(fundamentals, ["market_cap", "marketCap"]);
+    const peRatio = numberFieldAny(fundamentals, ["pe_ratio", "trailingPE", "forwardPE"]);
+    const dividendYield = numberFieldAny(fundamentals, ["dividend_yield", "dividendYield"]);
+    const week52Low = numberFieldAny(fundamentals, ["week_52_low", "year_low", "fiftyTwoWeekLow"]);
+    const week52High = numberFieldAny(fundamentals, ["week_52_high", "year_high", "fiftyTwoWeekHigh"]);
+    const avgVolume = numberFieldAny(fundamentals, ["avg_volume", "averageVolume", "threeMonthAverageVolume"]);
+    const referenceEntry =
+      (planEntryLow != null && planEntryHigh != null)
+        ? (planEntryLow + planEntryHigh) / 2
+        : (
+          (typeof checked?.price === "number" ? checked.price : null)
+          ?? (typeof selectedAction?.price === "number" ? selectedAction.price : null)
+          ?? (typeof selectedAction?.buy_price === "number" ? selectedAction.buy_price : null)
+        );
+    const fallbackRiskReward =
+      referenceEntry != null
+      && planStopLoss != null
+      && planTakeProfit1 != null
+      && referenceEntry > planStopLoss
+      && planTakeProfit1 > referenceEntry
+        ? (planTakeProfit1 - referenceEntry) / (referenceEntry - planStopLoss)
+        : null;
+    const displayedRiskReward = planRiskReward ?? fallbackRiskReward;
     const recordBuyHref = buildTradeIntentHref({
       open: true,
       action: "buy",
@@ -670,7 +700,10 @@ function SignalsContent() {
                     <div className="kv">
                       <span className="k">Risk / reward</span>
                       <span className="v">
-                        {planRiskReward != null ? `1 : ${planRiskReward.toFixed(2)}` : "-"}
+                        {displayedRiskReward != null ? `1 : ${displayedRiskReward.toFixed(2)}` : "-"}
+                        {planRiskRewardTp1 != null && planRiskRewardTp2 != null
+                          ? ` (TP1 ${planRiskRewardTp1.toFixed(2)} · TP2 ${planRiskRewardTp2.toFixed(2)})`
+                          : ""}
                       </span>
                     </div>
                     <div className="kv">

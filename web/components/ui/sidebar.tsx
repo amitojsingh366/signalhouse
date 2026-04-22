@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ComponentType } from "react";
 import { useActionPlan } from "@/lib/hooks";
+import { getExtendedSessionLabel } from "@/lib/market-session";
 import { cn } from "@/lib/utils";
 
 const DEBUG_LS_KEY = "debug_last_visited";
@@ -52,6 +53,7 @@ export function Sidebar() {
   const [open, setOpen] = useState(false);
   const [footerTaps, setFooterTaps] = useState(0);
   const [debugUnlocked, setDebugUnlocked] = useState(false);
+  const [extendedSessionLabel, setExtendedSessionLabel] = useState(() => getExtendedSessionLabel());
   const { data: plan } = useActionPlan();
 
   useEffect(() => {
@@ -61,6 +63,13 @@ export function Sidebar() {
   useEffect(() => {
     if (pathname.startsWith("/debug")) touchDebugVisit();
   }, [pathname]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setExtendedSessionLabel(getExtendedSessionLabel());
+    }, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   function handleFooterClick() {
     const next = footerTaps + 1;
@@ -88,7 +97,7 @@ export function Sidebar() {
       {
         label: "Scan",
         items: [
-          { href: "/premarket", label: "Pre-market", icon: Sunrise },
+          { href: "/premarket", label: extendedSessionLabel, icon: Sunrise },
           { href: "/trades", label: "Trades", icon: ArrowLeftRight },
           { href: "/upload", label: "Upload", icon: Upload },
         ],
@@ -106,7 +115,7 @@ export function Sidebar() {
       list[2].items.push({ href: "/debug", label: "Debug", icon: Bug });
     }
     return list;
-  }, [debugUnlocked, signalCount]);
+  }, [debugUnlocked, extendedSessionLabel, signalCount]);
 
   return (
     <>

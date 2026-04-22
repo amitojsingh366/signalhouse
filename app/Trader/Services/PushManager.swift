@@ -66,12 +66,21 @@ final class PushManager: NSObject, ObservableObject {
     func didRegisterForRemoteNotifications(deviceToken: Data) {
         let token = deviceToken.map { String(format: "%02x", $0) }.joined()
         self.pushToken = token
-        // Re-register with API including the push token
-        Task {
-            try? await apiClient?.registerDevice(
-                token: self.deviceToken ?? "",
-                pushToken: token
-            )
+        // Re-register with API including the push token once VoIP token exists.
+        Task { await syncRegistration() }
+    }
+
+    /// Keep backend device registration in sync whenever either token changes.
+    private func syncRegistration() async {
+        guard let apiClient else { return }
+        guard let deviceToken, !deviceToken.isEmpty else {
+            // Standard push token can arrive before PushKit token; retry on next token update.
+            return
+        }
+        do {
+            try await apiClient.registerDevice(token: deviceToken, pushToken: pushToken)
+        } catch {
+            print("[PushManager] Device registration failed: \(error)")
         }
     }
 }
@@ -125,8 +134,7 @@ extension PushManager: PKPushRegistryDelegate {
 
         Task { @MainActor in
             self.deviceToken = token
-            // Register with API server
-            try? await apiClient?.registerDevice(token: token, pushToken: self.pushToken)
+            await self.syncRegistration()
         }
     }
 

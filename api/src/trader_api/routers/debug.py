@@ -37,6 +37,7 @@ class DeviceOut(BaseModel):
 class TestPushRequest(BaseModel):
     push_type: Literal["call", "notification"]
     device_token: str | None = None  # None = all devices
+    respect_mutes: bool = False
     symbol: str
     signal: str
     strength: float
@@ -58,6 +59,8 @@ class NotificationStatusOut(BaseModel):
     devices_with_push_token: int
     calls_muted_today: int
     notifications_muted_today: int
+    call_eligible_devices: int
+    alert_eligible_devices: int
     utc_now: str
 
 
@@ -167,6 +170,25 @@ async def notification_status(db: AsyncSession = Depends(get_db)):
             today=today,
         )
     ]
+    call_eligible = [
+        row
+        for row in enabled_rows
+        if not _is_muted(
+            row["daily_disabled_calls_date"],
+            row["daily_disabled_date"],
+            today=today,
+        )
+    ]
+    alert_eligible = [
+        row
+        for row in enabled_rows
+        if row["push_token"]
+        and not _is_muted(
+            row["daily_disabled_notifications_date"],
+            row["daily_disabled_date"],
+            today=today,
+        )
+    ]
 
     notifier = get_notifier()
     return NotificationStatusOut(
@@ -176,6 +198,8 @@ async def notification_status(db: AsyncSession = Depends(get_db)):
         devices_with_push_token=len(with_push),
         calls_muted_today=len(calls_muted),
         notifications_muted_today=len(notifications_muted),
+        call_eligible_devices=len(call_eligible),
+        alert_eligible_devices=len(alert_eligible),
         utc_now=datetime.now(UTC).isoformat(),
     )
 
@@ -214,7 +238,7 @@ async def test_push(req: TestPushRequest, db: AsyncSession = Depends(get_db)):
         device_token=req.device_token,
         only_enabled=True,
     )
-    if req.push_type == "call":
+    if req.push_type == "call" and req.respect_mutes:
         devices = [
             row
             for row in all_devices
@@ -224,7 +248,7 @@ async def test_push(req: TestPushRequest, db: AsyncSession = Depends(get_db)):
                 today=today,
             )
         ]
-    else:
+    elif req.push_type == "notification" and req.respect_mutes:
         devices = [
             row
             for row in all_devices
@@ -235,6 +259,10 @@ async def test_push(req: TestPushRequest, db: AsyncSession = Depends(get_db)):
                 today=today,
             )
         ]
+    elif req.push_type == "notification":
+        devices = [row for row in all_devices if row["push_token"]]
+    else:
+        devices = all_devices
 
     if not devices:
         raise HTTPException(status_code=404, detail="No matching devices found")

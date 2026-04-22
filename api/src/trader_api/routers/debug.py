@@ -51,8 +51,25 @@ class TestPushResult(BaseModel):
 @router.get("/devices", response_model=list[DeviceOut])
 async def list_devices(db: AsyncSession = Depends(get_db)):
     """List all registered devices."""
-    result = await db.execute(select(DeviceRegistration))
-    return result.scalars().all()
+    # Build response explicitly so old rows with nulls don't fail response validation.
+    result = await db.execute(
+        select(
+            DeviceRegistration.device_token,
+            DeviceRegistration.push_token,
+            DeviceRegistration.platform,
+            DeviceRegistration.enabled,
+        )
+    )
+    rows = result.all()
+    return [
+        DeviceOut(
+            device_token=row.device_token,
+            push_token=row.push_token,
+            platform=row.platform or "ios",
+            enabled=True if row.enabled is None else bool(row.enabled),
+        )
+        for row in rows
+    ]
 
 
 @router.post("/test-push", response_model=TestPushResult)

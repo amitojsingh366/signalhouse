@@ -304,6 +304,8 @@ export interface PremarketMover {
   cdr_symbol: string;
   us_symbol: string;
   premarket_price: number;
+  session_price?: number;
+  session?: "premarket" | "after_hours";
   change_pct: number;
 }
 

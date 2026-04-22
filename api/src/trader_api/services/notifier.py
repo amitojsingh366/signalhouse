@@ -198,25 +198,34 @@ class APNsNotifier:
             "handle": "trader-signal",
         }
 
-        # Log to DB
-        async with db_session_factory() as db:
-            log_entry = NotificationLog(
-                device_token=device_token,
-                symbol=symbol,
-                signal=signal,
-                strength=strength,
-                caller_name=caller_name,
-                delivered=False,
-                acknowledged=False,
-                retry_count=0,
+        notification_id: int | None = None
+        # Best-effort DB logging. Never block delivery when schema/logging fails.
+        try:
+            async with db_session_factory() as db:
+                log_entry = NotificationLog(
+                    device_token=device_token,
+                    symbol=symbol,
+                    signal=signal,
+                    strength=strength,
+                    caller_name=caller_name,
+                    delivered=False,
+                    acknowledged=False,
+                    retry_count=0,
+                )
+                db.add(log_entry)
+                await db.commit()
+                await db.refresh(log_entry)
+                notification_id = log_entry.id
+        except Exception:
+            logger.exception(
+                "Notification log insert failed for %s %s; sending push anyway",
+                signal,
+                symbol,
             )
-            db.add(log_entry)
-            await db.commit()
-            await db.refresh(log_entry)
-            notification_id = log_entry.id
 
-        # Add notification_id to payload so iOS app can acknowledge
-        payload["notification_id"] = notification_id
+        # Add notification_id to payload so iOS app can acknowledge.
+        if notification_id is not None:
+            payload["notification_id"] = notification_id
 
         call_delivered = False
         if send_call:
@@ -225,29 +234,43 @@ class APNsNotifier:
         # Also send a standard alert push so it shows in notification center
         alert_delivered = False
         if should_send_alert and push_token is not None:
+            alert_data: dict[str, Any] = {
+                "symbol": symbol,
+                "signal": signal,
+            }
+            if notification_id is not None:
+                alert_data["notification_id"] = notification_id
             alert_delivered = await self.send_alert_push(
                 push_token,
                 title=caller_name,
                 body=f"Score {score}/9 · {strength_pct}% strength",
                 category="signal",
-                data={
-                    "symbol": symbol,
-                    "signal": signal,
-                    "notification_id": notification_id,
-                },
+                data=alert_data,
             )
 
         delivered = call_delivered or alert_delivered
 
-        # Update delivery status
-        async with db_session_factory() as db:
-            log_entry = await db.get(NotificationLog, notification_id)
-            if log_entry:
-                log_entry.delivered = delivered
-                await db.commit()
+        # Update delivery status if logging is available.
+        if notification_id is not None:
+            try:
+                async with db_session_factory() as db:
+                    log_entry = await db.get(NotificationLog, notification_id)
+                    if log_entry:
+                        log_entry.delivered = delivered
+                        await db.commit()
+            except Exception:
+                logger.exception(
+                    "Notification log delivery update failed for id=%s",
+                    notification_id,
+                )
 
-        # Schedule retry if not acknowledged
-        if send_call and call_delivered and self.max_retries > 0:
+        # Schedule retry if not acknowledged.
+        if (
+            notification_id is not None
+            and send_call
+            and call_delivered
+            and self.max_retries > 0
+        ):
             asyncio.create_task(
                 self._retry_if_needed(
                     db_session_factory,
@@ -267,26 +290,29 @@ class APNsNotifier:
         """Wait, then retry once if the notification wasn't acknowledged."""
         await asyncio.sleep(self.retry_delay)
 
-        async with db_session_factory() as db:
-            log_entry = await db.get(NotificationLog, notification_id)
-            if not log_entry or log_entry.acknowledged:
-                return  # User already answered or log disappeared
+        try:
+            async with db_session_factory() as db:
+                log_entry = await db.get(NotificationLog, notification_id)
+                if not log_entry or log_entry.acknowledged:
+                    return  # User already answered or log disappeared
 
-            if log_entry.retry_count >= self.max_retries:
-                return  # Already retried enough
+                if log_entry.retry_count >= self.max_retries:
+                    return  # Already retried enough
 
-            log_entry.retry_count += 1
-            delivered = await self.send_voip_push(device_token, payload)
-            log_entry.delivered = delivered
-            await db.commit()
+                log_entry.retry_count += 1
+                delivered = await self.send_voip_push(device_token, payload)
+                log_entry.delivered = delivered
+                await db.commit()
 
-            logger.info(
-                "Retry %d for notification %d (%s): %s",
-                log_entry.retry_count,
-                notification_id,
-                payload.get("caller_name", "?"),
-                "delivered" if delivered else "failed",
-            )
+                logger.info(
+                    "Retry %d for notification %d (%s): %s",
+                    log_entry.retry_count,
+                    notification_id,
+                    payload.get("caller_name", "?"),
+                    "delivered" if delivered else "failed",
+                )
+        except Exception:
+            logger.exception("Retry path failed for notification %d", notification_id)
 
     async def notify_scheduled(
         self,
@@ -320,20 +346,29 @@ class APNsNotifier:
                 if device.notifications_muted_on(today):
                     continue
 
-                log_entry = NotificationLog(
-                    device_token=device.push_token,
-                    notification_type=notification_type,
-                    symbol="",
-                    signal="",
-                    strength=0.0,
-                    caller_name=title,
-                    delivered=False,
-                    acknowledged=False,
-                    retry_count=0,
-                )
-                db.add(log_entry)
-                await db.commit()
-                await db.refresh(log_entry)
+                notification_id: int | None = None
+                try:
+                    log_entry = NotificationLog(
+                        device_token=device.push_token,
+                        notification_type=notification_type,
+                        symbol="",
+                        signal="",
+                        strength=0.0,
+                        caller_name=title,
+                        delivered=False,
+                        acknowledged=False,
+                        retry_count=0,
+                    )
+                    db.add(log_entry)
+                    await db.commit()
+                    await db.refresh(log_entry)
+                    notification_id = log_entry.id
+                except Exception:
+                    await db.rollback()
+                    logger.exception(
+                        "Scheduled notification log insert failed for type=%s",
+                        notification_type,
+                    )
 
                 delivered = await self.send_alert_push(
                     device.push_token,
@@ -342,8 +377,18 @@ class APNsNotifier:
                     category=category,
                     data={"notification_type": notification_type},
                 )
-                log_entry.delivered = delivered
-                await db.commit()
+                if notification_id is not None:
+                    try:
+                        log_entry = await db.get(NotificationLog, notification_id)
+                        if log_entry:
+                            log_entry.delivered = delivered
+                            await db.commit()
+                    except Exception:
+                        await db.rollback()
+                        logger.exception(
+                            "Scheduled notification log delivery update failed id=%s",
+                            notification_id,
+                        )
                 if delivered:
                     sent += 1
 

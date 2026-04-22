@@ -82,20 +82,28 @@ class NotificationDispatcher:
         fingerprint: str,
     ) -> bool:
         """Check if this notification is new or changed since last send today."""
-        today = _today_et()
-        result = await db.execute(
-            select(NotificationDigest).where(
-                and_(
-                    NotificationDigest.channel == channel,
-                    NotificationDigest.symbol == symbol,
-                    NotificationDigest.trading_day == today,
+        try:
+            today = _today_et()
+            result = await db.execute(
+                select(NotificationDigest).where(
+                    and_(
+                        NotificationDigest.channel == channel,
+                        NotificationDigest.symbol == symbol,
+                        NotificationDigest.trading_day == today,
+                    )
                 )
             )
-        )
-        prev = result.scalar_one_or_none()
-        if prev is None:
-            return True  # Never sent today
-        return prev.fingerprint != fingerprint  # Changed
+            prev = result.scalar_one_or_none()
+            if prev is None:
+                return True  # Never sent today
+            return prev.fingerprint != fingerprint  # Changed
+        except Exception:
+            logger.exception(
+                "Notification digest read failed for channel=%s symbol=%s; allowing send",
+                channel,
+                symbol,
+            )
+            return True
 
     async def record(
         self,
@@ -105,29 +113,37 @@ class NotificationDispatcher:
         fingerprint: str,
     ) -> None:
         """Record that a notification was sent (upsert for today)."""
-        today = _today_et()
-        now = datetime.now(UTC)
-        result = await db.execute(
-            select(NotificationDigest).where(
-                and_(
-                    NotificationDigest.channel == channel,
-                    NotificationDigest.symbol == symbol,
-                    NotificationDigest.trading_day == today,
+        try:
+            today = _today_et()
+            now = datetime.now(UTC)
+            result = await db.execute(
+                select(NotificationDigest).where(
+                    and_(
+                        NotificationDigest.channel == channel,
+                        NotificationDigest.symbol == symbol,
+                        NotificationDigest.trading_day == today,
+                    )
                 )
             )
-        )
-        existing = result.scalar_one_or_none()
-        if existing:
-            existing.fingerprint = fingerprint
-            existing.sent_at = now
-        else:
-            db.add(NotificationDigest(
-                channel=channel,
-                symbol=symbol,
-                fingerprint=fingerprint,
-                trading_day=today,
-                sent_at=now,
-            ))
+            existing = result.scalar_one_or_none()
+            if existing:
+                existing.fingerprint = fingerprint
+                existing.sent_at = now
+            else:
+                db.add(NotificationDigest(
+                    channel=channel,
+                    symbol=symbol,
+                    fingerprint=fingerprint,
+                    trading_day=today,
+                    sent_at=now,
+                ))
+        except Exception:
+            await db.rollback()
+            logger.exception(
+                "Notification digest write failed for channel=%s symbol=%s",
+                channel,
+                symbol,
+            )
 
     async def filter_new_actions(
         self,
@@ -155,7 +171,11 @@ class NotificationDispatcher:
             sym = action.get("symbol") or action.get("sell_symbol") or ""
             fp = action_fingerprint(action)
             await self.record(db, channel, sym, fp)
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            logger.exception("Notification digest commit failed for channel=%s", channel)
 
     async def dispatch_push_signals(
         self,
@@ -209,12 +229,16 @@ class NotificationDispatcher:
         today = datetime.now(UTC).strftime("%Y-%m-%d")
 
         # Fetch enabled devices; channel-level mute is applied per-device below.
-        result = await db.execute(
-            select(DeviceRegistration).where(
-                DeviceRegistration.enabled.is_(True),
+        try:
+            result = await db.execute(
+                select(DeviceRegistration).where(
+                    DeviceRegistration.enabled.is_(True),
+                )
             )
-        )
-        devices = result.scalars().all()
+            devices = result.scalars().all()
+        except Exception:
+            logger.exception("Failed to load devices for push dispatch")
+            return
         if not devices:
             return
 
@@ -236,23 +260,34 @@ class NotificationDispatcher:
                 if calls_muted and (notifications_muted or not device.push_token):
                     continue
 
-                await notifier.notify_signal(
-                    db_session_factory=_make_session_factory(),
-                    symbol=sig_info["symbol"],
-                    signal=sig_info["signal"],
-                    strength=sig_info["strength"],
-                    score=sig_info["score"],
-                    device_token=device.device_token,
-                    push_token=device.push_token,
-                    send_call=not calls_muted,
-                    send_alert=not notifications_muted,
-                )
-                sent_any = True
+                try:
+                    await notifier.notify_signal(
+                        db_session_factory=_make_session_factory(),
+                        symbol=sig_info["symbol"],
+                        signal=sig_info["signal"],
+                        strength=sig_info["strength"],
+                        score=sig_info["score"],
+                        device_token=device.device_token,
+                        push_token=device.push_token,
+                        send_call=not calls_muted,
+                        send_alert=not notifications_muted,
+                    )
+                    sent_any = True
+                except Exception:
+                    logger.exception(
+                        "Push dispatch failed for %s to %s",
+                        sig_info["symbol"],
+                        device.device_token[:8],
+                    )
 
             if sent_any:
                 await self.record(db, "push", sig_info["symbol"], fp)
 
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            logger.exception("Failed to commit push digest updates")
 
 
 def _make_session_factory():

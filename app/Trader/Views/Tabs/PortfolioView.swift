@@ -102,9 +102,8 @@ struct PortfolioView: View {
                             }
                         }
 
-                        MobileSectionLabel("Sector Exposure")
-
                         if let actionPlan {
+                            MobileSectionLabel("Sector Exposure")
                             SectorExposureCard(exposure: actionPlan.sectorExposure)
                         }
                     }

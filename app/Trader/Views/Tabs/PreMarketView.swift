@@ -4,6 +4,7 @@ import Combine
 /// Pre-market page (from More).
 struct PreMarketView: View {
     @EnvironmentObject private var config: AppConfig
+    @EnvironmentObject private var pushManager: PushManager
 
     @State private var movers: [PremarketMover] = []
     @State private var tickerQuotes: [TickerQuote] = []
@@ -86,7 +87,12 @@ struct PreMarketView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         } else {
                             ForEach(Array(sortedMovers.enumerated()), id: \.element.id) { index, mover in
-                                PreMarketRow(mover: mover)
+                                Button {
+                                    pushManager.deepLink = .signalCheck(symbol: mover.cdrSymbol)
+                                } label: {
+                                    PreMarketRow(mover: mover)
+                                }
+                                .buttonStyle(.plain)
                                 if index < sortedMovers.count - 1 {
                                     Divider().overlay(Theme.line)
                                 }

@@ -87,7 +87,8 @@ async def check_signal(symbol: str, db: AsyncSession = Depends(get_db)):
         risk_per_share = max(0.0, price - stop_loss)
         reward_tp1 = max(0.0, take_profit_1 - price)
         reward_tp2 = max(0.0, take_profit_2 - price)
-        conviction = max(0.0, min(1.0, float(result.strength)))
+        # Use directional conviction so bearish signals do not inflate buy-side reward.
+        conviction = max(0.0, min(1.0, float(result.score) / 9.0))
         # Conviction-aware expected reward between TP1 (conservative) and TP2 (stretch).
         reward_per_share = reward_tp1 + ((reward_tp2 - reward_tp1) * conviction)
         risk_reward_ratio = (

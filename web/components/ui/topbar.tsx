@@ -48,6 +48,10 @@ export function TopBar() {
   const [extendedSessionLabel, setExtendedSessionLabel] = useState(() => getExtendedSessionLabel());
 
   const page = useMemo(() => pageLabel(pathname, extendedSessionLabel), [extendedSessionLabel, pathname]);
+  const closedMarketLabel = useMemo(
+    () => getExtendedSessionLabel(new Date(), "TSX Closed"),
+    [timeEt]
+  );
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -83,7 +87,7 @@ export function TopBar() {
 
       <div className={cn("mkt", status && !status.market_open && "closed")}>
         <span className="dot" />
-        <span>{status?.market_open ? "TSX OPEN" : extendedSessionLabel.toUpperCase()}</span>
+        <span>{status?.market_open ? "TSX OPEN" : closedMarketLabel.toUpperCase()}</span>
         <span style={{ color: "var(--surface-600)" }}>·</span>
         <span>{timeEt} ET</span>
       </div>

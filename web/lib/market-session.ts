@@ -27,6 +27,9 @@ export function getMarketSession(now = new Date()): MarketSession {
   return "postmarket";
 }
 
-export function getExtendedSessionLabel(now = new Date()): string {
-  return getMarketSession(now) === "postmarket" ? "Post-market" : "Pre-market";
+export function getExtendedSessionLabel(now = new Date(), regularLabel = "Pre-market"): string {
+  const session = getMarketSession(now);
+  if (session === "premarket") return "Pre-market";
+  if (session === "postmarket") return "Post-market";
+  return regularLabel;
 }

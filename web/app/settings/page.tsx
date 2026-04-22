@@ -1023,6 +1023,7 @@ function NumberControl({
             return;
           }
           if (e.key === "Escape") {
+            skipNextBlurCommitRef.current = true;
             setDraft(value == null ? "" : String(value));
             (e.target as HTMLInputElement).blur();
             return;

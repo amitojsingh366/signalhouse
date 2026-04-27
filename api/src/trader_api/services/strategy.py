@@ -14,7 +14,13 @@ from trader_api.services.market_data import MarketData
 from trader_api.services.portfolio import Portfolio
 from trader_api.services.risk import RiskManager
 from trader_api.services.sentiment import SentimentAnalyzer
-from trader_api.services.signals import Signal, SignalResult, compute_indicators, generate_signal
+from trader_api.services.signals import (
+    Signal,
+    SignalResult,
+    compute_indicators,
+    extract_price_from_reasons,
+    generate_signal,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1177,13 +1183,7 @@ class Strategy:
 
     @staticmethod
     def _extract_price(sig: SignalResult) -> float | None:
-        for r in sig.reasons:
-            if r.startswith("Price: $"):
-                try:
-                    return float(r.split("$")[1])
-                except (ValueError, IndexError):
-                    pass
-        return None
+        return extract_price_from_reasons(sig.reasons)
 
     async def _find_better_alternative(
         self,

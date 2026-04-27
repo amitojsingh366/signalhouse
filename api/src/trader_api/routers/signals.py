@@ -31,19 +31,10 @@ from trader_api.schemas import (
     SnoozeIn,
     SnoozeOut,
 )
+from trader_api.services.signals import extract_price_from_reasons
 from trader_api.services.strategy import Strategy
 
 router = APIRouter(prefix="/api/signals", tags=["signals"], dependencies=[Depends(require_auth)])
-
-
-def _price_from_reasons(reasons: list[str]) -> float | None:
-    for reason in reasons:
-        if reason.startswith("Price: $"):
-            try:
-                return float(reason.split("$")[1])
-            except (ValueError, IndexError):
-                return None
-    return None
 
 
 def _signal_to_out(strategy: Strategy, signal: Any) -> SignalOut:
@@ -56,7 +47,7 @@ def _signal_to_out(strategy: Strategy, signal: Any) -> SignalOut:
         sentiment_score=signal.sentiment_score,
         commodity_score=signal.commodity_score,
         reasons=signal.reasons,
-        price=_price_from_reasons(signal.reasons),
+        price=extract_price_from_reasons(signal.reasons),
         sector=strategy.get_sector(signal.symbol),
     )
 
@@ -74,7 +65,7 @@ async def check_signal(symbol: str, db: AsyncSession = Depends(get_db)):
 
     result = await strategy.analyze_symbol(symbol)
 
-    price = _price_from_reasons(result.reasons)
+    price = extract_price_from_reasons(result.reasons)
 
     fundamentals = await strategy.market_data.get_fundamentals(result.symbol)
 

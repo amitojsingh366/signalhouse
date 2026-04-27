@@ -412,6 +412,7 @@ function SignalsContent() {
 
   const openDetail = useCallback(
     (symbol: string) => {
+      setShowSnoozePopup(false);
       setDetailSymbol(symbol);
       qc.invalidateQueries({ queryKey: queryKeys.signal(symbol) });
     },
@@ -419,6 +420,7 @@ function SignalsContent() {
   );
 
   const closeDetail = useCallback(() => {
+    setShowSnoozePopup(false);
     setDetailSymbol(null);
   }, []);
 
@@ -518,13 +520,14 @@ function SignalsContent() {
 
   const selectedAction = useMemo(() => {
     if (!detailSymbol) return null;
+    const detailActions = [...allActions, ...suppressedActions];
     return (
-      allActions.find((a) => a.symbol === detailSymbol) ??
-      allActions.find((a) => a.sell_symbol === detailSymbol) ??
-      allActions.find((a) => a.buy_symbol === detailSymbol) ??
+      detailActions.find((a) => a.symbol === detailSymbol) ??
+      detailActions.find((a) => a.sell_symbol === detailSymbol) ??
+      detailActions.find((a) => a.buy_symbol === detailSymbol) ??
       null
     );
-  }, [allActions, detailSymbol]);
+  }, [allActions, suppressedActions, detailSymbol]);
 
   const filteredSections = {
     exit: viewFilter === "all" || viewFilter === "exit",
@@ -536,6 +539,8 @@ function SignalsContent() {
 
   if (detailSymbol) {
     const detailMeta = selectedAction ? sectionMeta(selectedAction) : null;
+    const canSnoozeSelected =
+      selectedAction != null && selectedAction.reason !== "Suppressed" && selectedAction.type !== "BUY";
     const parsedReasons = (checked?.reasons ?? []).map(reasonWithoutScore);
     const atrHint = (checked?.reasons ?? []).find((r) => r.toLowerCase().startsWith("atr:"));
     const volHint = (checked?.reasons ?? []).find((r) => r.toLowerCase().includes("volume"));
@@ -625,37 +630,39 @@ function SignalsContent() {
               <div className="actions">
                 {detailMeta && <span className={cn("pill-badge", detailMeta.badgeClass)}>{detailMeta.badgeText}</span>}
 
-                <div className="relative">
-                  {selectedAction?.snoozed ? (
-                    <button
-                      onClick={() => detailSymbol && handleUnsnooze(detailSymbol)}
-                      disabled={snoozing}
-                      className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10 disabled:opacity-50"
-                    >
-                      <Bell className="h-4 w-4" />
-                      Unsnooze
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setShowSnoozePopup((v) => !v)}
-                      disabled={snoozing}
-                      className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10 disabled:opacity-50"
-                    >
-                      <BellOff className="h-4 w-4" />
-                      Snooze
-                    </button>
-                  )}
-                  {showSnoozePopup && detailSymbol && (
-                    <SnoozePopup
-                      symbol={detailSymbol}
-                      onConfirm={(s, h, ind, pts) => {
-                        handleSnooze(s, h, ind, pts);
-                        setShowSnoozePopup(false);
-                      }}
-                      onClose={() => setShowSnoozePopup(false)}
-                    />
-                  )}
-                </div>
+                {canSnoozeSelected && (
+                  <div className="relative">
+                    {selectedAction.snoozed ? (
+                      <button
+                        onClick={() => detailSymbol && handleUnsnooze(detailSymbol)}
+                        disabled={snoozing}
+                        className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10 disabled:opacity-50"
+                      >
+                        <Bell className="h-4 w-4" />
+                        Unsnooze
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowSnoozePopup((v) => !v)}
+                        disabled={snoozing}
+                        className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10 disabled:opacity-50"
+                      >
+                        <BellOff className="h-4 w-4" />
+                        Snooze
+                      </button>
+                    )}
+                    {showSnoozePopup && detailSymbol && (
+                      <SnoozePopup
+                        symbol={detailSymbol}
+                        onConfirm={(s, h, ind, pts) => {
+                          handleSnooze(s, h, ind, pts);
+                          setShowSnoozePopup(false);
+                        }}
+                        onClose={() => setShowSnoozePopup(false)}
+                      />
+                    )}
+                  </div>
+                )}
 
                 <Link href={recordBuyHref} className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500">
                   <Check className="h-4 w-4" />

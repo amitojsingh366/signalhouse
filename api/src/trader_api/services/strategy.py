@@ -14,7 +14,13 @@ from trader_api.services.market_data import MarketData
 from trader_api.services.portfolio import Portfolio
 from trader_api.services.risk import RiskManager
 from trader_api.services.sentiment import SentimentAnalyzer
-from trader_api.services.signals import Signal, SignalResult, compute_indicators, generate_signal
+from trader_api.services.signals import (
+    Signal,
+    SignalResult,
+    compute_indicators,
+    extract_price_from_reasons,
+    generate_signal,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -303,14 +309,29 @@ class Strategy:
         )
         return result, sent.reasons
 
+    def _add_scan_context(
+        self,
+        result: SignalResult,
+        sent_reasons: list[str],
+        df,
+        atr: float,
+    ) -> None:
+        result.reasons.extend(sent_reasons)
+        result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
+        if atr == atr:
+            result.reasons.append(f"ATR: ${atr:.2f}")
+
     async def _scan_one(
-        self, symbol: str, sem: asyncio.Semaphore
-    ) -> SignalResult | None:
+        self,
+        symbol: str,
+        sem: asyncio.Semaphore,
+        include_suppressed: bool = False,
+    ) -> tuple[SignalResult | None, SignalResult | None]:
         """Scan a single symbol (called concurrently with semaphore)."""
         async with sem:
             df = await self.market_data.get_historical_data(symbol, period="60d")
             if df is None or len(df) < 35:
-                return None
+                return None, None
 
             df = compute_indicators(df, self.config)
             sent = await self.sentiment.analyze(symbol)
@@ -338,43 +359,74 @@ class Strategy:
 
             if standard_buy or oversold_fastlane_buy:
                 if not self._passes_liquidity_filter(df):
-                    return None
-                result.reasons.extend(sent.reasons)
-                result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
-                if atr == atr:
-                    result.reasons.append(f"ATR: ${atr:.2f}")
+                    return None, None
+                self._add_scan_context(result, sent.reasons, df, atr)
                 if oversold_fastlane_buy and not standard_buy:
                     result.reasons.append(
                         "Oversold fast-lane: early BUY allowed below standard scan threshold"
                     )
-                return result
+                return result, None
             elif result.signal == Signal.SELL and result.strength >= 0.3:
-                result.reasons.extend(sent.reasons)
-                result.reasons.append(f"Price: ${df['close'].iloc[-1]:.2f}")
-                if atr == atr:
-                    result.reasons.append(f"ATR: ${atr:.2f}")
-                return result
-            return None
+                self._add_scan_context(result, sent.reasons, df, atr)
+                return result, None
+
+            if include_suppressed and result.signal in (Signal.BUY, Signal.SELL):
+                self._add_scan_context(result, sent.reasons, df, atr)
+                if result.signal == Signal.BUY:
+                    result.reasons.append(
+                        "Suppressed: below BUY scan threshold "
+                        "(needs 35%, or 30% with oversold fast-lane guards)"
+                    )
+                else:
+                    result.reasons.append(
+                        "Suppressed: below SELL scan threshold (needs 30%)"
+                    )
+                return None, result
+
+            return None, None
 
     async def scan_universe(self) -> list[SignalResult]:
+        results, _ = await self.scan_universe_with_suppressed(
+            include_suppressed=False
+        )
+        return results
+
+    async def scan_universe_with_suppressed(
+        self,
+        include_suppressed: bool = True,
+    ) -> tuple[list[SignalResult], list[SignalResult]]:
         logger.info("Scanning %d symbols (%d concurrent)...", len(self.symbols), _SCAN_CONCURRENCY)
         sem = asyncio.Semaphore(_SCAN_CONCURRENCY)
 
-        tasks = [self._scan_one(symbol, sem) for symbol in self.symbols]
+        tasks = [
+            self._scan_one(symbol, sem, include_suppressed=include_suppressed)
+            for symbol in self.symbols
+        ]
         outcomes = await asyncio.gather(*tasks, return_exceptions=True)
 
         results: list[SignalResult] = []
+        suppressed: list[SignalResult] = []
         errors = 0
         for outcome in outcomes:
             if isinstance(outcome, Exception):
                 errors += 1
                 logger.exception("Scan error: %s", outcome)
-            elif outcome is not None:
-                results.append(outcome)
+            else:
+                accepted, withheld = outcome
+                if accepted is not None:
+                    results.append(accepted)
+                if withheld is not None:
+                    suppressed.append(withheld)
 
         results.sort(key=lambda r: r.strength, reverse=True)
-        logger.info("Scan complete: %d actionable signals, %d errors", len(results), errors)
-        return results
+        suppressed.sort(key=lambda r: r.strength, reverse=True)
+        logger.info(
+            "Scan complete: %d actionable signals, %d suppressed, %d errors",
+            len(results),
+            len(suppressed),
+            errors,
+        )
+        return results, suppressed
 
     async def get_exit_alerts(
         self, live_prices: dict[str, float]
@@ -599,7 +651,7 @@ class Strategy:
         return ranked
 
     async def get_top_recommendations(self, n: int = 5) -> dict[str, Any]:
-        all_signals = await self.scan_universe()
+        all_signals, suppressed_signals = await self.scan_universe_with_suppressed()
 
         buys = [s for s in all_signals if s.signal == Signal.BUY]
         all_sells = [s for s in all_signals if s.signal == Signal.SELL]
@@ -734,6 +786,7 @@ class Strategy:
             "buys": top_buys,
             "sells": top_sells,
             "watchlist_sells": watchlist_sells[:n],
+            "suppressed_signals": suppressed_signals,
             "funding": funding,
             "sector_exposure": exposure,
         }
@@ -1059,6 +1112,7 @@ class Strategy:
             "num_positions": num_positions,
             "max_positions": max_positions,
             "exit_alerts": exit_alerts,
+            "suppressed_signals": recs.get("suppressed_signals", []),
             "sells_count": sum(1 for a in actions if a["type"] == "SELL"),
             "buys_count": sum(1 for a in actions if a["type"] == "BUY"),
             "swaps_count": sum(1 for a in actions if a["type"] == "SWAP"),
@@ -1129,13 +1183,7 @@ class Strategy:
 
     @staticmethod
     def _extract_price(sig: SignalResult) -> float | None:
-        for r in sig.reasons:
-            if r.startswith("Price: $"):
-                try:
-                    return float(r.split("$")[1])
-                except (ValueError, IndexError):
-                    pass
-        return None
+        return extract_price_from_reasons(sig.reasons)
 
     async def _find_better_alternative(
         self,

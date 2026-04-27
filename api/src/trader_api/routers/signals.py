@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import delete, select
@@ -30,9 +31,25 @@ from trader_api.schemas import (
     SnoozeIn,
     SnoozeOut,
 )
+from trader_api.services.signals import extract_price_from_reasons
 from trader_api.services.strategy import Strategy
 
 router = APIRouter(prefix="/api/signals", tags=["signals"], dependencies=[Depends(require_auth)])
+
+
+def _signal_to_out(strategy: Strategy, signal: Any) -> SignalOut:
+    return SignalOut(
+        symbol=signal.symbol,
+        signal=signal.signal.value,
+        strength=signal.strength,
+        score=signal.score,
+        technical_score=signal.technical_score,
+        sentiment_score=signal.sentiment_score,
+        commodity_score=signal.commodity_score,
+        reasons=signal.reasons,
+        price=extract_price_from_reasons(signal.reasons),
+        sector=strategy.get_sector(signal.symbol),
+    )
 
 
 @router.get("/check/{symbol}", response_model=SignalOut)
@@ -48,13 +65,7 @@ async def check_signal(symbol: str, db: AsyncSession = Depends(get_db)):
 
     result = await strategy.analyze_symbol(symbol)
 
-    price = None
-    for r in result.reasons:
-        if r.startswith("Price: $"):
-            try:
-                price = float(r.split("$")[1])
-            except (ValueError, IndexError):
-                pass
+    price = extract_price_from_reasons(result.reasons)
 
     fundamentals = await strategy.market_data.get_fundamentals(result.symbol)
 
@@ -174,28 +185,21 @@ async def get_recommendations(n: int = 5, db: AsyncSession = Depends(get_db)):
             for a in raw_alerts
         ]
 
-    def _to_signal_out(s):
-        return SignalOut(
-            symbol=s.symbol,
-            signal=s.signal.value,
-            strength=s.strength,
-            score=s.score,
-            technical_score=s.technical_score,
-            sentiment_score=s.sentiment_score,
-            commodity_score=s.commodity_score,
-            reasons=s.reasons,
-            sector=strategy.get_sector(s.symbol),
-        )
-
-    buys = [_to_signal_out(s) for s in recs["buys"]]
-    sells = [_to_signal_out(s) for s in recs["sells"]]
-    watchlist_sells = [_to_signal_out(s) for s in recs.get("watchlist_sells", [])]
+    buys = [_signal_to_out(strategy, s) for s in recs["buys"]]
+    sells = [_signal_to_out(strategy, s) for s in recs["sells"]]
+    watchlist_sells = [
+        _signal_to_out(strategy, s) for s in recs.get("watchlist_sells", [])
+    ]
+    suppressed_signals = [
+        _signal_to_out(strategy, s) for s in recs.get("suppressed_signals", [])
+    ]
 
     return RecommendationOut(
         exit_alerts=exit_alerts,
         buys=buys,
         sells=sells,
         watchlist_sells=watchlist_sells,
+        suppressed_signals=suppressed_signals,
         funding=recs.get("funding", []),
         sector_exposure=recs.get("sector_exposure", {}),
     )
@@ -345,6 +349,9 @@ async def get_action_plan(db: AsyncSession = Depends(get_db)):
         sells_count=sum(1 for a in filtered_actions if a["type"] == "SELL"),
         buys_count=sum(1 for a in filtered_actions if a["type"] == "BUY"),
         swaps_count=sum(1 for a in filtered_actions if a["type"] == "SWAP"),
+        suppressed_signals=[
+            _signal_to_out(strategy, s) for s in plan.get("suppressed_signals", [])
+        ],
         sector_exposure=plan.get("sector_exposure", {}),
     )
 

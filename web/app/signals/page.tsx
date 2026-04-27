@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useActionPlan, useSignalCheck, queryKeys } from "@/lib/hooks";
-import type { ActionItem } from "@/lib/api";
+import type { ActionItem, SignalOut } from "@/lib/api";
 import { api } from "@/lib/api";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import { usePrivacy } from "@/lib/privacy";
@@ -192,6 +192,20 @@ function sectionMeta(action: ActionItem): {
   badgeText: string;
   urgent: boolean;
 } {
+  if (action.reason === "Suppressed") {
+    return {
+      score: action.score ?? null,
+      price: action.price ?? null,
+      delta: null,
+      symbol: action.symbol ?? "-",
+      sector: action.sector ?? null,
+      detail: action.detail,
+      badgeClass: "pb-hold",
+      badgeText: action.type === "SELL" ? "SELL <30%" : "BUY <35%",
+      urgent: false,
+    };
+  }
+
   const symbol = action.type === "SWAP"
     ? `${action.sell_symbol ?? "-"} -> ${action.buy_symbol ?? "-"}`
     : action.symbol ?? "-";
@@ -328,6 +342,32 @@ function SignalSection({
   );
 }
 
+function suppressedReason(signal: SignalOut): string {
+  return (
+    signal.reasons.find((reason) => reason.startsWith("Suppressed:")) ??
+    "Suppressed: below scan threshold"
+  );
+}
+
+function suppressedToAction(signal: SignalOut): ActionItem {
+  return {
+    type: signal.signal === "SELL" ? "SELL" : "BUY",
+    urgency: "low",
+    symbol: signal.symbol,
+    price: signal.price ?? undefined,
+    strength: signal.strength,
+    score: signal.score,
+    technical_score: signal.technical_score,
+    sentiment_score: signal.sentiment_score,
+    commodity_score: signal.commodity_score,
+    sector: signal.sector ?? undefined,
+    reasons: signal.reasons,
+    reason: "Suppressed",
+    detail: suppressedReason(signal),
+    actionable: false,
+  };
+}
+
 function SignalDetailSkeleton() {
   return (
     <div className="space-y-5">
@@ -358,7 +398,7 @@ function SignalsContent() {
   const { mask } = usePrivacy();
 
   const [detailSymbol, setDetailSymbol] = useState<string | null>(() => searchParams.get("check"));
-  const [viewFilter, setViewFilter] = useState<"all" | "exit" | "buy" | "swap" | "hold">("all");
+  const [viewFilter, setViewFilter] = useState<"all" | "exit" | "buy" | "swap" | "hold" | "suppressed">("all");
   const [snoozing, setSnoozing] = useState(false);
   const [showSnoozePopup, setShowSnoozePopup] = useState(false);
 
@@ -372,6 +412,7 @@ function SignalsContent() {
 
   const openDetail = useCallback(
     (symbol: string) => {
+      setShowSnoozePopup(false);
       setDetailSymbol(symbol);
       qc.invalidateQueries({ queryKey: queryKeys.signal(symbol) });
     },
@@ -379,6 +420,7 @@ function SignalsContent() {
   );
 
   const closeDetail = useCallback(() => {
+    setShowSnoozePopup(false);
     setDetailSymbol(null);
   }, []);
 
@@ -456,6 +498,10 @@ function SignalsContent() {
   }, [plan?.actions]);
 
   const allActions = plan?.actions ?? [];
+  const suppressedActions = useMemo(
+    () => (plan?.suppressed_signals ?? []).map(suppressedToAction),
+    [plan?.suppressed_signals]
+  );
   const activeSells = allActions.filter((a) => a.type === "SELL" && !a.snoozed);
   const activeSwaps = allActions.filter((a) => a.type === "SWAP" && !a.snoozed);
   const actionableBuys = allActions.filter((a) => a.type === "BUY" && a.actionable !== false && !a.snoozed);
@@ -474,23 +520,27 @@ function SignalsContent() {
 
   const selectedAction = useMemo(() => {
     if (!detailSymbol) return null;
+    const detailActions = [...allActions, ...suppressedActions];
     return (
-      allActions.find((a) => a.symbol === detailSymbol) ??
-      allActions.find((a) => a.sell_symbol === detailSymbol) ??
-      allActions.find((a) => a.buy_symbol === detailSymbol) ??
+      detailActions.find((a) => a.symbol === detailSymbol) ??
+      detailActions.find((a) => a.sell_symbol === detailSymbol) ??
+      detailActions.find((a) => a.buy_symbol === detailSymbol) ??
       null
     );
-  }, [allActions, detailSymbol]);
+  }, [allActions, suppressedActions, detailSymbol]);
 
   const filteredSections = {
     exit: viewFilter === "all" || viewFilter === "exit",
     buy: viewFilter === "all" || viewFilter === "buy",
     swap: viewFilter === "all" || viewFilter === "swap",
     hold: viewFilter === "all" || viewFilter === "hold",
+    suppressed: viewFilter === "all" || viewFilter === "suppressed",
   };
 
   if (detailSymbol) {
     const detailMeta = selectedAction ? sectionMeta(selectedAction) : null;
+    const canSnoozeSelected =
+      selectedAction != null && selectedAction.reason !== "Suppressed" && selectedAction.type !== "BUY";
     const parsedReasons = (checked?.reasons ?? []).map(reasonWithoutScore);
     const atrHint = (checked?.reasons ?? []).find((r) => r.toLowerCase().startsWith("atr:"));
     const volHint = (checked?.reasons ?? []).find((r) => r.toLowerCase().includes("volume"));
@@ -580,37 +630,39 @@ function SignalsContent() {
               <div className="actions">
                 {detailMeta && <span className={cn("pill-badge", detailMeta.badgeClass)}>{detailMeta.badgeText}</span>}
 
-                <div className="relative">
-                  {selectedAction?.snoozed ? (
-                    <button
-                      onClick={() => detailSymbol && handleUnsnooze(detailSymbol)}
-                      disabled={snoozing}
-                      className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10 disabled:opacity-50"
-                    >
-                      <Bell className="h-4 w-4" />
-                      Unsnooze
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setShowSnoozePopup((v) => !v)}
-                      disabled={snoozing}
-                      className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10 disabled:opacity-50"
-                    >
-                      <BellOff className="h-4 w-4" />
-                      Snooze
-                    </button>
-                  )}
-                  {showSnoozePopup && detailSymbol && (
-                    <SnoozePopup
-                      symbol={detailSymbol}
-                      onConfirm={(s, h, ind, pts) => {
-                        handleSnooze(s, h, ind, pts);
-                        setShowSnoozePopup(false);
-                      }}
-                      onClose={() => setShowSnoozePopup(false)}
-                    />
-                  )}
-                </div>
+                {canSnoozeSelected && (
+                  <div className="relative">
+                    {selectedAction.snoozed ? (
+                      <button
+                        onClick={() => detailSymbol && handleUnsnooze(detailSymbol)}
+                        disabled={snoozing}
+                        className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10 disabled:opacity-50"
+                      >
+                        <Bell className="h-4 w-4" />
+                        Unsnooze
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowSnoozePopup((v) => !v)}
+                        disabled={snoozing}
+                        className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition-colors hover:bg-white/10 disabled:opacity-50"
+                      >
+                        <BellOff className="h-4 w-4" />
+                        Snooze
+                      </button>
+                    )}
+                    {showSnoozePopup && detailSymbol && (
+                      <SnoozePopup
+                        symbol={detailSymbol}
+                        onConfirm={(s, h, ind, pts) => {
+                          handleSnooze(s, h, ind, pts);
+                          setShowSnoozePopup(false);
+                        }}
+                        onClose={() => setShowSnoozePopup(false)}
+                      />
+                    )}
+                  </div>
+                )}
 
                 <Link href={recordBuyHref} className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500">
                   <Check className="h-4 w-4" />
@@ -780,6 +832,8 @@ function SignalsContent() {
             <span className="text-emerald-400">{actionableCount} actionable</span>
             <span className="divider">|</span>
             <span className="text-slate-500">{holdSignals.length} hold</span>
+            <span className="divider">|</span>
+            <span className="text-slate-500">{suppressedActions.length} suppressed</span>
           </p>
         </div>
         <div className="actions">
@@ -806,11 +860,12 @@ function SignalsContent() {
       </div>
 
       <div className="page-tabs">
-        <button className={viewFilter === "all" ? "on" : ""} onClick={() => setViewFilter("all")}>All<span className="c">{allActions.length}</span></button>
+        <button className={viewFilter === "all" ? "on" : ""} onClick={() => setViewFilter("all")}>All<span className="c">{allActions.length + suppressedActions.length}</span></button>
         <button className={viewFilter === "exit" ? "on" : ""} onClick={() => setViewFilter("exit")}>Exit alerts<span className="c">{activeSells.length}</span></button>
         <button className={viewFilter === "buy" ? "on" : ""} onClick={() => setViewFilter("buy")}>Buy signals<span className="c">{actionableBuys.length}</span></button>
         <button className={viewFilter === "swap" ? "on" : ""} onClick={() => setViewFilter("swap")}>Swaps<span className="c">{activeSwaps.length}</span></button>
         <button className={viewFilter === "hold" ? "on" : ""} onClick={() => setViewFilter("hold")}>Holds<span className="c">{holdSignals.length}</span></button>
+        <button className={viewFilter === "suppressed" ? "on" : ""} onClick={() => setViewFilter("suppressed")}>Suppressed<span className="c">{suppressedActions.length}</span></button>
       </div>
 
       {planLoading ? (
@@ -859,7 +914,17 @@ function SignalsContent() {
             />
           )}
 
-          {allActions.length === 0 && (
+          {filteredSections.suppressed && (
+            <SignalSection
+              title="Suppressed"
+              subtitle="BUY/SELL signals below scan thresholds"
+              tone="neutral"
+              actions={suppressedActions}
+              onOpen={openDetail}
+            />
+          )}
+
+          {allActions.length === 0 && suppressedActions.length === 0 && (
             <div className="glass-card flex flex-col items-center gap-2 py-12">
               <Zap className="h-8 w-8 text-slate-600" />
               <p className="text-sm text-slate-500">No trades needed right now</p>
@@ -867,11 +932,12 @@ function SignalsContent() {
             </div>
           )}
 
-          {allActions.length > 0 &&
+          {(allActions.length > 0 || suppressedActions.length > 0) &&
             ((viewFilter === "exit" && activeSells.length === 0) ||
               (viewFilter === "buy" && actionableBuys.length === 0) ||
               (viewFilter === "swap" && activeSwaps.length === 0) ||
-              (viewFilter === "hold" && holdSignals.length === 0)) && (
+              (viewFilter === "hold" && holdSignals.length === 0) ||
+              (viewFilter === "suppressed" && suppressedActions.length === 0)) && (
               <div className="glass-card py-10 text-center text-sm text-slate-500">No signals in this filter.</div>
             )}
         </>

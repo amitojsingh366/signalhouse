@@ -133,6 +133,7 @@ export interface RecommendationOut {
   buys: SignalOut[];
   sells: SignalOut[];
   watchlist_sells: SignalOut[];
+  suppressed_signals: SignalOut[];
   funding: Record<string, unknown>[];
   sector_exposure: Record<string, unknown>;
 }
@@ -184,6 +185,7 @@ export interface ActionPlanOut {
   sells_count: number;
   buys_count: number;
   swaps_count: number;
+  suppressed_signals: SignalOut[];
   sector_exposure: Record<string, unknown>;
 }
 

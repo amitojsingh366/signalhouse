@@ -22,6 +22,8 @@ Progress tracker and roadmap. For architecture details see [ARCHITECTURE.md](ARC
 - [x] Debug page on web — `/debug` page (hidden behind 10-tap footer easter egg, persisted in localStorage for 24h) to manually trigger test push notification or VoIP call for the top signal from cached recommendations. Device dropdown (per-device or all). API: `GET /api/debug/devices`, `POST /api/debug/test-push`.
 - [x] Lower VoIP call threshold to 40% — both BUY and SELL signals now trigger CallKit push at ≥ 40% strength (was 70% buy / 50% sell). Updated `config/settings.yaml` and unified sell threshold to match buy.
 - [x] Customizable snooze — replaced fixed 4h snooze with popup (web) / sheet (iOS) offering 1h/4h/8h/24h/3d/7d/indefinite durations. Added toggleable phantom trailing stop (auto-unsnooze + push notification if loss worsens 3%+ from snooze point). DB: `indefinite` and `phantom_trailing_stop` columns on `signal_snoozes`.
+- [x] Strategy conformance audit — verified `STRATEGY.md` against signal/risk/action-plan code, fixed action ordering, kept averaged-position risk tracking aligned after add-on buys/partial sells, and corrected stale docs around drawdown gates, position sizing, oversold fast-lane guards, hybrid take-profit, and swap advice.
+- [x] Suppressed signals visibility — action-plan payload now includes BUY/SELL signals that were generated but suppressed for missing scan thresholds; web Signals page has a dedicated Suppressed tab showing score, price, sector, and suppression reason.
 
 **Notable observations:**
 - Brand theme took 3 iterations — started with purple for everything, then split P&L to standard green/red
@@ -39,6 +41,7 @@ _Check off items as they're completed. Break large items into sub-items as neede
 - [x] Fix equity curve + price chart rendering — iOS: explicit tight Y-axis domain with 10% padding (EquityChartView, SignalDetailView, ActionDetailView), Web: use `formatCurrency` for equity chart Y-axis tick labels
 - [x] Treat manual portfolio edits as capital adjustments, not PnL — `total_pnl = current_value - initial_capital` with `initial_capital` shifted on `delete_holding` (−cost basis), `update_cash` (±delta), `update_holding` (±cost delta), and re-sync. All `DailySnapshot` rows shifted by the same market-value delta so daily PnL stays stable. Empty-state (no holdings, no cash) returns zeros cleanly; fallback to `realized + unrealized` when no baseline is set.
 - [x] Consolidate settings page under a single Trading section; expose editable `settings.yaml` values — new `editable_settings` registry of dotted-path config keys (type, group, label, description, min/max/step) persisted in `app_settings`. Replaced `/api/settings/profit-taking` with generic `GET` / `PUT /api/settings/config`; router mutates the live config dict so Strategy/RiskManager pick up changes on next read. Web settings page now has one Trading card (TrendingUp icon) with grouped bool toggles + numeric inputs (commit on blur/Enter, optimistic update w/ rollback, TanStack Query invalidation). iOS `SettingsView` kept its 2-toggle UX but migrated onto the same generic endpoint via `TradingSettings.from(SettingsConfigOut)`.
+- [x] Add Suppressed tab to web Signals — below-threshold BUY/SELL candidates are visible without becoming actionable trades.
 
 ---
 
@@ -55,6 +58,7 @@ _Check off items as they're completed. Break large items into sub-items as neede
 - [ ] Earnings calendar — avoid entering before earnings
 - [ ] Longer-term trend filter (50/200 EMA)
 - [ ] NLP-based news scoring (replace keyword matching)
+- [ ] LLM research overlay — feed structured scoring data, price/ATR/volume context, portfolio/risk gates, recent sourced news, earnings/events, and sector/macro context into an LLM that returns bounded JSON (`llm_adjustment`, confidence, catalysts, risk flags, veto). LLM can veto or modestly promote borderline candidates, but cannot override drawdown/regime/sector/cash gates; paper-trade/backtest before enabling actionability.
 - [ ] Partial exits — sell half at 2% gain, trail the rest
 - [ ] VIX-based market regime detection
 

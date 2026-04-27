@@ -72,6 +72,8 @@ class Portfolio:
         self, symbol: str, quantity: float, price: float, risk: RiskManager | None = None
     ) -> dict[str, Any]:
         total = quantity * price
+        risk_entry_time = datetime.now(UTC)
+        risk_quantity = quantity
 
         result = await self.db.execute(select(Holding).where(Holding.symbol == symbol))
         existing = result.scalar_one_or_none()
@@ -83,12 +85,14 @@ class Portfolio:
             existing.avg_cost = (old_cost * old_qty + price * quantity) / new_qty
             existing.quantity = new_qty
             avg_cost = existing.avg_cost
+            risk_entry_time = existing.entry_date or risk_entry_time
+            risk_quantity = new_qty
         else:
             holding = Holding(
                 symbol=symbol,
                 quantity=quantity,
                 avg_cost=price,
-                entry_date=datetime.now(UTC),
+                entry_date=risk_entry_time,
             )
             self.db.add(holding)
             avg_cost = price
@@ -108,7 +112,23 @@ class Portfolio:
         meta.cash -= total
 
         if risk is not None:
-            risk.register_entry(symbol, price, quantity)
+            previous_trade = risk.open_trades.get(symbol)
+            highest_price: float | None = None
+            stop_price: float | None = None
+            if previous_trade is not None:
+                risk_entry_time = previous_trade.entry_time
+                highest_price = max(previous_trade.highest_price, price, avg_cost)
+                default_stop = avg_cost * (1 - risk.risk["stop_loss_pct"])
+                stop_price = max(previous_trade.stop_price, default_stop)
+
+            risk.register_entry(
+                symbol,
+                avg_cost,
+                risk_quantity,
+                entry_time=risk_entry_time,
+                highest_price=highest_price,
+                stop_price=stop_price,
+            )
 
         await self.db.commit()
         self._meta_cache = None
@@ -170,6 +190,8 @@ class Portfolio:
         if risk is not None:
             if remaining < 0.0001:
                 risk.register_exit(symbol)
+            elif symbol in risk.open_trades:
+                risk.open_trades[symbol].quantity = remaining
 
         await self.db.commit()
         self._meta_cache = None

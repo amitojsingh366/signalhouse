@@ -447,7 +447,7 @@ Discord automation is env-driven: if required Discord vars are set, bot starts; 
 - **yfinance data** — ~15 min delayed. Fine for daily-bar swing trading, not intraday.
 - **Sentiment limitations** — Analyst data updates infrequently, news is keyword-based, Fear & Greed is market-wide.
 - **CDR data gaps** — Some `.NE` symbols have spotty yfinance data. US fallback mitigates this.
-- **Risk hard limits** — 8% daily drawdown or 20% total drawdown halts all recommendations.
+- **Risk hard limits** — 8% daily drawdown or 20% total drawdown blocks new actionable BUY/SWAP recommendations; valid signals remain visible as non-actionable.
 - **Web uses Bun** — Not npm/yarn. `bun install`, `bun run dev`, `bun run build`.
 - **Anthropic API** — Required for `/upload` screenshot parsing. Uses Claude Sonnet for vision.
 - **Bot single event loop** — Bot must run init + start on one `asyncio.run()` call. asyncpg connections are bound to the event loop they were created on; a second loop causes `InterfaceError`.

@@ -93,6 +93,6 @@ git push origin main
 - No auto-execution — user trades manually via brokerage
 - yfinance data is ~15 min delayed — fine for daily-bar swing trading
 - Web uses **Bun** (not npm/yarn) for package management and builds
-- 8% daily drawdown or 20% total drawdown halts all recommendations
+- 8% daily drawdown or 20% total drawdown blocks new actionable BUY/SWAP recommendations; valid signals remain visible as non-actionable
 - Anthropic API required for screenshot parsing (vision model)
 - CDR (`.NE`) data can be spotty — falls back to US counterpart ticker

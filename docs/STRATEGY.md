@@ -159,6 +159,7 @@ To avoid missing early recovery entries after sharp pullbacks, the scan includes
 - Oversold trigger present (`RSI oversold` **or** `Price at lower Bollinger Band`)
 - Bearish crossover block (optional): reject if `EMA bearish crossover` fired
 - Sentiment floor guard: sentiment component must be above configured minimum (default `-0.25`)
+- Technical floor guard: technical component must be at least the configured minimum (default `+0.5`)
 
 This path uses a lower minimum strength (default 30%) and is intended for dip-reversal setups, while still avoiding pure falling-knife entries.
 
@@ -169,7 +170,7 @@ This path uses a lower minimum strength (default 30%) and is intended for dip-re
 ### Top Recommendations
 
 Adds portfolio context and risk gates:
-1. **Sector penalty** — Symbols in over-concentrated sectors (>40%) get strength halved — **except** same-sector swaps (which don't increase exposure)
+1. **Sector penalty** — Symbols in capped sectors (≥40%) get strength halved — **except** same-sector swaps (which don't increase exposure)
 2. **Liquidity filter** — BUY candidates below minimum 20-day average dollar volume are removed before ranking
 3. **Market regime filter** — New BUY/SWAP suggestions are blocked when the configured broad-market proxy is below its long SMA (default: VFV.TO below 200-day)
 4. **Drawdown circuit breaker** — New BUY/SWAP suggestions are blocked when daily/total drawdown limits are breached
@@ -203,7 +204,7 @@ For each held position:
 | Action | Condition |
 |--------|-----------|
 | **SELL** | Sell signal ≥ 30%, no better alternative |
-| **SWAP** | Sell signal + better alternative, OR cached sell-to-fund match |
+| **SWAP** | Sell signal + better alternative, HOLD with a much stronger alternative, OR cached sell-to-fund match |
 | **HOLD+** | Buy signal on current holding |
 | **HOLD** | No strong signal |
 
@@ -211,7 +212,7 @@ For each held position:
 
 Checked every 15 minutes for held positions only (priority order):
 1. **Stop loss hit** — price below trailing/hard stop (high severity, urgent)
-2. **Take profit** — gain ≥ 8% from entry (high severity, urgent) — lock in winners
+2. **Take profit** — gain ≥ 8% from entry (high severity, urgent) — lock in winners; optional hybrid mode can defer this only when the current signal is still a strong BUY
 3. **Max hold time** — held 7+ days (medium severity)
 4. **Sell signal** — technical SELL (≥ 30% strength) for a held position **after `min_hold_days` is met** (medium severity)
 5. **Momentum lost** — signal weakened to HOLD while position is at a loss (low severity)
@@ -269,9 +270,9 @@ risk_per_trade = portfolio_value × 2%
 shares = risk_per_trade / (2 × ATR)
 ```
 
-Constrained by max position size (50% of portfolio) and minimum 1 share.
+Constrained by max position size (30% of portfolio) and minimum 1 share.
 
-**Example**: $10,000 portfolio, stock at $50, ATR = $1.50 → risk = $200 → 66 shares ($3,300, 33%)
+**Example**: $10,000 portfolio, stock at $50, ATR = $1.50 → risk = $200 → ATR sizing allows 66 shares, then the 30% position cap limits it to 60 shares ($3,000, 30%)
 
 ---
 
@@ -284,14 +285,14 @@ Constrained by max position size (50% of portfolio) and minimum 1 share.
 | **Hard stop** | 5% below entry | Set on entry, never moves down |
 | **Trailing stop** | 3% below peak | Ratchets up, never moves down |
 | **Tightened trail** | 1.5% below peak (when gain ≥ 5%) | Automatically tightens to protect profits |
-| **Take profit** | 8% above entry | Full sell — lock in gains |
+| **Take profit** | 8% above entry | Full sell by default; optional hybrid mode can hold only if BUY conviction remains strong |
 
 ### Portfolio Circuit Breakers
 
 | Rule | Threshold | Effect |
 |------|-----------|--------|
-| Daily drawdown | 8% from day's open | Halt recommendations |
-| Total drawdown | 20% from peak | Halt until manual reset |
+| Daily drawdown | 8% from day's open | Block new actionable BUY/SWAP recommendations for the day; valid BUY signals remain visible as non-actionable |
+| Total drawdown | 20% from peak | Block new actionable BUY/SWAP recommendations until the risk state is reset; valid BUY signals remain visible as non-actionable |
 
 ### Position Limits
 

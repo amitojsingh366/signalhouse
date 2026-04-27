@@ -1040,10 +1040,13 @@ class Strategy:
                 })
                 buy_symbols_added.add(sig.symbol)
 
-        # Sort: actionable first, then by urgency (urgent → normal → low)
+        # Sort into the execution order promised by the action plan:
+        # sells first, then swaps, then actionable buys, then signal-only buys.
         urgency_order = {"urgent": 0, "normal": 1, "low": 2}
+        type_order = {"SELL": 0, "SWAP": 1, "BUY": 2}
         actions.sort(key=lambda a: (
-            0 if a.get("actionable", True) else 1,
+            1 if a["type"] == "BUY" and not a.get("actionable", True) else 0,
+            type_order.get(a["type"], 3),
             urgency_order.get(a.get("urgency", "low"), 3),
         ))
 

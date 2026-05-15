@@ -38,6 +38,15 @@ struct TradesView: View {
     @State private var quantity = ""
     @State private var price = ""
     @State private var isSubmitting = false
+    @State private var editingTrade: TradeOut?
+    @State private var editAction: TradeAction = .buy
+    @State private var editSymbol = ""
+    @State private var editQuantity = ""
+    @State private var editPrice = ""
+    @State private var isEditSubmitting = false
+    @State private var isDeletingTrade = false
+    @State private var deleteCandidate: TradeOut?
+    @State private var showDeleteConfirmation = false
     @State private var trades: [TradeOut] = []
     @State private var csvExportURL: URL?
     @State private var isLoading = true
@@ -177,6 +186,23 @@ struct TradesView: View {
                             } else {
                                 ForEach(Array(trades.enumerated()), id: \.element.id) { index, trade in
                                     TradeRow(trade: trade)
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            beginEditing(trade)
+                                        }
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                            Button(role: .destructive) {
+                                                confirmDelete(trade)
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                            Button {
+                                                beginEditing(trade)
+                                            } label: {
+                                                Label("Edit", systemImage: "pencil")
+                                            }
+                                            .tint(Theme.brand)
+                                        }
                                     if index < trades.count - 1 {
                                         Divider().overlay(Theme.line)
                                     }
@@ -202,6 +228,35 @@ struct TradesView: View {
             }
             .refreshable { await loadHistory() }
             .task { await loadHistory() }
+            .sheet(
+                isPresented: Binding(
+                    get: { editingTrade != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            editingTrade = nil
+                        }
+                    }
+                )
+            ) {
+                if let editingTrade {
+                    editTradeSheet(for: editingTrade)
+                }
+            }
+            .alert("Delete Trade?", isPresented: $showDeleteConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    if let deleteCandidate {
+                        Task { await deleteTrade(deleteCandidate, closeEditor: true) }
+                    }
+                }
+                .disabled(isDeletingTrade)
+            } message: {
+                if let deleteCandidate {
+                    Text("Remove \(deleteCandidate.action) \(deleteCandidate.symbol) from trade history and recalculate portfolio state.")
+                } else {
+                    Text("Remove this trade from trade history and recalculate portfolio state.")
+                }
+            }
         }
     }
 
@@ -258,6 +313,128 @@ struct TradesView: View {
         }
     }
 
+    @ViewBuilder
+    private func editTradeSheet(for trade: TradeOut) -> some View {
+        NavigationStack {
+            MobileScreen {
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        MobileSectionLabel("Edit Trade")
+                        MobileCard {
+                            VStack(spacing: 10) {
+                                Picker("Action", selection: $editAction) {
+                                    ForEach(TradeAction.allCases, id: \.self) { current in
+                                        Text(current.rawValue.capitalized).tag(current)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+
+                                tradeInput(
+                                    "Symbol",
+                                    text: $editSymbol,
+                                    field: .symbol,
+                                    keyboard: .asciiCapable,
+                                    uppercase: true,
+                                    submitLabel: .next
+                                )
+                                tradeInput(
+                                    "Quantity",
+                                    text: $editQuantity,
+                                    field: .quantity,
+                                    keyboard: .decimalPad,
+                                    submitLabel: .next
+                                )
+                                tradeInput(
+                                    "Price per share",
+                                    text: $editPrice,
+                                    field: .price,
+                                    keyboard: .decimalPad,
+                                    submitLabel: .done
+                                )
+
+                                if let total = editTradeTotal {
+                                    Text("Total \(Formatting.currency(total))")
+                                        .font(.system(size: 11, weight: .regular, design: .monospaced))
+                                        .foregroundStyle(Theme.textDimmed)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+
+                                if let errorMessage {
+                                    Text(errorMessage)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(Theme.negative)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+
+                                Button {
+                                    Task { await saveEditedTrade(trade) }
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        if isEditSubmitting {
+                                            ProgressView()
+                                                .tint(Color.black)
+                                        }
+                                        Text("Save changes")
+                                            .font(.system(size: 14, weight: .semibold))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .background(Theme.brand)
+                                    .foregroundStyle(Color.black)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(
+                                    editSymbol.isEmpty ||
+                                    editQuantity.isEmpty ||
+                                    editPrice.isEmpty ||
+                                    isEditSubmitting ||
+                                    isDeletingTrade
+                                )
+
+                                Button(role: .destructive) {
+                                    confirmDelete(trade)
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        if isDeletingTrade {
+                                            ProgressView()
+                                        }
+                                        Text("Delete trade")
+                                            .font(.system(size: 14, weight: .semibold))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(isEditSubmitting || isDeletingTrade)
+                            }
+                            .padding(14)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    .padding(.bottom, 40)
+                }
+            }
+            .navigationTitle("\(trade.action) \(trade.symbol)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        editingTrade = nil
+                    }
+                }
+            }
+        }
+    }
+
+    private var editTradeTotal: Double? {
+        guard let qty = Double(editQuantity), let px = Double(editPrice) else {
+            return nil
+        }
+        return qty * px
+    }
+
     private func submitTrade() async {
         guard let qty = Double(quantity), let px = Double(price) else {
             errorMessage = "Invalid quantity or price"
@@ -281,6 +458,84 @@ struct TradesView: View {
             symbol = ""
             quantity = ""
             price = ""
+            NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
+            await loadHistory()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func beginEditing(_ trade: TradeOut) {
+        editAction = trade.action.uppercased() == TradeAction.sell.rawValue ? .sell : .buy
+        editSymbol = trade.symbol
+        editQuantity = String(format: "%.4f", trade.quantity)
+        editPrice = String(format: "%.2f", trade.price)
+        successMessage = nil
+        errorMessage = nil
+        editingTrade = trade
+    }
+
+    private func confirmDelete(_ trade: TradeOut) {
+        deleteCandidate = trade
+        showDeleteConfirmation = true
+    }
+
+    private func saveEditedTrade(_ trade: TradeOut) async {
+        guard let id = trade.id else {
+            errorMessage = "Trade is missing an ID"
+            return
+        }
+        guard let qty = Double(editQuantity), let px = Double(editPrice) else {
+            errorMessage = "Invalid quantity or price"
+            return
+        }
+
+        let cleaned = editSymbol.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard !cleaned.isEmpty else {
+            errorMessage = "Symbol is required"
+            return
+        }
+
+        isEditSubmitting = true
+        successMessage = nil
+        errorMessage = nil
+        defer { isEditSubmitting = false }
+
+        do {
+            let updated = try await client.updateTrade(
+                id: id,
+                action: editAction.rawValue,
+                symbol: cleaned,
+                quantity: qty,
+                price: px
+            )
+            successMessage = "Updated \(updated.action) \(updated.symbol)"
+            editingTrade = nil
+            NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
+            await loadHistory()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func deleteTrade(_ trade: TradeOut, closeEditor: Bool = false) async {
+        guard let id = trade.id else {
+            errorMessage = "Trade is missing an ID"
+            return
+        }
+
+        isDeletingTrade = true
+        successMessage = nil
+        errorMessage = nil
+        defer { isDeletingTrade = false }
+
+        do {
+            try await client.deleteTrade(id: id)
+            successMessage = "Deleted \(trade.action) \(trade.symbol)"
+            if closeEditor || editingTrade?.id == trade.id {
+                editingTrade = nil
+            }
+            deleteCandidate = nil
             NotificationCenter.default.post(name: .portfolioDidChange, object: nil)
             await loadHistory()
         } catch {

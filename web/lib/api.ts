@@ -97,6 +97,13 @@ export interface TradeOut {
   timestamp: string | null;
 }
 
+export interface TradeUpdateInput {
+  action?: "BUY" | "SELL";
+  symbol?: string;
+  quantity?: number;
+  price?: number;
+}
+
 export interface SignalOut {
   symbol: string;
   signal: string;
@@ -365,6 +372,15 @@ export const api = {
     }),
   getTradeHistory: (limit = 50) =>
     fetchAPI<TradeOut[]>(`/api/trades/history?limit=${limit}`),
+  updateTrade: (id: number, trade: TradeUpdateInput) =>
+    fetchAPI<TradeOut>(`/api/trades/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(trade),
+    }),
+  deleteTrade: (id: number) =>
+    fetchAPI<{ status: string; id: number }>(`/api/trades/${id}`, {
+      method: "DELETE",
+    }),
 
   // Signals
   checkSignal: (symbol: string) =>

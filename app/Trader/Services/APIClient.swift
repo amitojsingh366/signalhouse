@@ -310,6 +310,35 @@ final class APIClient: ObservableObject {
         try await fetchCached("/api/trades/history?limit=\(limit)", policy: .staleWhileRevalidate(staleTime: 20))
     }
 
+    func updateTrade(
+        id: Int,
+        action: String,
+        symbol: String,
+        quantity: Double,
+        price: Double
+    ) async throws -> TradeOut {
+        struct Body: Encodable {
+            let action: String
+            let symbol: String
+            let quantity: Double
+            let price: Double
+        }
+
+        let trade: TradeOut = try await fetch(
+            "/api/trades/\(id)", method: "PUT",
+            body: Body(action: action, symbol: symbol, quantity: quantity, price: price)
+        )
+        await invalidateTradeQueries()
+        return trade
+    }
+
+    func deleteTrade(id: Int) async throws {
+        let _: [String: AnyCodable] = try await fetch(
+            "/api/trades/\(id)", method: "DELETE"
+        )
+        await invalidateTradeQueries()
+    }
+
     // MARK: - Signals
 
     func checkSignal(symbol: String) async throws -> SignalOut {

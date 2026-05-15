@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 import type {
   PortfolioSummary,
@@ -8,6 +8,7 @@ import type {
   ActionPlanOut,
   StatusOut,
   TradeOut,
+  TradeUpdateInput,
   SignalOut,
   SymbolInfo,
   PriceHistory,
@@ -37,6 +38,22 @@ export const queryKeys = {
   insights: ["insights"] as const,
   premarket: ["premarket"] as const,
 };
+
+function invalidatePortfolioAndSignals(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: queryKeys.holdings });
+  qc.invalidateQueries({ queryKey: queryKeys.pnl });
+  qc.invalidateQueries({ queryKey: queryKeys.snapshots });
+  qc.invalidateQueries({ queryKey: queryKeys.recommendations });
+  qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
+  qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
+  qc.invalidateQueries({ queryKey: queryKeys.tickerStrip });
+  qc.invalidateQueries({ queryKey: queryKeys.status });
+}
+
+function invalidateTradesPortfolioAndSignals(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: ["tradeHistory"] });
+  invalidatePortfolioAndSignals(qc);
+}
 
 // --- Query hooks ---
 
@@ -153,12 +170,7 @@ export function useRecordBuy() {
     mutationFn: ({ symbol, quantity, price }: { symbol: string; quantity: number; price: number }) =>
       api.recordBuy(symbol, quantity, price),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.holdings });
-      qc.invalidateQueries({ queryKey: queryKeys.pnl });
-      qc.invalidateQueries({ queryKey: ["tradeHistory"] });
-      qc.invalidateQueries({ queryKey: queryKeys.snapshots });
-      qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
-      qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
+      invalidateTradesPortfolioAndSignals(qc);
     },
   });
 }
@@ -169,12 +181,28 @@ export function useRecordSell() {
     mutationFn: ({ symbol, quantity, price }: { symbol: string; quantity: number; price: number }) =>
       api.recordSell(symbol, quantity, price),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.holdings });
-      qc.invalidateQueries({ queryKey: queryKeys.pnl });
-      qc.invalidateQueries({ queryKey: ["tradeHistory"] });
-      qc.invalidateQueries({ queryKey: queryKeys.snapshots });
-      qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
-      qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
+      invalidateTradesPortfolioAndSignals(qc);
+    },
+  });
+}
+
+export function useUpdateTrade() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, trade }: { id: number; trade: TradeUpdateInput }) =>
+      api.updateTrade(id, trade),
+    onSuccess: () => {
+      invalidateTradesPortfolioAndSignals(qc);
+    },
+  });
+}
+
+export function useDeleteTrade() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.deleteTrade(id),
+    onSuccess: () => {
+      invalidateTradesPortfolioAndSignals(qc);
     },
   });
 }
@@ -185,10 +213,7 @@ export function useUpdateHolding() {
     mutationFn: ({ symbol, quantity, avg_cost }: { symbol: string; quantity?: number; avg_cost?: number }) =>
       api.updateHolding(symbol, quantity, avg_cost),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.holdings });
-      qc.invalidateQueries({ queryKey: queryKeys.pnl });
-      qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
-      qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
+      invalidatePortfolioAndSignals(qc);
     },
   });
 }
@@ -198,10 +223,7 @@ export function useDeleteHolding() {
   return useMutation({
     mutationFn: (symbol: string) => api.deleteHolding(symbol),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.holdings });
-      qc.invalidateQueries({ queryKey: queryKeys.pnl });
-      qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
-      qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
+      invalidatePortfolioAndSignals(qc);
     },
   });
 }
@@ -211,10 +233,7 @@ export function useUpdateCash() {
   return useMutation({
     mutationFn: (cash: number) => api.updateCash(cash),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.holdings });
-      qc.invalidateQueries({ queryKey: queryKeys.pnl });
-      qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
-      qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
+      invalidatePortfolioAndSignals(qc);
     },
   });
 }
@@ -230,10 +249,7 @@ export function useConfirmUpload() {
   return useMutation({
     mutationFn: (holdings: UploadHolding[]) => api.confirmUpload(holdings),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.holdings });
-      qc.invalidateQueries({ queryKey: queryKeys.pnl });
-      qc.invalidateQueries({ queryKey: queryKeys.actionPlan });
-      qc.invalidateQueries({ queryKey: queryKeys.holdingsSparkRoot });
+      invalidatePortfolioAndSignals(qc);
     },
   });
 }

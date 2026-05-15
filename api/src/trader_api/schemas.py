@@ -79,6 +79,13 @@ class TradeIn(BaseModel):
     price: float
 
 
+class TradeUpdate(BaseModel):
+    action: str | None = None
+    symbol: str | None = None
+    quantity: float | None = None
+    price: float | None = None
+
+
 class TradeOut(BaseModel):
     id: int | None = None
     symbol: str

@@ -46,7 +46,7 @@ Signals are delivered through push notifications (iOS), the web dashboard, and D
 </td>
 <td width="50%">
 
-**Trades — Record buys and sells, view trade history**
+**Trades — Record, edit, delete, and audit trade history**
 ![Trades](docs/screenshots/trades.png)
 
 </td>
@@ -92,7 +92,7 @@ All services share one PostgreSQL database.
 - Click any action to view inline price chart (web) or navigate to chart detail (iOS)
 
 ### Portfolio Tracking
-- Record buys/sells via Discord, web, or iOS app
+- Record buys/sells via Discord, web, or iOS app; edit/delete trade history from web/iOS with ledger replay so cash, holdings, realized P&L, and signal action sizing stay consistent
 - Upload brokerage screenshots — Claude Vision (Anthropic API) auto-parses holdings
 - Cash tracking, daily P&L, equity curve with snapshots
 - Per-holding advice: HOLD, SELL, or SWAP with specific alternatives

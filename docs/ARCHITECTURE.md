@@ -140,12 +140,15 @@ Both call `strategy.get_top_recommendations()` → for each of ~333 symbols:
 
 User executes trades via brokerage → reports via Discord `/buy`/`/sell`, web trade form, or iOS app → `portfolio` updates holdings and P&L in PostgreSQL → `risk` manager tracks stops.
 
+Trade history can also be corrected from web or iOS. `PUT /api/trades/{id}` and `DELETE /api/trades/{id}` replay the stored trade ledger chronologically, rewriting current holdings, cash, sell-trade P&L, and risk-manager open positions from the recalculated state. These mutations invalidate cached recommendations/action plans so portfolio percentages and new signals reflect the corrected ledger.
+
 ### P&L Semantics
 
 Portfolio performance is intentionally separated from cash transfers and manual corrections:
 
 - **Cash edits (`PUT /api/portfolio/cash`)** are treated as deposit/withdraw events, not P&L events. Historical snapshots and `initial_capital` are shifted so deposits/withdrawals do not change daily or total P&L.
 - **Manual holding corrections** (`PUT /api/portfolio/holding`, `DELETE /api/portfolio/holding/{symbol}`) are treated as data fixes, not executions. They do not create fake gains/losses.
+- **Trade edits/deletes** replay the trade ledger rather than patching only the edited row. Later sell P&L, open-position cost basis, cash, and sector/position exposure are recalculated from the corrected sequence.
 - **Total P&L dollars** are computed from trading outcomes:
   `total_pnl = realized_pnl_from_sells + unrealized_pnl_on_open_positions`.
 - **Total P&L percent** uses a derived capital base:
@@ -197,6 +200,8 @@ ORM models in `api/src/trader_api/models.py`:
 | POST | `/api/trades/buy` | Record buy (updates holding, deducts cash) |
 | POST | `/api/trades/sell` | Record sell (calculates P&L, adds cash) |
 | GET | `/api/trades/history` | Last N trades |
+| PUT | `/api/trades/{id}` | Edit a trade and replay holdings/cash/P&L |
+| DELETE | `/api/trades/{id}` | Delete a trade and replay holdings/cash/P&L |
 
 ### Signals
 
@@ -344,7 +349,7 @@ Two independent schedulers run the same logical events. Both go through `Notific
 | `/` | Dashboard — portfolio value, equity curve, daily P&L, latest signals |
 | `/portfolio` | Holdings table with live prices, P&L, signal/advice per holding |
 | `/signals` | Buy/sell recommendations, watchlist alerts, score breakdowns, symbol search |
-| `/trades` | Buy/sell forms, trade history table |
+| `/trades` | Buy/sell forms, editable trade history table |
 | `/upload` | Screenshot dropzone, parsed holdings editor, confirm/cancel |
 | `/status` | Uptime, market status, symbols tracked, risk status |
 | `/settings` | Passkey management, authentication status |
@@ -363,12 +368,12 @@ Eye icon in the sidebar header toggles a "hide numbers" mode (`web/lib/privacy.t
 | Dashboard | Main | Stat cards, equity chart, latest signals, sector exposure |
 | Portfolio | Main | Holdings list with P&L, edit sheet, cash edit, signal badges |
 | Actions | Main | Action plan: sells, swaps, actionable buys, signal-only buys (not enough cash), snoozed |
-| Trades | Main | Buy/sell form, trade history |
+| Trades | Main | Buy/sell form, editable trade history |
 | Upload | More | PhotosPicker, Claude Vision parse, confirm |
 | Pre-Market | More | CDR counterpart US premarket movers |
 | Status | More | System status, notification toggle, mute today, passkey login |
 
-Tabs 0–3 appear in the main tab bar; tabs 4–6 appear in the iOS "More" section. Portfolio changes (trades, cash edits, holding edits) trigger an automatic refresh of the action plan via `NotificationCenter`.
+Tabs 0–3 appear in the main tab bar; tabs 4–6 appear in the iOS "More" section. Portfolio changes (trade create/edit/delete, cash edits, holding edits, uploads) trigger an automatic refresh of the action plan via `NotificationCenter`.
 
 ---
 

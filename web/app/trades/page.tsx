@@ -5,20 +5,29 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeftRight,
   BarChart3,
+  Check,
   Clock,
   Download,
   Loader2,
-  MoreHorizontal,
   PenLine,
   Plus,
   RefreshCw,
+  Trash2,
   TrendingUp,
   Upload,
+  X,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { TradeOut } from "@/lib/api";
-import { useTradeHistory, useRecordBuy, useRecordSell, queryKeys } from "@/lib/hooks";
+import type { TradeOut, TradeUpdateInput } from "@/lib/api";
+import {
+  useTradeHistory,
+  useRecordBuy,
+  useRecordSell,
+  useUpdateTrade,
+  useDeleteTrade,
+  queryKeys,
+} from "@/lib/hooks";
 import { formatCurrency, cn } from "@/lib/utils";
 import { usePrivacy } from "@/lib/privacy";
 import { TradesTableSkeleton } from "@/components/ui/loading";
@@ -244,6 +253,190 @@ function TradeForm({
   );
 }
 
+function EditTradePanel({
+  trade,
+  onSave,
+  onDelete,
+  onClose,
+}: {
+  trade: TradeOut;
+  onSave: (id: number, trade: TradeUpdateInput) => Promise<void>;
+  onDelete: (trade: TradeOut) => Promise<void>;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const { mask } = usePrivacy();
+  const [action, setAction] = useState<"BUY" | "SELL">(
+    trade.action === "SELL" ? "SELL" : "BUY"
+  );
+  const [symbol, setSymbol] = useState(trade.symbol);
+  const [quantity, setQuantity] = useState(trade.quantity.toString());
+  const [price, setPrice] = useState(trade.price.toString());
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    setAction(trade.action === "SELL" ? "SELL" : "BUY");
+    setSymbol(trade.symbol);
+    setQuantity(trade.quantity.toString());
+    setPrice(trade.price.toString());
+  }, [trade]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (trade.id == null) {
+      toast("This trade cannot be edited because it has no ID", "error");
+      return;
+    }
+
+    const qty = parseFloat(quantity);
+    const px = parseFloat(price);
+    const cleaned = symbol.trim().toUpperCase();
+    if (!cleaned || !Number.isFinite(qty) || !Number.isFinite(px) || qty <= 0 || px <= 0) {
+      toast("Enter a valid symbol, quantity, and price", "error");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await onSave(trade.id, {
+        action,
+        symbol: cleaned,
+        quantity: qty,
+        price: px,
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm(`Delete ${trade.action} ${trade.symbol} from trade history?`)) return;
+    setDeleting(true);
+    try {
+      await onDelete(trade);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const qty = parseFloat(quantity);
+  const px = parseFloat(price);
+  const total = Number.isFinite(qty) && Number.isFinite(px) ? qty * px : 0;
+
+  return (
+    <div className="card">
+      <div className="head">
+        <h3 className="flex items-center gap-2">
+          <PenLine className="h-4 w-4 text-brand-300" />
+          Edit trade
+        </h3>
+        <button
+          onClick={onClose}
+          className="text-slate-500 transition-colors hover:text-white"
+          aria-label="Close trade editor"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="body space-y-4">
+        <div className="grid gap-3 md:grid-cols-[160px_1fr_1fr_1fr]">
+          <div>
+            <label className="mb-1 block text-xs text-slate-500">Action</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setAction("BUY")}
+                className={cn(
+                  "rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+                  action === "BUY"
+                    ? "border-brand-500/30 bg-brand-500/20 text-brand-300"
+                    : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"
+                )}
+              >
+                Buy
+              </button>
+              <button
+                type="button"
+                onClick={() => setAction("SELL")}
+                className={cn(
+                  "rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+                  action === "SELL"
+                    ? "border-red-500/30 bg-red-500/20 text-red-300"
+                    : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"
+                )}
+              >
+                Sell
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-slate-500">Symbol</label>
+            <input
+              type="text"
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value)}
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-brand-500/50"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-slate-500">Quantity</label>
+            <input
+              type="number"
+              step="any"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-brand-500/50"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-slate-500">Price (CAD)</label>
+            <input
+              type="number"
+              step="any"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-brand-500/50"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-slate-500">
+            {formatTradeDateTime(trade.timestamp)} · total {mask(formatCurrency(total))}
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-500 disabled:opacity-60"
+            >
+              <Check className="h-4 w-4" />
+              {saving ? "Saving..." : "Save changes"}
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="inline-flex items-center gap-2 rounded-lg border border-red-500/25 bg-red-500/15 px-4 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/25 disabled:opacity-60"
+            >
+              <Trash2 className="h-4 w-4" />
+              {deleting ? "Deleting..." : "Delete"}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export default function TradesPage() {
   return (
     <Suspense>
@@ -257,7 +450,10 @@ function TradesContent() {
   const searchParams = useSearchParams();
   const qc = useQueryClient();
   const { mask } = usePrivacy();
+  const { toast } = useToast();
   const { data: trades = [], isLoading, isFetching } = useTradeHistory(100);
+  const updateTrade = useUpdateTrade();
+  const deleteTrade = useDeleteTrade();
 
   const requestedAction = searchParams.get("action");
   const intentAction: "buy" | "sell" | undefined = requestedAction === "sell"
@@ -274,6 +470,7 @@ function TradesContent() {
 
   const [showForm, setShowForm] = useState(intentOpen);
   const [filter, setFilter] = useState<TradeFilter>("all");
+  const [editingTrade, setEditingTrade] = useState<TradeOut | null>(null);
 
   useEffect(() => {
     if (intentOpen) setShowForm(true);
@@ -314,6 +511,30 @@ function TradesContent() {
 
   function refresh() {
     qc.invalidateQueries({ queryKey: queryKeys.tradeHistory(100) });
+  }
+
+  async function handleSaveTrade(id: number, trade: TradeUpdateInput) {
+    try {
+      const updated = await updateTrade.mutateAsync({ id, trade });
+      toast(`Updated ${updated.action} ${updated.symbol}`, "success");
+      setEditingTrade(null);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Trade update failed", "error");
+    }
+  }
+
+  async function handleDeleteTrade(trade: TradeOut) {
+    if (trade.id == null) {
+      toast("This trade cannot be deleted because it has no ID", "error");
+      return;
+    }
+    try {
+      await deleteTrade.mutateAsync(trade.id);
+      toast(`Deleted ${trade.action} ${trade.symbol}`, "success");
+      if (editingTrade?.id === trade.id) setEditingTrade(null);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Trade delete failed", "error");
+    }
   }
 
   function exportCsv() {
@@ -426,6 +647,15 @@ function TradesContent() {
         />
       )}
 
+      {editingTrade && (
+        <EditTradePanel
+          trade={editingTrade}
+          onSave={handleSaveTrade}
+          onDelete={handleDeleteTrade}
+          onClose={() => setEditingTrade(null)}
+        />
+      )}
+
       <div className="page-tabs">
         <button className={cn(filter === "all" && "on")} onClick={() => setFilter("all")}>All <span className="c">{filterCounts.all}</span></button>
         <button className={cn(filter === "buys" && "on")} onClick={() => setFilter("buys")}>Buys <span className="c">{filterCounts.buys}</span></button>
@@ -492,12 +722,29 @@ function TradesContent() {
                         </span>
                       </td>
                       <td>
-                        <button
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.03] text-slate-400 transition-colors hover:border-white/[0.16] hover:text-slate-200"
-                          aria-label={`Trade options for ${trade.symbol}`}
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => setEditingTrade(trade)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.03] text-slate-400 transition-colors hover:border-white/[0.16] hover:text-slate-200"
+                            aria-label={`Edit ${trade.symbol} trade`}
+                            title="Edit trade"
+                          >
+                            <PenLine className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete ${trade.action} ${trade.symbol} from trade history?`)) {
+                                void handleDeleteTrade(trade);
+                              }
+                            }}
+                            disabled={deleteTrade.isPending}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/10 text-red-300 transition-colors hover:border-red-500/35 hover:bg-red-500/20 disabled:opacity-60"
+                            aria-label={`Delete ${trade.symbol} trade`}
+                            title="Delete trade"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

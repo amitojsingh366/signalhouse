@@ -15,6 +15,12 @@ from trader_api.services.risk import RiskManager
 
 logger = logging.getLogger(__name__)
 
+_EPSILON = 0.0001
+
+
+class PortfolioReplayError(ValueError):
+    """Raised when trade history cannot be replayed into a valid portfolio."""
+
 
 class Portfolio:
     """Portfolio manager backed by PostgreSQL."""
@@ -67,6 +73,301 @@ class Portfolio:
     async def get_holdings_list(self) -> list[Holding]:
         result = await self.db.execute(select(Holding))
         return list(result.scalars().all())
+
+    @staticmethod
+    def _normalize_action(action: str) -> str:
+        normalized = action.upper()
+        if normalized not in {"BUY", "SELL"}:
+            raise PortfolioReplayError("Trade action must be BUY or SELL")
+        return normalized
+
+    @staticmethod
+    def _validate_trade_fields(
+        action: str, symbol: str, quantity: float, price: float
+    ) -> tuple[str, str, float, float]:
+        action = Portfolio._normalize_action(action)
+        symbol = symbol.upper().strip()
+        if not symbol:
+            raise PortfolioReplayError("Trade symbol is required")
+        if quantity <= 0:
+            raise PortfolioReplayError("Trade quantity must be greater than 0")
+        if price <= 0:
+            raise PortfolioReplayError("Trade price must be greater than 0")
+        return action, symbol, quantity, price
+
+    @staticmethod
+    def _serialize_trade(trade: Trade) -> dict[str, Any]:
+        return {
+            "id": trade.id,
+            "symbol": trade.symbol,
+            "action": trade.action,
+            "quantity": trade.quantity,
+            "price": trade.price,
+            "total": trade.total,
+            "pnl": trade.pnl,
+            "pnl_pct": trade.pnl_pct,
+            "timestamp": trade.timestamp.isoformat() if trade.timestamp else "",
+        }
+
+    async def _get_trades_chronological(self) -> list[Trade]:
+        result = await self.db.execute(
+            select(Trade).order_by(Trade.timestamp.asc(), Trade.id.asc())
+        )
+        return list(result.scalars().all())
+
+    async def _get_holdings_state(self) -> dict[str, dict[str, Any]]:
+        result = await self.db.execute(select(Holding))
+        return {
+            h.symbol: {
+                "symbol": h.symbol,
+                "quantity": h.quantity,
+                "avg_cost": h.avg_cost,
+                "entry_date": h.entry_date,
+            }
+            for h in result.scalars().all()
+        }
+
+    @staticmethod
+    def _state_value(
+        holdings: dict[str, dict[str, Any]],
+        cash: float,
+        live_prices: dict[str, float] | None = None,
+    ) -> float:
+        value = cash
+        prices = live_prices or {}
+        for symbol, h in holdings.items():
+            price = prices.get(symbol, h["avg_cost"])
+            value += h["quantity"] * price
+        return value
+
+    @staticmethod
+    def _avg_cost_from_sell(trade: Trade) -> float:
+        if trade.quantity <= 0:
+            return trade.price
+        if trade.pnl is not None:
+            return max(0.0, (trade.total - trade.pnl) / trade.quantity)
+        if trade.pnl_pct is not None:
+            denominator = 1 + (trade.pnl_pct / 100)
+            if denominator > _EPSILON:
+                return trade.price / denominator
+        return trade.price
+
+    @staticmethod
+    def _add_holding_lot(
+        holdings: dict[str, dict[str, Any]],
+        symbol: str,
+        quantity: float,
+        avg_cost: float,
+        entry_date: datetime | None,
+    ) -> None:
+        existing = holdings.get(symbol)
+        if existing is None:
+            holdings[symbol] = {
+                "symbol": symbol,
+                "quantity": quantity,
+                "avg_cost": avg_cost,
+                "entry_date": entry_date,
+            }
+            return
+
+        old_qty = existing["quantity"]
+        new_qty = old_qty + quantity
+        if new_qty <= _EPSILON:
+            del holdings[symbol]
+            return
+
+        existing["avg_cost"] = (
+            (existing["avg_cost"] * old_qty) + (avg_cost * quantity)
+        ) / new_qty
+        existing["quantity"] = new_qty
+        existing_entry = existing.get("entry_date")
+        if isinstance(existing_entry, datetime) and isinstance(entry_date, datetime):
+            existing["entry_date"] = min(existing_entry, entry_date)
+        elif entry_date is not None and existing_entry is None:
+            existing["entry_date"] = entry_date
+
+    @staticmethod
+    def _reverse_buy(
+        holdings: dict[str, dict[str, Any]], symbol: str, quantity: float, price: float
+    ) -> None:
+        existing = holdings.get(symbol)
+        if existing is None or existing["quantity"] + _EPSILON < quantity:
+            raise PortfolioReplayError(
+                f"Cannot recalculate trades: recorded BUY for {symbol} is "
+                "inconsistent with current holdings"
+            )
+
+        remaining_qty = existing["quantity"] - quantity
+        if remaining_qty <= _EPSILON:
+            del holdings[symbol]
+            return
+
+        remaining_cost = (existing["avg_cost"] * existing["quantity"]) - (price * quantity)
+        existing["quantity"] = remaining_qty
+        existing["avg_cost"] = max(0.0, remaining_cost / remaining_qty)
+
+    @staticmethod
+    def _reverse_trade(
+        holdings: dict[str, dict[str, Any]], cash: float, trade: Trade
+    ) -> float:
+        if trade.action == "BUY":
+            Portfolio._reverse_buy(holdings, trade.symbol, trade.quantity, trade.price)
+            return cash + trade.total
+
+        avg_cost = Portfolio._avg_cost_from_sell(trade)
+        Portfolio._add_holding_lot(
+            holdings,
+            trade.symbol,
+            trade.quantity,
+            avg_cost,
+            trade.timestamp,
+        )
+        return cash - trade.total
+
+    @staticmethod
+    def _apply_trade(
+        holdings: dict[str, dict[str, Any]], cash: float, trade: Trade
+    ) -> float:
+        trade.action, trade.symbol, trade.quantity, trade.price = Portfolio._validate_trade_fields(
+            trade.action,
+            trade.symbol,
+            trade.quantity,
+            trade.price,
+        )
+        trade.total = trade.quantity * trade.price
+
+        if trade.action == "BUY":
+            trade.pnl = None
+            trade.pnl_pct = None
+            Portfolio._add_holding_lot(
+                holdings,
+                trade.symbol,
+                trade.quantity,
+                trade.price,
+                trade.timestamp,
+            )
+            return cash - trade.total
+
+        existing = holdings.get(trade.symbol)
+        if existing is None or existing["quantity"] + _EPSILON < trade.quantity:
+            raise PortfolioReplayError(
+                f"Cannot recalculate trades: SELL {trade.id or ''} for "
+                f"{trade.symbol} has insufficient holdings"
+            )
+
+        avg_cost = existing["avg_cost"]
+        trade.pnl = (trade.price - avg_cost) * trade.quantity
+        trade.pnl_pct = (trade.price - avg_cost) / avg_cost * 100 if avg_cost > 0 else 0.0
+
+        remaining_qty = existing["quantity"] - trade.quantity
+        if remaining_qty <= _EPSILON:
+            del holdings[trade.symbol]
+        else:
+            existing["quantity"] = remaining_qty
+
+        return cash + trade.total
+
+    async def _infer_pre_trade_baseline(
+        self,
+        trades: list[Trade],
+        live_prices: dict[str, float] | None = None,
+    ) -> tuple[dict[str, dict[str, Any]], float, float]:
+        holdings = await self._get_holdings_state()
+        meta = await self._get_meta()
+        cash = meta.cash
+        current_value = self._state_value(holdings, cash, live_prices)
+
+        for trade in reversed(trades):
+            cash = self._reverse_trade(holdings, cash, trade)
+
+        return holdings, cash, current_value
+
+    async def _replace_holdings_from_state(
+        self, holdings: dict[str, dict[str, Any]]
+    ) -> None:
+        result = await self.db.execute(select(Holding))
+        for existing_holding in result.scalars().all():
+            await self.db.delete(existing_holding)
+        await self.db.flush()
+
+        for symbol in sorted(holdings):
+            holding_state = holdings[symbol]
+            if holding_state["quantity"] <= _EPSILON:
+                continue
+            self.db.add(
+                Holding(
+                    symbol=symbol,
+                    quantity=holding_state["quantity"],
+                    avg_cost=holding_state["avg_cost"],
+                    entry_date=holding_state.get("entry_date") or datetime.now(UTC),
+                )
+            )
+
+    async def _replay_trades_from_baseline(
+        self,
+        baseline_holdings: dict[str, dict[str, Any]],
+        baseline_cash: float,
+        trades: list[Trade],
+        current_value: float,
+        current_cash: float,
+        live_prices: dict[str, float] | None = None,
+        risk: RiskManager | None = None,
+    ) -> dict[str, dict[str, Any]]:
+        holdings = {
+            symbol: {
+                "symbol": h["symbol"],
+                "quantity": h["quantity"],
+                "avg_cost": h["avg_cost"],
+                "entry_date": h.get("entry_date"),
+            }
+            for symbol, h in baseline_holdings.items()
+        }
+        cash = baseline_cash
+
+        for trade in trades:
+            cash = self._apply_trade(holdings, cash, trade)
+
+        after_value = self._state_value(holdings, cash, live_prices)
+        await self._replace_holdings_from_state(holdings)
+
+        meta = await self._get_meta()
+        meta.cash = cash
+        await self._shift_snapshots(
+            portfolio_delta=after_value - current_value,
+            cash_delta=cash - current_cash,
+        )
+
+        await self.db.commit()
+        self._meta_cache = None
+
+        if risk is not None:
+            meta = await self._get_meta()
+            serialized_holdings = {
+                symbol: {
+                    "symbol": h["symbol"],
+                    "quantity": h["quantity"],
+                    "avg_cost": h["avg_cost"],
+                    "entry_date": h["entry_date"].isoformat()
+                    if isinstance(h.get("entry_date"), datetime)
+                    else h.get("entry_date", ""),
+                }
+                for symbol, h in holdings.items()
+            }
+            self.sync_risk_manager(
+                risk,
+                serialized_holdings,
+                meta.initial_capital,
+                preserve_existing_state=True,
+                live_prices=live_prices,
+            )
+
+        logger.info(
+            "Replayed %d trades into %d holdings (cash now $%.2f)",
+            len(trades),
+            len(holdings),
+            cash,
+        )
+        return holdings
 
     async def record_buy(
         self, symbol: str, quantity: float, price: float, risk: RiskManager | None = None
@@ -189,6 +490,86 @@ class Portfolio:
             "timestamp": trade.timestamp.isoformat() if trade.timestamp else "",
         }
 
+    async def update_trade(
+        self,
+        trade_id: int,
+        *,
+        action: str | None = None,
+        symbol: str | None = None,
+        quantity: float | None = None,
+        price: float | None = None,
+        risk: RiskManager | None = None,
+        live_prices: dict[str, float] | None = None,
+    ) -> dict[str, Any] | None:
+        """Edit a trade and replay the ledger so holdings and P&L stay consistent."""
+        trades = await self._get_trades_chronological()
+        trade = next((t for t in trades if t.id == trade_id), None)
+        if trade is None:
+            return None
+
+        baseline, baseline_cash, current_value = await self._infer_pre_trade_baseline(
+            trades,
+            live_prices,
+        )
+        meta = await self._get_meta()
+        current_cash = meta.cash
+
+        next_action = action if action is not None else trade.action
+        next_symbol = symbol if symbol is not None else trade.symbol
+        next_quantity = quantity if quantity is not None else trade.quantity
+        next_price = price if price is not None else trade.price
+        (
+            trade.action,
+            trade.symbol,
+            trade.quantity,
+            trade.price,
+        ) = self._validate_trade_fields(next_action, next_symbol, next_quantity, next_price)
+
+        await self._replay_trades_from_baseline(
+            baseline,
+            baseline_cash,
+            trades,
+            current_value,
+            current_cash,
+            live_prices,
+            risk,
+        )
+        await self.db.refresh(trade)
+        return self._serialize_trade(trade)
+
+    async def delete_trade(
+        self,
+        trade_id: int,
+        *,
+        risk: RiskManager | None = None,
+        live_prices: dict[str, float] | None = None,
+    ) -> bool:
+        """Delete a trade and replay the remaining ledger."""
+        trades = await self._get_trades_chronological()
+        trade = next((t for t in trades if t.id == trade_id), None)
+        if trade is None:
+            return False
+
+        baseline, baseline_cash, current_value = await self._infer_pre_trade_baseline(
+            trades,
+            live_prices,
+        )
+        meta = await self._get_meta()
+        current_cash = meta.cash
+
+        remaining_trades = [t for t in trades if t.id != trade_id]
+        await self.db.delete(trade)
+        await self._replay_trades_from_baseline(
+            baseline,
+            baseline_cash,
+            remaining_trades,
+            current_value,
+            current_cash,
+            live_prices,
+            risk,
+        )
+        return True
+
     async def sync_from_snapshot(
         self, parsed_holdings: list[dict[str, Any]], risk: RiskManager | None = None
     ) -> None:
@@ -204,15 +585,15 @@ class Portfolio:
 
         # Delete all existing holdings
         result = await self.db.execute(select(Holding))
-        for h in result.scalars().all():
-            await self.db.delete(h)
+        for existing_holding in result.scalars().all():
+            await self.db.delete(existing_holding)
 
         total_value = 0.0
         new_cost_basis = 0.0
-        for h in parsed_holdings:
-            symbol = h["symbol"]
-            quantity = h["quantity"]
-            value = h["market_value_cad"]
+        for parsed_holding in parsed_holdings:
+            symbol = parsed_holding["symbol"]
+            quantity = parsed_holding["quantity"]
+            value = parsed_holding["market_value_cad"]
             avg_cost = value / quantity if quantity > 0 else 0.0
 
             holding = Holding(
@@ -356,7 +737,7 @@ class Portfolio:
                 Trade.action == "SELL", Trade.pnl.isnot(None)
             )
         )
-        return float(result.scalar_one())
+        return float(result.scalar_one() or 0.0)
 
     async def get_portfolio_value(self, live_prices: dict[str, float]) -> float:
         meta = await self._get_meta()

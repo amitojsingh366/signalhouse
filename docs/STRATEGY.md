@@ -237,7 +237,7 @@ Each BUY action carries an `actionable` flag:
 - **`actionable=true`** — you have the cash and position slots to execute this trade. Shown as a green "Buy" action.
 - **`actionable=false`** — the signal is valid but you can't afford it. Shown in an amber "Signals" section with a reason (e.g. "Not enough cash ($50.00 available, ~$2,150.00 needed)"). Signal-only buys display the ideal position size so you can see what you'd buy if funds were available.
 
-The action plan **automatically recalculates** when portfolio state changes — recording a trade, editing cash, updating or deleting a holding, or confirming an upload all trigger a fresh computation on both web (TanStack Query invalidation) and iOS (`NotificationCenter` broadcast).
+The action plan **automatically recalculates** when portfolio state changes — recording, editing, or deleting a trade; editing cash; updating or deleting a holding; or confirming an upload all trigger a fresh computation on both web (TanStack Query invalidation) and iOS (`NotificationCenter` broadcast).
 
 ### Portfolio Performance Accounting
 
@@ -245,6 +245,7 @@ Portfolio performance metrics shown in `/api/portfolio/pnl` and `/api/signals/in
 
 - Cash deposits/withdrawals are treated as capital transfers and do not count as strategy performance.
 - Manual holding edits/deletes are treated as corrections and do not count as realized liquidation events.
+- Trade edits/deletes replay the trade ledger so later sell P&L, open holding percentages, cash, and signal action sizing are recalculated from the corrected sequence.
 - `total_pnl` is computed as `realized_pnl_from_sells + unrealized_pnl_on_open_positions`.
 - `total_pnl_pct` uses `capital_base = current_value - total_pnl`, then `total_pnl / capital_base`.
 - Result: portfolio totals stay aligned with trade history plus current holdings P&L, including when all positions are sold.

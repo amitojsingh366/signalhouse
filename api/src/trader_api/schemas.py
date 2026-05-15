@@ -143,6 +143,7 @@ class RecommendationOut(BaseModel):
     buys: list[SignalOut]
     sells: list[SignalOut]
     watchlist_sells: list[SignalOut] = []
+    suppressed_signals: list[SignalOut] = []
     funding: list[dict] = []
     sector_exposure: dict = {}
 
@@ -196,6 +197,7 @@ class ActionPlanOut(BaseModel):
     sells_count: int = 0
     buys_count: int = 0
     swaps_count: int = 0
+    suppressed_signals: list[SignalOut] = []
     sector_exposure: dict = {}
 
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -29,6 +28,17 @@ class SignalResult:
     commodity_score: float = 0.0
     commodity_reasons: list[str] = field(default_factory=list)
     meta: dict[str, float] = field(default_factory=dict)
+
+
+def extract_price_from_reasons(reasons: list[str]) -> float | None:
+    """Extract the price marker emitted by generate_signal."""
+    for reason in reasons:
+        if reason.startswith("Price: $"):
+            try:
+                return float(reason.split("$")[1])
+            except (ValueError, IndexError):
+                continue
+    return None
 
 
 def compute_indicators(df: pd.DataFrame, config: dict) -> pd.DataFrame:

@@ -55,6 +55,11 @@ function impliedFee(trade: TradeOut): number {
   return Math.max(0, Math.abs(gross - trade.total));
 }
 
+function pnlTone(value: number | null | undefined): "pos" | "neg" | "mut" {
+  if (value == null || value === 0) return "mut";
+  return value > 0 ? "pos" : "neg";
+}
+
 function TradeForm({
   onComplete,
   initialAction,
@@ -747,13 +752,15 @@ function TradesContent() {
                     <td className="font-semibold text-slate-100">{trade.symbol}</td>
                     <td className="r mono">{mask(trade.quantity.toFixed(2))}</td>
                     <td className="r mono">{mask(formatCurrency(trade.price))}</td>
-                    <td className={cn("r mono", trade.pnl == null ? "mut" : pnlColor(trade.pnl))}>
+                    <td className={cn("r mono", pnlTone(trade.pnl))}>
                       {trade.pnl == null || trade.pnl_pct == null ? (
                         "--"
                       ) : (
                         <>
                           {mask(formatCurrency(trade.pnl))}
-                          <div className="sub">{mask(formatPercent(trade.pnl_pct))}</div>
+                          <div className={cn("sub", pnlTone(trade.pnl))}>
+                            {mask(formatPercent(trade.pnl_pct))}
+                          </div>
                         </>
                       )}
                     </td>

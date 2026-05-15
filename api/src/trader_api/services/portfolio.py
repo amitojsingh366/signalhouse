@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,7 @@ from trader_api.services.risk import RiskManager
 logger = logging.getLogger(__name__)
 
 _EPSILON = 0.0001
+_MARKET_TZ = ZoneInfo("America/New_York")
 
 
 class PortfolioReplayError(ValueError):
@@ -55,6 +57,14 @@ class Portfolio:
     async def initial_capital(self) -> float:
         meta = await self._get_meta()
         return meta.initial_capital
+
+    @staticmethod
+    def _snapshot_date(now: datetime | None = None) -> str:
+        """Return the market-day key used for daily snapshots."""
+        current = now or datetime.now(UTC)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=UTC)
+        return current.astimezone(_MARKET_TZ).strftime("%Y-%m-%d")
 
     async def get_holdings_dict(self) -> dict[str, dict[str, Any]]:
         """Return holdings as a dict keyed by symbol (matches old JSON format)."""
@@ -593,7 +603,10 @@ class Portfolio:
         return True
 
     async def sync_from_snapshot(
-        self, parsed_holdings: list[dict[str, Any]], risk: RiskManager | None = None
+        self,
+        parsed_holdings: list[dict[str, Any]],
+        risk: RiskManager | None = None,
+        live_prices: dict[str, float] | None = None,
     ) -> None:
         if risk is not None:
             for sym in list(risk.open_trades.keys()):
@@ -603,7 +616,12 @@ class Portfolio:
         # initial_capital on re-syncs (treat the change as a capital adjustment,
         # not a PnL event).
         old_result = await self.db.execute(select(Holding))
-        old_cost_basis = sum(h.quantity * h.avg_cost for h in old_result.scalars().all())
+        old_holdings = list(old_result.scalars().all())
+        old_cost_basis = sum(h.quantity * h.avg_cost for h in old_holdings)
+        prices = live_prices or {}
+        old_positions_value = sum(
+            h.quantity * prices.get(h.symbol, h.avg_cost) for h in old_holdings
+        )
 
         # Delete all existing holdings
         result = await self.db.execute(select(Holding))
@@ -639,6 +657,7 @@ class Portfolio:
             # is preserved (user is correcting holdings, not realizing gains).
             cost_delta = new_cost_basis - old_cost_basis
             meta.initial_capital = max(0.0, meta.initial_capital + cost_delta)
+        await self._shift_snapshots(portfolio_delta=total_value - old_positions_value)
 
         await self.db.commit()
         self._meta_cache = None
@@ -796,7 +815,9 @@ class Portfolio:
             })
         return result
 
-    async def get_daily_pnl(self, live_prices: dict[str, float]) -> dict[str, Any]:
+    async def get_daily_pnl(
+        self, live_prices: dict[str, float], as_of: datetime | None = None
+    ) -> dict[str, Any]:
         current_value = await self.get_portfolio_value(live_prices)
         meta = await self._get_meta()
         holdings = await self.get_holdings_dict()
@@ -818,7 +839,7 @@ class Portfolio:
 
         # Find previous day's snapshot for daily P&L
         # Skip today's snapshot (if it exists) so we compare against yesterday
-        today = datetime.now(UTC).strftime("%Y-%m-%d")
+        today = self._snapshot_date(as_of)
         result = await self.db.execute(
             select(DailySnapshot)
             .where(DailySnapshot.date < today)
@@ -842,8 +863,10 @@ class Portfolio:
             "cash": meta.cash,
         }
 
-    async def record_daily_snapshot(self, live_prices: dict[str, float]) -> None:
-        today = datetime.now(UTC).strftime("%Y-%m-%d")
+    async def record_daily_snapshot(
+        self, live_prices: dict[str, float], as_of: datetime | None = None
+    ) -> None:
+        today = self._snapshot_date(as_of)
         current_value = await self.get_portfolio_value(live_prices)
         meta = await self._get_meta()
         positions_value = current_value - meta.cash

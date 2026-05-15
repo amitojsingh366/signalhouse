@@ -245,6 +245,7 @@ async def _run_close() -> None:
                 f"Daily: ${daily:+.2f} ({daily_pct:+.1f}%) · "
                 f"Total: ${total:+.2f} ({total_pct:+.1f}%)",
             )
+            await portfolio.record_daily_snapshot(prices)
         except Exception:
             logger.exception("Scheduler: close task failed")
 

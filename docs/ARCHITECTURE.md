@@ -148,12 +148,14 @@ Portfolio performance is intentionally separated from cash transfers and manual 
 
 - **Cash edits (`PUT /api/portfolio/cash`)** are treated as deposit/withdraw events, not P&L events. Historical snapshots and `initial_capital` are shifted so deposits/withdrawals do not change daily or total P&L.
 - **Manual holding corrections** (`PUT /api/portfolio/holding`, `DELETE /api/portfolio/holding/{symbol}`) are treated as data fixes, not executions. They do not create fake gains/losses.
-- **Trade edits/deletes** replay the trade ledger rather than patching only the edited row. Later sell P&L, open-position cost basis, cash, and sector/position exposure are recalculated from the corrected sequence.
+- **Brokerage upload syncs** rewrite current holdings from the confirmed snapshot. Existing daily snapshots are shifted by the market-value delta so upload corrections do not show up as same-day gains/losses.
+- **Trade edits/deletes** replay the trade ledger rather than patching only the edited row. Later sell P&L, open-position cost basis, cash, and sector/position exposure are recalculated from the corrected sequence. If a BUY was recorded when the user actually sold, editing that trade to SELL preserves its timestamp/order and recomputes realized P&L from the pre-trade cost basis; deleting the trade removes it entirely.
 - **Total P&L dollars** are computed from trading outcomes:
   `total_pnl = realized_pnl_from_sells + unrealized_pnl_on_open_positions`.
 - **Total P&L percent** uses a derived capital base:
   `capital_base = current_value - total_pnl`, then `total_pnl_pct = total_pnl / capital_base`.
   This keeps totals aligned with trade history + per-holding P&L and avoids 0% after full liquidation.
+- **Daily P&L** compares current equity with the latest prior market-day `DailySnapshot`. Snapshot keys use ET market dates, so daily P&L does not roll over early at UTC midnight.
 
 ### Screenshot Upload
 
@@ -349,7 +351,7 @@ Two independent schedulers run the same logical events. Both go through `Notific
 | `/` | Dashboard — portfolio value, equity curve, daily P&L, latest signals |
 | `/portfolio` | Holdings table with live prices, P&L, signal/advice per holding |
 | `/signals` | Buy/sell recommendations, watchlist alerts, score breakdowns, symbol search |
-| `/trades` | Buy/sell forms, editable trade history table |
+| `/trades` | Buy/sell forms with sell P&L preview, editable trade history table with realized P&L |
 | `/upload` | Screenshot dropzone, parsed holdings editor, confirm/cancel |
 | `/status` | Uptime, market status, symbols tracked, risk status |
 | `/settings` | Passkey management, authentication status |
@@ -368,7 +370,7 @@ Eye icon in the sidebar header toggles a "hide numbers" mode (`web/lib/privacy.t
 | Dashboard | Main | Stat cards, equity chart, latest signals, sector exposure |
 | Portfolio | Main | Holdings list with P&L, edit sheet, cash edit, signal badges |
 | Actions | Main | Action plan: sells, swaps, actionable buys, signal-only buys (not enough cash), snoozed |
-| Trades | Main | Buy/sell form, editable trade history |
+| Trades | Main | Buy/sell form, editable trade history with realized P&L |
 | Upload | More | PhotosPicker, Claude Vision parse, confirm |
 | Pre-Market | More | CDR counterpart US premarket movers |
 | Status | More | System status, notification toggle, mute today, passkey login |

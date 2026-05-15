@@ -96,7 +96,10 @@ async def confirm_upload(data: UploadConfirm, db: AsyncSession = Depends(get_db)
     risk = get_risk()
 
     holdings = [h.model_dump() for h in data.holdings]
-    await portfolio.sync_from_snapshot(holdings, risk)
+    current_holdings = await portfolio.get_holdings_dict()
+    symbols = sorted({*current_holdings.keys(), *(h["symbol"] for h in holdings)})
+    prices = await get_market_data().get_batch_prices(symbols) if symbols else {}
+    await portfolio.sync_from_snapshot(holdings, risk, live_prices=prices)
     Strategy.invalidate_recommendations_cache()
     return {"status": "ok", "count": len(holdings)}
 

@@ -11,8 +11,6 @@ from discord import app_commands
 from discord.ext import commands
 
 from trader_bot.bot import TraderBot
-from trader_api.services.portfolio import Portfolio
-from trader_api.services.risk import RiskManager
 
 ET = ZoneInfo("America/New_York")
 
@@ -145,7 +143,10 @@ class HoldingSelectView(discord.ui.View):
         ]
         portfolio = await self._bot.get_fresh_portfolio()
         try:
-            await portfolio.sync_from_snapshot(parsed, self._bot.risk)
+            current_holdings = await portfolio.get_holdings_dict()
+            symbols = sorted({*current_holdings.keys(), *(h["symbol"] for h in parsed)})
+            prices = await self._bot.market_data.get_batch_prices(symbols) if symbols else {}
+            await portfolio.sync_from_snapshot(parsed, self._bot.risk, live_prices=prices)
             await interaction.followup.send(
                 f"Portfolio updated with {len(parsed)} holdings."
             )

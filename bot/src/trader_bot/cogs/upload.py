@@ -8,10 +8,10 @@ from typing import Any
 import discord
 from discord import app_commands
 from discord.ext import commands
-
-from trader_bot.bot import TraderBot
 from trader_api.services.market_data import MarketData
 from trader_api.services.vision import parse_holdings_screenshot
+
+from trader_bot.bot import TraderBot
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +202,14 @@ class ConfirmUploadView(discord.ui.View):
         await interaction.response.defer()
         portfolio = await self._bot.get_fresh_portfolio()
         try:
-            await portfolio.sync_from_snapshot(self.parsed, self._bot.risk)
+            current_holdings = await portfolio.get_holdings_dict()
+            symbols = sorted({*current_holdings.keys(), *(h["symbol"] for h in self.parsed)})
+            prices = await self._bot.market_data.get_batch_prices(symbols) if symbols else {}
+            await portfolio.sync_from_snapshot(
+                self.parsed,
+                self._bot.risk,
+                live_prices=prices,
+            )
             await interaction.followup.send(
                 f"Portfolio updated with {len(self.parsed)} holdings."
             )

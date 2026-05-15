@@ -19,8 +19,9 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { TradeOut, TradeUpdateInput } from "@/lib/api";
+import type { HoldingAdvice, TradeOut, TradeUpdateInput } from "@/lib/api";
 import {
+  useHoldings,
   useTradeHistory,
   useRecordBuy,
   useRecordSell,
@@ -28,7 +29,7 @@ import {
   useDeleteTrade,
   queryKeys,
 } from "@/lib/hooks";
-import { formatCurrency, cn } from "@/lib/utils";
+import { formatCurrency, formatPercent, pnlColor, cn } from "@/lib/utils";
 import { usePrivacy } from "@/lib/privacy";
 import { TradesTableSkeleton } from "@/components/ui/loading";
 import { useToast } from "@/components/ui/toast";
@@ -59,11 +60,13 @@ function TradeForm({
   initialAction,
   initialSymbol,
   initialPrice,
+  holdings,
 }: {
   onComplete: () => void;
   initialAction?: "buy" | "sell";
   initialSymbol?: string;
   initialPrice?: number | null;
+  holdings: HoldingAdvice[];
 }) {
   const { toast } = useToast();
   const { mask } = usePrivacy();
@@ -157,6 +160,21 @@ function TradeForm({
   }
 
   const submitting = recordBuy.isPending || recordSell.isPending;
+  const qty = parseFloat(quantity);
+  const px = parseFloat(price);
+  const total = Number.isFinite(qty) && Number.isFinite(px) ? qty * px : null;
+  const selectedHolding = holdings.find((holding) => (
+    holding.symbol.toUpperCase() === symbol.trim().toUpperCase()
+  ));
+  const sellPnl = action === "sell" && selectedHolding && Number.isFinite(qty) && Number.isFinite(px)
+    ? (px - selectedHolding.avg_cost) * qty
+    : null;
+  const sellPnlPct = sellPnl != null && selectedHolding && selectedHolding.avg_cost > 0
+    ? ((px - selectedHolding.avg_cost) / selectedHolding.avg_cost) * 100
+    : null;
+  const sellExceedsHolding = action === "sell" && selectedHolding && Number.isFinite(qty)
+    ? qty > selectedHolding.quantity
+    : false;
 
   return (
     <div className="card">
@@ -234,8 +252,24 @@ function TradeForm({
           </div>
         </div>
 
-        {symbol && quantity && price && (
-          <p className="text-xs text-slate-500">Total: {mask(formatCurrency(parseFloat(quantity) * parseFloat(price)))}</p>
+        {symbol && total != null && (
+          <div className="space-y-1 text-xs text-slate-500">
+            <p>Total: {mask(formatCurrency(total))}</p>
+            {action === "sell" && selectedHolding && sellPnl != null && sellPnlPct != null && (
+              <p className={cn("font-medium", pnlColor(sellPnl))}>
+                Est. realized P&amp;L: {mask(formatCurrency(sellPnl))} ({mask(formatPercent(sellPnlPct))})
+                <span className="text-slate-500"> · avg cost {mask(formatCurrency(selectedHolding.avg_cost))}</span>
+              </p>
+            )}
+            {sellExceedsHolding && selectedHolding && (
+              <p className="text-amber-300">
+                Quantity exceeds current holding of {mask(selectedHolding.quantity.toFixed(4))} shares.
+              </p>
+            )}
+            {action === "sell" && !selectedHolding && symbol.trim() && (
+              <p className="text-amber-300">No current holding found for this symbol.</p>
+            )}
+          </div>
         )}
 
         <button
@@ -452,6 +486,7 @@ function TradesContent() {
   const { mask } = usePrivacy();
   const { toast } = useToast();
   const { data: trades = [], isLoading, isFetching } = useTradeHistory(100);
+  const { data: portfolio } = useHoldings();
   const updateTrade = useUpdateTrade();
   const deleteTrade = useDeleteTrade();
 
@@ -644,6 +679,7 @@ function TradesContent() {
           initialAction={intentAction}
           initialSymbol={intentSymbol}
           initialPrice={intentPrice}
+          holdings={portfolio?.holdings ?? []}
         />
       )}
 
@@ -695,60 +731,66 @@ function TradesContent() {
                   <th>Symbol</th>
                   <th className="r">Qty</th>
                   <th className="r">Price</th>
-                  <th className="r">Fee</th>
+                  <th className="r">P&amp;L</th>
                   <th className="r">Total</th>
                   <th>Source</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((trade, index) => {
-                  const fee = impliedFee(trade);
-                  return (
-                    <tr key={`${trade.id ?? "trade"}-${trade.timestamp ?? index}`}>
-                      <td className="mono mut">{formatTradeDateTime(trade.timestamp)}</td>
-                      <td>
-                        <span className={cn("pill-badge", trade.action === "BUY" ? "pb-buy" : "pb-sell")}>{trade.action}</span>
-                      </td>
-                      <td className="font-semibold text-slate-100">{trade.symbol}</td>
-                      <td className="r mono">{mask(trade.quantity.toFixed(2))}</td>
-                      <td className="r mono">{mask(formatCurrency(trade.price))}</td>
-                      <td className="r mono mut">{mask(formatCurrency(fee))}</td>
-                      <td className="r mono">{mask(formatCurrency(trade.total))}</td>
-                      <td>
-                        <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
-                          <PenLine className="h-3.5 w-3.5" />
-                          manual
-                        </span>
-                      </td>
-                      <td>
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => setEditingTrade(trade)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.03] text-slate-400 transition-colors hover:border-white/[0.16] hover:text-slate-200"
-                            aria-label={`Edit ${trade.symbol} trade`}
-                            title="Edit trade"
-                          >
-                            <PenLine className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`Delete ${trade.action} ${trade.symbol} from trade history?`)) {
-                                void handleDeleteTrade(trade);
-                              }
-                            }}
-                            disabled={deleteTrade.isPending}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/10 text-red-300 transition-colors hover:border-red-500/35 hover:bg-red-500/20 disabled:opacity-60"
-                            aria-label={`Delete ${trade.symbol} trade`}
-                            title="Delete trade"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {filtered.map((trade, index) => (
+                  <tr key={`${trade.id ?? "trade"}-${trade.timestamp ?? index}`}>
+                    <td className="mono mut">{formatTradeDateTime(trade.timestamp)}</td>
+                    <td>
+                      <span className={cn("pill-badge", trade.action === "BUY" ? "pb-buy" : "pb-sell")}>{trade.action}</span>
+                    </td>
+                    <td className="font-semibold text-slate-100">{trade.symbol}</td>
+                    <td className="r mono">{mask(trade.quantity.toFixed(2))}</td>
+                    <td className="r mono">{mask(formatCurrency(trade.price))}</td>
+                    <td className={cn("r mono", trade.pnl == null ? "mut" : pnlColor(trade.pnl))}>
+                      {trade.pnl == null || trade.pnl_pct == null ? (
+                        "--"
+                      ) : (
+                        <>
+                          {mask(formatCurrency(trade.pnl))}
+                          <div className="sub">{mask(formatPercent(trade.pnl_pct))}</div>
+                        </>
+                      )}
+                    </td>
+                    <td className="r mono">{mask(formatCurrency(trade.total))}</td>
+                    <td>
+                      <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+                        <PenLine className="h-3.5 w-3.5" />
+                        manual
+                      </span>
+                    </td>
+                    <td>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => setEditingTrade(trade)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.03] text-slate-400 transition-colors hover:border-white/[0.16] hover:text-slate-200"
+                          aria-label={`Edit ${trade.symbol} trade`}
+                          title="Edit trade"
+                        >
+                          <PenLine className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete ${trade.action} ${trade.symbol} from trade history?`)) {
+                              void handleDeleteTrade(trade);
+                            }
+                          }}
+                          disabled={deleteTrade.isPending}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/10 text-red-300 transition-colors hover:border-red-500/35 hover:bg-red-500/20 disabled:opacity-60"
+                          aria-label={`Delete ${trade.symbol} trade`}
+                          title="Delete trade"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
 
                 {filtered.length === 0 && (
                   <tr>

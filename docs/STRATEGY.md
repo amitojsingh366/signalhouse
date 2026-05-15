@@ -246,9 +246,11 @@ Portfolio performance metrics shown in `/api/portfolio/pnl` and `/api/signals/in
 
 - Cash deposits/withdrawals are treated as capital transfers and do not count as strategy performance.
 - Manual holding edits/deletes are treated as corrections and do not count as realized liquidation events.
-- Trade edits/deletes replay the trade ledger so later sell P&L, open holding percentages, cash, and signal action sizing are recalculated from the corrected sequence.
+- Brokerage upload syncs are also corrections: existing snapshots are shifted by the portfolio market-value delta so daily P&L remains a market move, not an upload artifact.
+- Trade edits/deletes replay the trade ledger so later sell P&L, open holding percentages, cash, and signal action sizing are recalculated from the corrected sequence. For an accidental BUY that should have been a SELL, edit the trade action to SELL to preserve timestamp order and recompute realized P&L.
 - `total_pnl` is computed as `realized_pnl_from_sells + unrealized_pnl_on_open_positions`.
 - `total_pnl_pct` uses `capital_base = current_value - total_pnl`, then `total_pnl / capital_base`.
+- `daily_pnl` compares current equity against the latest prior ET market-day snapshot and does not feed into realized or total P&L.
 - Result: portfolio totals stay aligned with trade history plus current holdings P&L, including when all positions are sold.
 
 #### Signal Snoozing

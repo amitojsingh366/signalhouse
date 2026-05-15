@@ -92,9 +92,9 @@ All services share one PostgreSQL database.
 - Click any action to view inline price chart (web) or navigate to chart detail (iOS)
 
 ### Portfolio Tracking
-- Record buys/sells via Discord, web, or iOS app; edit/delete trade history from web/iOS with ledger replay so cash, holdings, realized P&L, and signal action sizing stay consistent
-- Upload brokerage screenshots — Claude Vision (Anthropic API) auto-parses holdings
-- Cash tracking, daily P&L, equity curve with snapshots
+- Record buys/sells via Discord, web, or iOS app; edit/delete trade history from web/iOS with ledger replay so cash, holdings, realized P&L, and signal action sizing stay consistent; sell rows show realized P&L dollars and percent
+- Upload brokerage screenshots — Claude Vision (Anthropic API) auto-parses holdings and sync corrections without polluting daily P&L
+- Cash tracking, daily P&L based on ET market-day snapshots, equity curve with snapshots
 - Per-holding advice: HOLD, SELL, or SWAP with specific alternatives
 
 ### Risk Management

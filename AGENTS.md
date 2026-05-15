@@ -73,7 +73,7 @@ git push origin main
 
 **Signal pipeline:** Technical analysis (TA-Lib, ±6) → sentiment (analyst + F&G + news, ±2) → commodity correlation (±1) → score ≥ +2 = BUY, ≤ -2 = SELL. See [STRATEGY.md](docs/STRATEGY.md).
 
-**Action plan:** `GET /api/signals/actions` returns prioritized, position-sized trade instructions (sells → swaps → actionable buys → signal-only buys). BUY actions carry `actionable` flag — false if insufficient cash or max positions reached (signal still shown, just not executable). Auto-recalculates on trade create/edit/delete, cash changes, holding changes, and upload syncs. Exit triggers: stop loss (5%), take profit (8%), trailing stop (3%, tightens to 1.5% at 5% gain), max hold time (7d), momentum decay, technical sell signals.
+**Action plan:** `GET /api/signals/actions` returns prioritized, position-sized trade instructions (sells → swaps → actionable buys → signal-only buys). BUY actions carry `actionable` flag — false if insufficient cash or max positions reached (signal still shown, just not executable). Auto-recalculates on trade create/edit/delete, cash changes, holding changes, and upload syncs. P&L totals come from realized sells + unrealized open positions; daily P&L compares against the latest prior ET market-day snapshot. Exit triggers: stop loss (5%), take profit (8%), trailing stop (3%, tightens to 1.5% at 5% gain), max hold time (7d), momentum decay, technical sell signals.
 
 **Key files:**
 - Business logic: `api/src/trader_api/services/` (signals, strategy, portfolio, risk, sentiment, commodity, notifications)
